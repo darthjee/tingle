@@ -1,38 +1,121 @@
 #!/usr/bin/env bash
 #
 # tingle - CLI hub that dispatches to the actual implementation scripts
-# registered in commands/*.sh.
+# registered in commands/*.json.
 #
 set -euo pipefail
 
 TINGLE_FOLDER="$(cd "$(dirname "$0")/.." && pwd)"
+COMMANDS_DIR="$TINGLE_FOLDER/commands"
+
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required to run tingle but was not found on PATH." >&2
+    exit 1
+fi
 
 shopt -s nullglob
-cmd_files=("$TINGLE_FOLDER/commands/"*.sh)
+cmd_files=("$COMMANDS_DIR"/*.json)
 if [ ${#cmd_files[@]} -eq 0 ]; then
-    echo "Error: no command mapping files found in $TINGLE_FOLDER/commands/" >&2
+    echo "Error: no command mapping files found in $COMMANDS_DIR" >&2
     exit 1
 fi
 
-available_commands=()
+# Deterministic, alphabetical load order.
+IFS=$'\n' cmd_files=($(printf '%s\n' "${cmd_files[@]}" | sort)); unset IFS
+
+# Parallel arrays keyed by index (portable across bash versions; no
+# associative arrays required).
+command_names=()
+command_paths=()
+command_short_helps=()
+command_long_helps=()
+
+# Prints the index of $1 in command_names, or nothing if absent.
+find_command_index() {
+    local target="$1"
+    local i
+    for i in "${!command_names[@]}"; do
+        if [ "${command_names[$i]}" = "$target" ]; then
+            echo "$i"
+            return 0
+        fi
+    done
+}
+
 for cmd_file in "${cmd_files[@]}"; do
-    source "$cmd_file"
+    if ! jq empty "$cmd_file" >/dev/null 2>&1; then
+        echo "Error: failed to parse '$cmd_file' as JSON." >&2
+        exit 1
+    fi
+
     while IFS= read -r name; do
-        available_commands+=("$name")
-    done < <(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$cmd_file" | sed 's/=$//')
+        [ -z "$name" ] && continue
+
+        existing_index="$(find_command_index "$name")"
+        if [ -n "$existing_index" ]; then
+            # First file to define a command name wins.
+            continue
+        fi
+
+        path="$(jq -r --arg name "$name" '.[$name].path // ""' "$cmd_file")"
+        short_help="$(jq -r --arg name "$name" '.[$name].short_help // ""' "$cmd_file")"
+        long_help="$(jq -r --arg name "$name" '.[$name].long_help // ""' "$cmd_file")"
+
+        [ -z "$short_help" ] && short_help="(no description)"
+        [ -z "$long_help" ] && long_help="(no description)"
+
+        command_names+=("$name")
+        command_paths+=("$path")
+        command_short_helps+=("$short_help")
+        command_long_helps+=("$long_help")
+    done < <(jq -r 'keys_unsorted[]' "$cmd_file")
 done
 
-if [ $# -eq 0 ]; then
-    echo "Usage: tingle <command> [args...]" >&2
+print_commands_list() {
+    echo "Commands:"
+    local i
+    for i in "${!command_names[@]}"; do
+        printf "  %-13s %s\n" "${command_names[$i]}" "${command_short_helps[$i]}"
+    done
+}
+
+print_general_help() {
+    echo "Usage: tingle <command> [args...]"
+    echo
+    print_commands_list
+}
+
+command_not_found() {
+    echo "Error: command '$1' not found." >&2
+    print_commands_list >&2
     exit 1
+}
+
+if [ $# -eq 0 ]; then
+    print_general_help
+    exit 0
 fi
 
-path="${!1:-}"
-if [ -z "$path" ]; then
-    echo "Error: command '$1' not found." >&2
-    echo "Available commands: $(IFS=,; echo "${available_commands[*]}")" >&2
-    exit 1
+if { [ "$1" = "help" ] || [ "$1" = "--help" ]; } && [ $# -eq 1 ]; then
+    print_general_help
+    exit 0
+fi
+
+if [ "$1" = "--help" ]; then
+    command_name="$2"
+    index="$(find_command_index "$command_name")"
+    if [ -z "$index" ]; then
+        command_not_found "$command_name"
+    fi
+    echo "${command_long_helps[$index]}"
+    exit 0
+fi
+
+command_name="$1"
+index="$(find_command_index "$command_name")"
+if [ -z "$index" ]; then
+    command_not_found "$command_name"
 fi
 shift
 
-exec "$TINGLE_FOLDER/$path" "$@"
+exec "$TINGLE_FOLDER/${command_paths[$index]}" "$@"
