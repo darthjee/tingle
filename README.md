@@ -25,7 +25,7 @@ its part. Like Tingle, the project is light, versatile and a bit peculiar.
 ```
 tingle/
 ├── bin/            # Callable entry points (on PATH), calling into shell/python/node
-├── commands/       # Per-language command mappings (commands/<lang>.sh) sourced by bin/tingle
+├── commands/       # Per-language command mappings (commands/<lang>.json) loaded by bin/tingle
 ├── shell/          # Bash/Shell scripts
 ├── python/         # Python scripts
 ├── node/           # Node.js scripts
@@ -37,16 +37,23 @@ tingle/
 | Script | Language | Description |
 | --- | --- | --- |
 | `check_file_size` | Python | Token efficiency triage: lists source files by line count against configurable warn/error/critical thresholds. |
-| `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.sh` mappings. |
+| `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
 
 ## Commands
 
 `bin/tingle` resolves the command name given as its first argument against
-the mappings defined in `commands/*.sh` (one file per language) and executes
-the matching script. These `commands/*.sh` files are sourced as trusted shell
-code, not sandboxed data — anyone who can write to `commands/` can execute
-arbitrary code via `bin/tingle`, so treat that directory with the same care
-as any other executable script in this repository.
+the mappings defined in `commands/*.json` (one file per language, loaded in
+alphabetical order — `node.json`, `python.json`, `shell.json`) and executes
+the matching script. Each entry maps a command name to `{"path",
+"short_help", "long_help"}`; on a name collision across files, the first
+file that defines the name wins. These `commands/*.json` files are inert
+JSON data, not sourced/executed code, and are read via `jq` (a required
+dependency for `bin/tingle`).
+
+Run `tingle`, `tingle help`, or `tingle --help` with no further arguments to
+list all available commands with their short descriptions. Run `tingle
+--help <command>` to see a command's full description. An unknown command
+prints an error along with the same command listing, and exits non-zero.
 
 ## Usage
 
