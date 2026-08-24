@@ -27,7 +27,7 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-path="${!1}"
+path="${!1:-}"
 if [ -z "$path" ]; then
     echo "Error: command '$1' not found." >&2
     echo "Available commands: $(IFS=,; echo "${available_commands[*]}")" >&2
