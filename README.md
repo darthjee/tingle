@@ -35,7 +35,7 @@ tingle/
 
 | Script | Language | Description |
 | --- | --- | --- |
-| *(add here)* | | |
+| `check_file_size` | Python | Token efficiency triage: lists source files by line count against configurable warn/error/critical thresholds. |
 
 ## Usage
 
