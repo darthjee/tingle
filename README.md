@@ -25,6 +25,7 @@ its part. Like Tingle, the project is light, versatile and a bit peculiar.
 ```
 tingle/
 ├── bin/            # Callable entry points (on PATH), calling into shell/python/node
+├── commands/       # Per-language command mappings (commands/<lang>.sh) sourced by bin/tingle
 ├── shell/          # Bash/Shell scripts
 ├── python/         # Python scripts
 ├── node/           # Node.js scripts
@@ -36,6 +37,16 @@ tingle/
 | Script | Language | Description |
 | --- | --- | --- |
 | `check_file_size` | Python | Token efficiency triage: lists source files by line count against configurable warn/error/critical thresholds. |
+| `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.sh` mappings. |
+
+## Commands
+
+`bin/tingle` resolves the command name given as its first argument against
+the mappings defined in `commands/*.sh` (one file per language) and executes
+the matching script. These `commands/*.sh` files are sourced as trusted shell
+code, not sandboxed data — anyone who can write to `commands/` can execute
+arbitrary code via `bin/tingle`, so treat that directory with the same care
+as any other executable script in this repository.
 
 ## Usage
 
