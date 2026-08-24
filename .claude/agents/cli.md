@@ -15,6 +15,9 @@ You own everything inside `bin/`:
   thin wrapper that dispatches to the actual implementation in `shell/`,
   `python/`, or `node/`.
 
+You also own `commands/` — per-language mapping files (`commands/<lang>.sh`)
+that `bin/tingle` sources to resolve command names to script paths.
+
 You are responsible for the user-facing CLI contract: consistent argument
 parsing, `--help` output, and exit codes across wrappers, regardless of which
 language backs them.

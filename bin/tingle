@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#
+# tingle - CLI hub that dispatches to the actual implementation scripts
+# registered in commands/*.sh.
+#
+set -euo pipefail
+
+TINGLE_FOLDER="$(cd "$(dirname "$0")/.." && pwd)"
+
+shopt -s nullglob
+cmd_files=("$TINGLE_FOLDER/commands/"*.sh)
+if [ ${#cmd_files[@]} -eq 0 ]; then
+    echo "Error: no command mapping files found in $TINGLE_FOLDER/commands/" >&2
+    exit 1
+fi
+
+available_commands=()
+for cmd_file in "${cmd_files[@]}"; do
+    source "$cmd_file"
+    while IFS= read -r name; do
+        available_commands+=("$name")
+    done < <(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$cmd_file" | sed 's/=$//')
+done
+
+if [ $# -eq 0 ]; then
+    echo "Usage: tingle <command> [args...]" >&2
+    exit 1
+fi
+
+path="${!1:-}"
+if [ -z "$path" ]; then
+    echo "Error: command '$1' not found." >&2
+    echo "Available commands: $(IFS=,; echo "${available_commands[*]}")" >&2
+    exit 1
+fi
+shift
+
+exec "$TINGLE_FOLDER/$path" "$@"
