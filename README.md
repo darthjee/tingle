@@ -24,6 +24,7 @@ its part. Like Tingle, the project is light, versatile and a bit peculiar.
 
 ```
 tingle/
+├── bin/            # Callable entry points (on PATH), calling into shell/python/node
 ├── shell/          # Bash/Shell scripts
 ├── python/         # Python scripts
 ├── node/           # Node.js scripts
