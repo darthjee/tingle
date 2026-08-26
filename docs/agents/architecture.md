@@ -32,6 +32,12 @@ Callable entry points intended to be placed on `PATH`. Each file here is a
 thin wrapper that dispatches to the actual implementation in `shell/`,
 `python/`, or `node/` — this is the only folder users should invoke directly.
 
+### `completions/`
+
+Holds the bash completion script(s) for `tingle`, namely
+`completions/tingle.bash`. This script is sourced from `~/.bashrc` by
+`tingle install`.
+
 ## Conventions
 
 - Each script is self-contained: no shared internal library or cross-script

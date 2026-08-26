@@ -8,6 +8,7 @@
 | `shell/`        | Bash/Shell utility scripts. |
 | `python/`       | Python utility scripts. |
 | `node/`         | Node.js utility scripts. |
+| `completions/`  | Holds the bash completion script(s) for `tingle` (`completions/tingle.bash`), sourced from `~/.bashrc` by `tingle install`. |
 | `docs/agents/`  | Agent-facing documentation (architecture, flow, plans, issues). |
 | `.github/`      | GitHub templates (PR and commit message templates, Copilot instructions). |
 | `README.md`     | Project overview, name origin, and usage instructions. |
