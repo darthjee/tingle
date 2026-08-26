@@ -26,6 +26,7 @@ its part. Like Tingle, the project is light, versatile and a bit peculiar.
 tingle/
 ├── bin/            # Callable entry points (on PATH), calling into shell/python/node
 ├── commands/       # Per-language command mappings (commands/<lang>.json) loaded by bin/tingle
+├── completions/    # Bash completion script for tingle
 ├── shell/          # Bash/Shell scripts
 ├── python/         # Python scripts
 ├── node/           # Node.js scripts
@@ -38,6 +39,7 @@ tingle/
 | --- | --- | --- |
 | `check_file_size` | Python | Token efficiency triage: lists source files by line count against configurable warn/error/critical thresholds. |
 | `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
+| `install` | Shell | Adds `tingle` to `PATH` and installs bash completion, by idempotently appending a marker block to `~/.bashrc`. |
 
 ## Commands
 
@@ -54,6 +56,11 @@ Run `tingle`, `tingle help`, or `tingle --help` with no further arguments to
 list all available commands with their short descriptions. Run `tingle
 --help <command>` to see a command's full description. An unknown command
 prints an error along with the same command listing, and exits non-zero.
+
+Run `tingle install` to wire up `tingle` for interactive shell use: it
+idempotently appends a marker block to `~/.bashrc` that adds `tingle` to
+`PATH` and sources `completions/tingle.bash`, enabling `tingle <TAB>` bash
+completion of command names.
 
 ## Usage
 
