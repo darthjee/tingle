@@ -9,6 +9,5 @@ No linter config exists yet. Once scripts are added, set these up and wire
 each into a `.claude/scripts/check_<agent-name>.sh`:
 
 - `shell` — `shellcheck shell/**/*.sh`
-- `python` — `ruff check python/`
 - `node` — `npx eslint node/`
 - `cli` — check command for `bin/` entry points (TBD once conventions are set)
