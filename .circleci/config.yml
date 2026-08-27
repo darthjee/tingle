@@ -36,4 +36,4 @@ jobs:
           command: pytest
       - run:
           name: Upload coverage to Codacy
-          command: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -r python/coverage.xml
+          command: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -r coverage.xml
