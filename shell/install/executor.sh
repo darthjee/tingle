@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install.sh - Installs tingle onto PATH and enables its bash completion.
+# executor.sh - Installs tingle onto PATH and enables its bash completion.
 #
 # Appends a marker block to ~/.bashrc that:
 #   - Adds the repo's bin/ folder to PATH.
@@ -17,7 +17,7 @@
 #
 set -euo pipefail
 
-TINGLE_FOLDER="$(cd "$(dirname "$0")/.." && pwd)"
+TINGLE_FOLDER="$(cd "$(dirname "$0")/../.." && pwd)"
 BASHRC="$HOME/.bashrc"
 
 MARKER_START="# >>> tingle >>>"
