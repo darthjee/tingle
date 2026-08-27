@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-check_file_size.py — Token efficiency triage: file size analysis.
+executor.py — Token efficiency triage: file size analysis.
 
 Analyzes source files and lists them by size (line count), classifying
 them by configurable thresholds. Useful for identifying token consumption
@@ -85,16 +85,16 @@ class CheckFileSize:
             },
         ]
 
-    def run(self):
+    def run(self, args: list[str]):
         """Entry point for the script."""
         arg_parser = ArgParser(self._flags())
 
         # No arguments → show help and exit
-        if len(sys.argv) == 1:
+        if len(args) == 0:
             arg_parser.build().print_help()
             sys.exit(0)
 
-        args = arg_parser.parse()
+        args = arg_parser.parse(args)
         target = Path(args["path"]).resolve()
 
         if not target.exists():
@@ -135,7 +135,3 @@ class CheckFileSize:
             results = results[:args["top"]]
 
         Reporter(analyzer, target).report(results)
-
-
-if __name__ == "__main__":
-    CheckFileSize().run()
