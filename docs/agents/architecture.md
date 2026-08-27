@@ -62,6 +62,13 @@ it splits into `constants.py`, `skip_checks.py`, `file_collector.py`,
 `CheckFileSize` orchestrator class (the entry point that `commands/*.json`
 still points at).
 
+#### Test folder location
+
+Tests for `python/` live under `python/tests/`, mirroring the package layout
+under `python/` (e.g. `python/tests/check_file_size/`,
+`python/tests/common/`), rather than a top-level `tests/`. Future Python
+commands under this repo should follow the same pattern.
+
 ### `bin/`
 
 Callable entry points intended to be placed on `PATH`. Each file here is a
@@ -73,6 +80,12 @@ thin wrapper that dispatches to the actual implementation in `shell/`,
 Holds the bash completion script(s) for `tingle`, namely
 `completions/tingle.bash`. This script is sourced from `~/.bashrc` by
 `tingle install`.
+
+### `.circleci/`
+
+Holds the CI pipeline config (`.circleci/config.yml`). Owned by `architect`,
+since CI is cross-cutting rather than belonging to a single language
+specialist.
 
 ## Conventions
 

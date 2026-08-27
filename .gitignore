@@ -1,1 +1,7 @@
 .claude/state/
+
+# Python test/coverage artifacts
+python/.coverage
+python/coverage.xml
+python/.pytest_cache/
+python/**/__pycache__/
