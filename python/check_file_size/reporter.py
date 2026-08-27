@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """reporter.py — Print the results table and summary."""
 
 from __future__ import annotations

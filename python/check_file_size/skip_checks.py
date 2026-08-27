@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """skip_checks.py — Determine whether a file should be skipped from analysis."""
 
 from __future__ import annotations

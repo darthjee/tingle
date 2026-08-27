@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 arg_parser.py — Generic, reusable command-line argument parser.
 

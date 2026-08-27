@@ -22,8 +22,7 @@ Do NOT touch `shell/`, `node/`, `bin/`, or `docs/agents/`.
 
 ## Commands
 
-No lint/check command is configured yet. See the outstanding item in
-`docs/agents/todo.md` (ruff/flake8).
+`ruff check python/`
 
 ## Conventions
 
