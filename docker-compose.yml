@@ -1,0 +1,7 @@
+services:
+  tingle_tests:
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    volumes:
+      - ./python:/app
