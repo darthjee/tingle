@@ -22,7 +22,9 @@ Do NOT touch `shell/`, `node/`, `bin/`, or `docs/agents/`.
 
 ## Commands
 
-`ruff check python/`
+- `ruff check python/`
+- `pytest` (run from `python/`; config in `python/pyproject.toml`)
+- `docker-compose run --rm tingle_tests pytest`
 
 ## Conventions
 
