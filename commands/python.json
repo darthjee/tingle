@@ -1,6 +1,6 @@
 {
   "check_file_size": {
-    "path": "python/check_file_size/check_file_size.py",
+    "path": "python/check_file_size/main.py",
     "short_help": "Token efficiency triage: file size analysis.",
     "long_help": "Analyzes source files and lists them by size (line count), classifying them by configurable thresholds. Useful for identifying token consumption bottlenecks before feeding a repository to an AI.\n\nUsage:\n    ./check_file_size.py <path> [options]\n\nExamples:\n    ./check_file_size.py ./src\n    ./check_file_size.py ./src --warn 300 --error 500 --critical 1000\n    ./check_file_size.py ./src --top 20\n    ./check_file_size.py ./src --exclude node_modules,dist,build\n    ./check_file_size.py ./src --ext .py --ext .js"
   }
