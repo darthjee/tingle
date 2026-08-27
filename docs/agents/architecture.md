@@ -26,17 +26,38 @@ or third-party libraries.
 Node.js scripts. Best fit for tasks that benefit from the npm ecosystem
 (e.g. working with JSON/APIs).
 
+### Command entrypoint convention
+
+Every command's entry point is `<language>/<command>/main.<extension>` (e.g.
+`python/check_file_size/main.py`, `shell/install/main.sh`) — this is the file
+`commands/*.json`'s `path` field points at, and the only thing `bin/tingle`
+dispatches to.
+
+- `main.<ext>` is a thin dispatcher, never invoked directly by the user with
+  raw command args: `bin/tingle` (or the completion hub) always prepends a
+  leading flow verb, `run` or `complete`, as argv[1] / `$1`. `main.<ext>`
+  reads that verb and forwards the rest of argv (argv[2:]) to either:
+  - the executor, `<command>/executor.<ext>`, for `run`; or
+  - the completion handler, `<command>/completion.<ext>`, for `complete`.
+- Completion is opt-in per command. The completion hub (see `completions/`
+  below) detects support by checking whether `completion.<ext>` exists next
+  to a command's `main.<ext>` — it never invokes `main.<ext> complete` to
+  probe for support. Commands without a `completion.<ext>` (e.g.
+  `check_file_size`, `install`) get the hub's generic native file/folder
+  completion fallback instead.
+- A completion handler receives raw argv, including a possibly-empty
+  trailing element for the word currently being typed, and must not run it
+  through a strict parser (e.g. `argparse`) — that trailing empty string is
+  significant and would break/be rejected by a strict parser.
+
 ### Breaking a command down once it outgrows a single file
 
-Most Python (and other language) scripts stay a single file. Once a
-command's logic grows too large for one file, break it down following this
-pattern instead of inventing a one-off structure:
+Most Python (and other language) scripts stay a single file for their
+executor. Once a command's logic grows too large for one file, break it down
+following this pattern instead of inventing a one-off structure:
 
-- Commands are still registered in `commands/*.json`, pointing at their
-  implementation entry point; `bin/tingle` remains the single hub that
-  dispatches to it — this never changes.
-- The command's entry point stays a thin shell: parse args, instantiate the
-  orchestrator class, call it, exit.
+- The executor (`executor.<ext>`) stays a thin shell: parse args, instantiate
+  the orchestrator class, call it, exit.
 - Reusable/common code (e.g. the generic argument parser) lives in
   `python/common/` (or the equivalent `<lang>/common/` folder), not inside
   the command's own package.
@@ -57,10 +78,9 @@ pattern instead of inventing a one-off structure:
   after the command.
 
 `python/check_file_size/` is the first example of this pattern in practice:
-it splits into `constants.py`, `skip_checks.py`, `file_collector.py`,
-`file_analyzer.py`, `reporter.py`, and `check_file_size.py`, which holds the
-`CheckFileSize` orchestrator class (the entry point that `commands/*.json`
-still points at).
+it splits into `main.py` (the `run`/`complete` dispatcher), `executor.py`
+(holds the `CheckFileSize` orchestrator class), `constants.py`,
+`skip_checks.py`, `file_collector.py`, `file_analyzer.py`, and `reporter.py`.
 
 #### Test folder location
 
@@ -77,9 +97,17 @@ thin wrapper that dispatches to the actual implementation in `shell/`,
 
 ### `completions/`
 
-Holds the bash completion script(s) for `tingle`, namely
-`completions/tingle.bash`. This script is sourced from `~/.bashrc` by
-`tingle install`.
+Holds the bash completion scripts for `tingle`:
+
+- `completions/tingle.bash` — central hub, sourced from `~/.bashrc` by
+  `tingle install`. Sources the two files below and registers the
+  `complete -F` dispatcher for the `tingle` command.
+- `completions/bash/tingle.sh` — level-one completion: command names (reads
+  `commands/*.json`).
+- `completions/bash/commands.sh` — level-two completion: command-specific
+  arguments. Delegates to a command's own `completion.<ext>` via
+  `tingle resolve <cmd>` when one exists, or falls back to native
+  file/folder completion (`compgen -f` + `compopt -o filenames`) otherwise.
 
 ### `.circleci/`
 
