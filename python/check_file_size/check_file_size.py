@@ -24,11 +24,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from check_file_size.constants import Constants  # noqa: E402
-from check_file_size.file_analyzer import FileAnalyzer  # noqa: E402
-from check_file_size.file_collector import FileCollector  # noqa: E402
-from check_file_size.reporter import Reporter  # noqa: E402
-from common.arg_parser import ArgParser  # noqa: E402
+from check_file_size.constants import Constants
+from check_file_size.file_analyzer import FileAnalyzer
+from check_file_size.file_collector import FileCollector
+from check_file_size.reporter import Reporter
+from common.arg_parser import ArgParser
 
 
 class CheckFileSize:

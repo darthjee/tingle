@@ -1,7 +1,8 @@
-#!/usr/bin/env python3
 """constants.py — Immutable configuration for check_file_size."""
 
 from __future__ import annotations
+
+from typing import ClassVar
 
 
 class Constants:
@@ -20,14 +21,14 @@ class Constants:
     GRAY = "\033[90m"
 
     # Default directories to exclude
-    DEFAULT_EXCLUDES = [
+    DEFAULT_EXCLUDES: ClassVar[list[str]] = [
         "node_modules", "dist", "build", ".git", "vendor",
         "third_party", ".next", "__pycache__", ".cache",
         "coverage", ".nuxt", "out", "target",
     ]
 
     # Binary file extensions — skipped automatically
-    BINARY_EXTENSIONS = {
+    BINARY_EXTENSIONS: ClassVar[set[str]] = {
         # Images
         ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".svg",
         ".tiff", ".tif", ".raw", ".heic", ".avif",

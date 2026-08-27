@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """file_analyzer.py — Count lines and classify files by threshold."""
 
 from __future__ import annotations

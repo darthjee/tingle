@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """file_collector.py — Walk paths recursively, applying exclusions and filters."""
 
 from __future__ import annotations
