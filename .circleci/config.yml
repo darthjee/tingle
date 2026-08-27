@@ -4,10 +4,11 @@ workflows:
   version: 2
   test:
     jobs:
-      - test
+      - lint
+      - tests
 
 jobs:
-  test:
+  lint:
     docker:
       - image: cimg/python:3.11
     working_directory: ~/project/python
@@ -20,6 +21,19 @@ jobs:
       - run:
           name: Lint
           command: ruff check .
+  tests:
+    docker:
+      - image: cimg/python:3.11
+    working_directory: ~/project/python
+    steps:
+      - checkout:
+          path: ~/project
+      - run:
+          name: Install dependencies
+          command: pip install -r requirements-dev.txt
       - run:
           name: Tests
           command: pytest
+      - run:
+          name: Upload coverage to Codacy
+          command: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -r coverage.xml
