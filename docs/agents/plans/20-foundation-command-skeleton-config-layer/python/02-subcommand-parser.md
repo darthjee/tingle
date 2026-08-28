@@ -1,0 +1,6 @@
+# Build the subcommand-aware parser
+
+`switch`, `list`, `shell`, and `configure` each take a different argument shape (`switch <context_alias>`; `list namespace` or `list pods --namespace=<alias>`; `shell <namespace_alias> <pod_alias>`; `configure context|namespace|pod`), so this needs `argparse` subparsers rather than the flat flag-list `python/common/arg_parser.py` supports — per the issue's confirmed decision, `arg_parser.py` stays untouched and keeps serving `check_file_size` only. Build a dedicated parser scoped to `python/kube/`, returning a plain `dict` (matching `ArgParser.parse()`'s return shape for consistency) that at minimum identifies which subcommand was invoked (e.g. `{"subcommand": "switch", "context_alias": "qa"}`) plus that subcommand's own parsed arguments. No subcommand's arguments need to be validated beyond `argparse`'s own type/`required` handling — deeper validation (e.g. "does this alias exist") starts in later child issues.
+
+## Files to Change
+- `python/kube/parser.py` — new. A `KubeArgParser` (or similar) class wrapping `argparse.ArgumentParser` with `add_subparsers()`, one subparser per `switch`/`list`/`shell`/`configure` (and `list`/`configure`'s own second-level subcommands: `namespace`/`pods` and `context`/`namespace`/`pod` respectively). Exposes a `.parse(argv)` method returning a `dict`.
