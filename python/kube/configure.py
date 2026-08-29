@@ -196,3 +196,198 @@ def _configure_context_remove(config: KubeConfig, draft: dict, contexts: dict) -
     draft["pods"] = pods
 
     _save(config, draft, f"kube configure: context alias '{alias}' removed.")
+
+
+def _pick_scope(contexts: dict) -> str | None:
+    """Prompt to pick a context alias to scope namespace/pod configuration to."""
+    if not contexts:
+        print(
+            "kube configure: no context aliases configured yet — "
+            "run `kube configure context` first."
+        )
+        return None
+
+    print("Configured context aliases:")
+    return _prompt_alias_choice(sorted(contexts.keys()), "a context alias")
+
+
+def configure_namespace(config: KubeConfig) -> None:
+    """Interactively create, edit, or remove a namespace alias within a scope."""
+    draft = dict(config.raw)
+    contexts = dict(draft.get("contexts", {}))
+
+    scope = _pick_scope(contexts)
+    if scope is None:
+        return
+
+    namespaces = dict(draft.get("namespaces", {}))
+    scoped = dict(namespaces.get(scope, {}))
+
+    if scoped:
+        print(f"Configured namespace aliases for '{scope}':")
+        for alias, real_name in scoped.items():
+            print(f"  {alias} -> {real_name}")
+    else:
+        print(f"No namespace aliases configured yet for '{scope}'.")
+
+    action = _prompt_action()
+    if action is None:
+        _abort()
+        return
+
+    if action in ("create", "edit"):
+        _configure_namespace_upsert(config, draft, namespaces, scoped, scope, action)
+    else:
+        _configure_namespace_remove(config, draft, namespaces, scoped, scope)
+
+
+def _configure_namespace_upsert(
+    config: KubeConfig, draft: dict, namespaces: dict, scoped: dict, scope: str, action: str
+) -> None:
+    default_alias = None
+    if action == "edit":
+        if not scoped:
+            print("kube configure: no namespace aliases to edit.")
+            return
+        default_alias = _prompt_alias_choice(sorted(scoped.keys()), "an alias to edit")
+        if default_alias is None:
+            _abort()
+            return
+
+    alias = _prompt_text("Alias", default=default_alias)
+    if not alias:
+        _abort()
+        return
+
+    real_name = _prompt_text("Real namespace name", default=scoped.get(alias))
+    if not real_name:
+        _abort()
+        return
+
+    scoped[alias] = real_name
+    namespaces[scope] = scoped
+    draft["namespaces"] = namespaces
+
+    _save(config, draft, f"kube configure: namespace alias '{alias}' saved under '{scope}'.")
+
+
+def _configure_namespace_remove(
+    config: KubeConfig, draft: dict, namespaces: dict, scoped: dict, scope: str
+) -> None:
+    if not scoped:
+        print("kube configure: no namespace aliases to remove.")
+        return
+
+    alias = _prompt_alias_choice(sorted(scoped.keys()), "an alias to remove")
+    if alias is None:
+        _abort()
+        return
+
+    del scoped[alias]
+    namespaces[scope] = scoped
+    draft["namespaces"] = namespaces
+
+    _save(config, draft, f"kube configure: namespace alias '{alias}' removed from '{scope}'.")
+
+
+def configure_pod(config: KubeConfig) -> None:
+    """Interactively create, edit, or remove a pod alias within a scope."""
+    draft = dict(config.raw)
+    contexts = dict(draft.get("contexts", {}))
+
+    scope = _pick_scope(contexts)
+    if scope is None:
+        return
+
+    pods = dict(draft.get("pods", {}))
+    scoped = dict(pods.get(scope, {}))
+
+    if scoped:
+        print(f"Configured pod aliases for '{scope}':")
+        for alias, pod in scoped.items():
+            print(f"  {alias} -> {pod}")
+    else:
+        print(f"No pod aliases configured yet for '{scope}'.")
+
+    action = _prompt_action()
+    if action is None:
+        _abort()
+        return
+
+    if action in ("create", "edit"):
+        namespaces = dict(draft.get("namespaces", {}))
+        scoped_namespaces = namespaces.get(scope, {})
+        _configure_pod_upsert(config, draft, pods, scoped, scope, action, scoped_namespaces)
+    else:
+        _configure_pod_remove(config, draft, pods, scoped, scope)
+
+
+def _configure_pod_upsert(
+    config: KubeConfig,
+    draft: dict,
+    pods: dict,
+    scoped: dict,
+    scope: str,
+    action: str,
+    scoped_namespaces: dict,
+) -> None:
+    default_alias = None
+    existing: dict = {}
+    if action == "edit":
+        if not scoped:
+            print("kube configure: no pod aliases to edit.")
+            return
+        default_alias = _prompt_alias_choice(sorted(scoped.keys()), "an alias to edit")
+        if default_alias is None:
+            _abort()
+            return
+        existing = scoped.get(default_alias, {})
+
+    alias = _prompt_text("Alias", default=default_alias)
+    if not alias:
+        _abort()
+        return
+
+    prefix = _prompt_text("prefix", default=existing.get("prefix"))
+    if not prefix:
+        _abort()
+        return
+
+    id_pattern = _prompt_id_pattern(default=existing.get("id_pattern"))
+
+    if scoped_namespaces:
+        print(f"Configured namespace aliases for '{scope}':")
+        for ns_alias in sorted(scoped_namespaces.keys()):
+            print(f"  - {ns_alias}")
+    namespace = _prompt_optional_text("namespace alias", default=existing.get("namespace"))
+
+    pod: dict = {"prefix": prefix}
+    if id_pattern:
+        pod["id_pattern"] = id_pattern
+    if namespace:
+        pod["namespace"] = namespace
+
+    scoped[alias] = pod
+    pods[scope] = scoped
+    draft["pods"] = pods
+
+    _save(config, draft, f"kube configure: pod alias '{alias}' saved under '{scope}'.")
+
+
+def _configure_pod_remove(
+    config: KubeConfig, draft: dict, pods: dict, scoped: dict, scope: str
+) -> None:
+    if not scoped:
+        print("kube configure: no pod aliases to remove.")
+        return
+
+    alias = _prompt_alias_choice(sorted(scoped.keys()), "an alias to remove")
+    if alias is None:
+        _abort()
+        return
+
+    del scoped[alias]
+    pods[scope] = scoped
+    draft["pods"] = pods
+
+    _save(config, draft, f"kube configure: pod alias '{alias}' removed from '{scope}'.")
