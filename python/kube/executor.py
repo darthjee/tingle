@@ -17,8 +17,11 @@ Usage:
 
 from __future__ import annotations
 
+from kube.auth import check_aws_credentials
 from kube.config import KubeConfig
+from kube.constants import Constants
 from kube.parser import KubeArgParser
+from kube.scope import list_available_contexts, resolve_context_alias, switch_context
 
 
 class Kube:
@@ -32,23 +35,49 @@ class Kube:
         if config.pass_through:
             print(config.notice)
 
-        handler = self._handlers().get(parsed["subcommand"])
+        handler = self._handlers(config).get(parsed["subcommand"])
         if handler:
             handler(parsed)
 
-    def _handlers(self) -> dict:
-        """Map each subcommand to its stub handler."""
+    def _handlers(self, config: KubeConfig) -> dict:
+        """Map each subcommand to its handler."""
         return {
-            "switch": self._switch,
+            "switch": lambda parsed: self._switch(parsed, config),
             "list": self._list,
             "shell": self._shell,
             "configure": self._configure,
         }
 
     @staticmethod
-    def _switch(parsed: dict) -> None:
-        """Stub handler for `kube switch <context_alias>` (real logic: issue #21)."""
-        print(f"kube switch: not yet implemented (context_alias={parsed['context_alias']})")
+    def _switch(parsed: dict, config: KubeConfig) -> None:
+        """Handle `kube switch <context_alias>`: resolve, pre-check, switch, validate."""
+        context_alias = parsed["context_alias"]
+        contexts = config.data.get("contexts", {})
+
+        real_name, notice = resolve_context_alias(contexts, context_alias)
+        if notice:
+            print(notice)
+
+        aws_profile = config.data.get("aws_profile", Constants.DEFAULT_AWS_PROFILE)
+        credentials_ok, credentials_error = check_aws_credentials(aws_profile)
+        if not credentials_ok:
+            print(
+                f"kube switch: AWS credential check failed for profile "
+                f"'{aws_profile}': {credentials_error}"
+            )
+            return
+
+        success, error = switch_context(real_name)
+        if success:
+            print(f"kube switch: now using context '{context_alias}' ({real_name})")
+            return
+
+        print(f"kube switch: failed to switch to '{real_name}': {error}")
+        available = list_available_contexts(contexts)
+        if available:
+            print("kube switch: available contexts:")
+            for name in available:
+                print(f"  - {name}")
 
     @staticmethod
     def _list(parsed: dict) -> None:
