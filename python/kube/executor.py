@@ -186,15 +186,27 @@ class Kube:
             return
 
         for alias, alias_config in pods.items():
+            prefix = alias_config["prefix"]
             matched = match_pods(
                 items,
-                alias_config["prefix"],
+                prefix,
                 alias_config.get("id_pattern"),
                 default_id_pattern,
             )
             print(f"{alias}:")
             for pod in matched:
                 print(f"  - {pod['metadata']['name']}")
+
+            if not matched:
+                discarded = [
+                    item["metadata"]["name"]
+                    for item in items
+                    if item["metadata"]["name"].startswith(prefix)
+                ]
+                if discarded:
+                    print(f"  kube list: candidates discarded by id_pattern for '{alias}':")
+                    for name in discarded:
+                        print(f"    - {name}")
 
     @staticmethod
     def _shell(parsed: dict, config: KubeConfig) -> None:
