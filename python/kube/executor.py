@@ -165,7 +165,12 @@ class Kube:
             return
 
         default_id_pattern = config.data.get("pod_id_pattern", Constants.DEFAULT_POD_ID_PATTERN)
-        pods = active_scope_pods(config.data.get("pods", {}), active_scope)
+        scoped_pods = active_scope_pods(config.data.get("pods", {}), active_scope)
+        pods = {
+            alias: alias_config
+            for alias, alias_config in scoped_pods.items()
+            if alias_config.get("namespace") in (None, parsed["namespace"])
+        }
 
         if parsed.get("json"):
             payload = []
