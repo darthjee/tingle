@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 parser.py — Subcommand-aware argument parser for kube.
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 config.py — Load, validate, and default ~/.tingle/kube/config.json.
 
