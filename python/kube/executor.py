@@ -20,7 +20,8 @@ from __future__ import annotations
 from kube.auth import check_aws_credentials
 from kube.config import KubeConfig
 from kube.constants import Constants
-from kube.inventory import list_namespaces, list_pods
+from kube.exec import exec_shell, prompt_pod_choice
+from kube.inventory import get_pod, list_namespaces, list_pods
 from kube.matching import match_pods
 from kube.parser import KubeArgParser
 from kube.scope import (
@@ -53,7 +54,7 @@ class Kube:
         return {
             "switch": lambda parsed: self._switch(parsed, config),
             "list": lambda parsed: self._list(parsed, config),
-            "shell": self._shell,
+            "shell": lambda parsed: self._shell(parsed, config),
             "configure": self._configure,
         }
 
@@ -167,12 +168,79 @@ class Kube:
                 print(f"  - {pod['metadata']['name']}")
 
     @staticmethod
-    def _shell(parsed: dict) -> None:
-        """Stub handler for `kube shell <namespace_alias> <pod_alias>` (real logic: issue #23)."""
-        print(
-            "kube shell: not yet implemented "
-            f"(namespace_alias={parsed['namespace_alias']}, pod_alias={parsed['pod_alias']})"
+    def _shell(parsed: dict, config: KubeConfig) -> None:
+        """Handle `kube shell <namespace_alias> <pod_alias>`: resolve, pre-check, exec."""
+        if not Kube._check_aws_credentials(config):
+            return
+
+        active_scope = detect_active_scope(config.data.get("contexts", {}))
+
+        namespaces = config.data.get("namespaces", {})
+        real_namespace, namespace_notice = resolve_namespace_alias(
+            namespaces, active_scope, parsed["namespace_alias"]
         )
+        if namespace_notice:
+            print(namespace_notice)
+
+        pod_alias = parsed["pod_alias"]
+        scoped_pods = active_scope_pods(config.data.get("pods", {}), active_scope)
+
+        if pod_alias not in scoped_pods:
+            notice = (
+                f"kube: '{pod_alias}' not found in configured pods — using it as-is."
+            )
+            print(notice)
+            real_pod = pod_alias
+        else:
+            alias_config = scoped_pods[pod_alias]
+            default_id_pattern = config.data.get(
+                "pod_id_pattern", Constants.DEFAULT_POD_ID_PATTERN
+            )
+
+            items, error = list_pods(real_namespace)
+            if error:
+                print(error)
+                return
+
+            prefix = alias_config["prefix"]
+            matched = match_pods(
+                items, prefix, alias_config.get("id_pattern"), default_id_pattern
+            )
+
+            if not matched:
+                print(f"kube shell: no pods matched alias '{pod_alias}' in '{real_namespace}'")
+                discarded = [
+                    item["metadata"]["name"]
+                    for item in items
+                    if item["metadata"]["name"].startswith(prefix)
+                ]
+                if discarded:
+                    print("kube shell: candidates discarded by id_pattern:")
+                    for name in discarded:
+                        print(f"  - {name}")
+                return
+
+            if len(matched) == 1:
+                real_pod = matched[0]["metadata"]["name"]
+            else:
+                chosen = prompt_pod_choice(matched)
+                if chosen is None:
+                    print("kube shell: no pod selected")
+                    return
+                real_pod = chosen["metadata"]["name"]
+
+        pod, error = get_pod(real_namespace, real_pod)
+        if error:
+            print(error)
+            return
+
+        if pod.get("status", {}).get("phase") != "Running":
+            print(f"kube shell: warning — pod '{real_pod}' is not in Running phase")
+
+        shell = config.data.get("shell", Constants.DEFAULT_SHELL)
+        success, exec_error = exec_shell(real_namespace, real_pod, shell)
+        if not success:
+            print(exec_error)
 
     @staticmethod
     def _configure(parsed: dict) -> None:
