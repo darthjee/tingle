@@ -39,6 +39,31 @@ def list_namespaces() -> tuple[list[dict], str | None]:
     return data.get("items", []), None
 
 
+def get_pod(namespace: str, name: str) -> tuple[dict | None, str | None]:
+    """Fetch a single pod via `kubectl get pod -n <namespace> <name> -o json`.
+
+    Returns a `(pod, error)` tuple: `pod` is the parsed JSON object and
+    `error` is `None` on success, or `(None, error)` on a non-zero exit
+    (e.g. nonexistent pod name) or JSON parse failure.
+    """
+    result = subprocess.run(
+        ["kubectl", "get", "pod", "-n", namespace, name, "-o", "json"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        error = result.stderr.strip() if result.stderr else "kubectl get pod failed"
+        return None, error
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        return None, f"failed to parse kubectl output: {exc}"
+
+    return data, None
+
+
 def list_pods(namespace: str) -> tuple[list[dict], str | None]:
     """List all pods in `namespace` via `kubectl get pods -n <namespace> -o json`.
 
