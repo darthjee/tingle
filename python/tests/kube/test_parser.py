@@ -18,7 +18,7 @@ def test_parse_switch_identifies_subcommand_and_context_alias():
 def test_parse_list_namespace_identifies_subcommand_and_target():
     result = KubeArgParser().parse(["list", "namespace"])
 
-    assert result == {"subcommand": "list", "list_target": "namespace"}
+    assert result == {"subcommand": "list", "list_target": "namespace", "json": False}
 
 
 def test_parse_list_pods_without_namespace_flag_raises():
@@ -29,7 +29,29 @@ def test_parse_list_pods_without_namespace_flag_raises():
 def test_parse_list_pods_with_namespace_flag():
     result = KubeArgParser().parse(["list", "pods", "--namespace", "web"])
 
-    assert result == {"subcommand": "list", "list_target": "pods", "namespace": "web"}
+    assert result == {
+        "subcommand": "list",
+        "list_target": "pods",
+        "namespace": "web",
+        "json": False,
+    }
+
+
+def test_parse_list_namespace_with_json_flag():
+    result = KubeArgParser().parse(["list", "--json", "namespace"])
+
+    assert result == {"subcommand": "list", "list_target": "namespace", "json": True}
+
+
+def test_parse_list_pods_with_json_flag():
+    result = KubeArgParser().parse(["list", "--json", "pods", "--namespace", "web"])
+
+    assert result == {
+        "subcommand": "list",
+        "list_target": "pods",
+        "namespace": "web",
+        "json": True,
+    }
 
 
 def test_parse_shell_identifies_subcommand_and_aliases():

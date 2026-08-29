@@ -139,6 +139,84 @@ def test_valid_pod_entry_with_optional_fields(tmp_path):
     assert config.data["pods"]["prod"]["web"]["id_pattern"] == "^[a-z0-9]{10}$"
 
 
+def test_raw_reflects_unmodified_file_contents_without_defaults(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"version": 1}))
+
+    config = KubeConfig(path)
+
+    assert config.raw == {"version": 1}
+    assert "aws_profile" not in config.raw
+
+
+def test_raw_is_empty_when_file_missing(tmp_path):
+    missing = tmp_path / "config.json"
+
+    config = KubeConfig(missing)
+
+    assert config.raw == {}
+
+
+def test_validate_accepts_minimal_valid_draft(tmp_path):
+    config = KubeConfig(tmp_path / "config.json")
+
+    assert config.validate({"version": 1}) is None
+
+
+def test_validate_rejects_missing_required_key(tmp_path):
+    config = KubeConfig(tmp_path / "config.json")
+
+    error = config.validate({"aws_profile": "prod"})
+
+    assert error is not None
+    assert "version" in error
+
+
+def test_validate_rejects_malformed_pods_entry(tmp_path):
+    config = KubeConfig(tmp_path / "config.json")
+
+    error = config.validate({"version": 1, "pods": {"prod": {"web": {}}}})
+
+    assert error is not None
+    assert "prefix" in error
+
+
+def test_save_writes_valid_draft_to_disk(tmp_path):
+    path = tmp_path / "config.json"
+    config = KubeConfig(path)
+
+    error = config.save({"version": 1, "contexts": {"prod": "arn:aws:eks:prod"}})
+
+    assert error is None
+    assert json.loads(path.read_text()) == {
+        "version": 1,
+        "contexts": {"prod": "arn:aws:eks:prod"},
+    }
+
+
+def test_save_creates_parent_directories_on_first_save(tmp_path):
+    path = tmp_path / "nested" / "dir" / "config.json"
+    config = KubeConfig(path)
+
+    error = config.save({"version": 1})
+
+    assert error is None
+    assert path.exists()
+    assert json.loads(path.read_text()) == {"version": 1}
+
+
+def test_save_refuses_invalid_draft_and_leaves_existing_file_untouched(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"version": 1}))
+    config = KubeConfig(path)
+
+    error = config.save({"aws_profile": "prod"})
+
+    assert error is not None
+    assert "version" in error
+    assert json.loads(path.read_text()) == {"version": 1}
+
+
 def test_default_path_used_when_none_passed(tmp_path, monkeypatch):
     default_path = tmp_path / "config.json"
     default_path.write_text(json.dumps({"version": 1}))

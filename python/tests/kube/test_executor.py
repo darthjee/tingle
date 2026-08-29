@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 from kube.constants import Constants
@@ -437,3 +438,125 @@ def test_shell_get_pod_error_aborts_before_exec(
     mock_exec.assert_not_called()
     out = capsys.readouterr().out
     assert 'pods "my-pod-aaaaaaaaaa" not found' in out
+
+
+@patch("kube.executor.configure_pod")
+@patch("kube.executor.configure_namespace")
+@patch("kube.executor.configure_context")
+@patch("kube.executor.KubeConfig")
+def test_configure_dispatches_to_configure_context(
+    mock_config_cls, mock_configure_context, mock_configure_namespace, mock_configure_pod
+):
+    mock_config = MagicMock()
+    mock_config_cls.return_value = mock_config
+
+    Kube._configure({"configure_target": "context"})
+
+    mock_configure_context.assert_called_once_with(mock_config)
+    mock_configure_namespace.assert_not_called()
+    mock_configure_pod.assert_not_called()
+
+
+@patch("kube.executor.configure_pod")
+@patch("kube.executor.configure_namespace")
+@patch("kube.executor.configure_context")
+@patch("kube.executor.KubeConfig")
+def test_configure_dispatches_to_configure_namespace(
+    mock_config_cls, mock_configure_context, mock_configure_namespace, mock_configure_pod
+):
+    mock_config = MagicMock()
+    mock_config_cls.return_value = mock_config
+
+    Kube._configure({"configure_target": "namespace"})
+
+    mock_configure_namespace.assert_called_once_with(mock_config)
+    mock_configure_context.assert_not_called()
+    mock_configure_pod.assert_not_called()
+
+
+@patch("kube.executor.configure_pod")
+@patch("kube.executor.configure_namespace")
+@patch("kube.executor.configure_context")
+@patch("kube.executor.KubeConfig")
+def test_configure_dispatches_to_configure_pod(
+    mock_config_cls, mock_configure_context, mock_configure_namespace, mock_configure_pod
+):
+    mock_config = MagicMock()
+    mock_config_cls.return_value = mock_config
+
+    Kube._configure({"configure_target": "pod"})
+
+    mock_configure_pod.assert_called_once_with(mock_config)
+    mock_configure_context.assert_not_called()
+    mock_configure_namespace.assert_not_called()
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_namespaces")
+@patch("kube.executor.check_aws_credentials")
+def test_list_namespace_json_output(mock_check, mock_list_namespaces, mock_detect, capsys):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_namespaces.return_value = (
+        [
+            {"metadata": {"name": "prod-default-ns"}},
+            {"metadata": {"name": "unaliased-ns"}},
+        ],
+        None,
+    )
+    config = _config(namespaces={"prod": {"default": "prod-default-ns"}})
+
+    Kube._list_namespace({"list_target": "namespace", "json": True}, config)
+
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert {"alias": "default", "name": "prod-default-ns"} in payload
+    assert {"alias": None, "name": "unaliased-ns"} in payload
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_json_output(mock_check, mock_list_pods, mock_detect, capsys):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (
+        [_pod("my-pod-aaaaaaaaaa", "2024-01-01T00:00:00Z")],
+        None,
+    )
+    config = _config(
+        namespaces={"prod": {"default": "prod-default-ns"}},
+        pods={"prod": {"api": {"prefix": "my-pod-"}}},
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+    )
+
+    Kube._list_pods({"list_target": "pods", "namespace": "default", "json": True}, config)
+
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert payload == [{"alias": "api", "pods": ["my-pod-aaaaaaaaaa"]}]
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_prints_discarded_candidates_when_alias_matches_nothing(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (
+        [_pod("my-pod-bad-suffix", "2024-01-01T00:00:00Z")],
+        None,
+    )
+    config = _config(
+        namespaces={"prod": {"default": "prod-default-ns"}},
+        pods={"prod": {"api": {"prefix": "my-pod-"}}},
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+    )
+
+    Kube._list_pods({"list_target": "pods", "namespace": "default"}, config)
+
+    out = capsys.readouterr().out
+    assert "candidates discarded by id_pattern" in out
+    assert "my-pod-bad-suffix" in out
