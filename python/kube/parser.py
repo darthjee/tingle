@@ -47,6 +47,11 @@ class KubeArgParser:
     @staticmethod
     def _build_list(subparsers) -> None:
         list_parser = subparsers.add_parser("list", help="List namespaces or pods")
+        list_parser.add_argument(
+            "--json",
+            action="store_true",
+            help="Print output as JSON instead of text",
+        )
         list_subparsers = list_parser.add_subparsers(dest="list_target", required=True)
 
         list_subparsers.add_parser("namespace", help="List configured namespace aliases")

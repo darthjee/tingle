@@ -11,6 +11,8 @@ exposing a notice message for the caller (`executor.py`) to print.
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from kube.constants import Constants
@@ -24,6 +26,7 @@ class KubeConfig:
         self.pass_through = False
         self.notice: str | None = None
         self.data: dict = {}
+        self.raw: dict = {}
         self._load()
 
     def _load(self) -> None:
@@ -36,7 +39,38 @@ class KubeConfig:
             self._fallback(error)
             return
 
+        self.raw = raw
         self.data = self._apply_defaults(raw)
+
+    def validate(self, draft: dict) -> str | None:
+        """Validate `draft`'s shape. Returns an error message, if any."""
+        return self._validate(draft)
+
+    def save(self, draft: dict) -> str | None:
+        """Validate `draft` and persist it to `self._path`.
+
+        Writes atomically via a temp file + `os.replace`, creating parent
+        directories if absent. Returns an error message on validation
+        failure (leaving the existing file untouched), `None` on success.
+        """
+        error = self.validate(draft)
+        if error:
+            return error
+
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+
+        fd, tmp_name = tempfile.mkstemp(
+            dir=self._path.parent, prefix=f".{self._path.name}.", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w") as handle:
+                handle.write(json.dumps(draft, indent=2))
+            os.replace(tmp_name, self._path)
+        finally:
+            if os.path.exists(tmp_name):
+                os.remove(tmp_name)
+
+        return None
 
     def _read(self) -> dict | None:
         """Read and JSON-parse the config file, flagging pass-through on failure."""

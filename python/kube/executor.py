@@ -17,8 +17,11 @@ Usage:
 
 from __future__ import annotations
 
+import json
+
 from kube.auth import check_aws_credentials
 from kube.config import KubeConfig
+from kube.configure import configure_context, configure_namespace, configure_pod
 from kube.constants import Constants
 from kube.exec import exec_shell, prompt_pod_choice
 from kube.inventory import get_pod, list_namespaces, list_pods
@@ -125,6 +128,14 @@ class Kube:
         scoped_namespaces = config.data.get("namespaces", {}).get(active_scope, {})
         reverse = {real_name: alias for alias, real_name in scoped_namespaces.items()}
 
+        if parsed.get("json"):
+            payload = [
+                {"alias": reverse.get(item["metadata"]["name"]), "name": item["metadata"]["name"]}
+                for item in items
+            ]
+            print(json.dumps(payload, indent=2))
+            return
+
         for item in items:
             name = item["metadata"]["name"]
             alias = reverse.get(name)
@@ -156,16 +167,46 @@ class Kube:
         default_id_pattern = config.data.get("pod_id_pattern", Constants.DEFAULT_POD_ID_PATTERN)
         pods = active_scope_pods(config.data.get("pods", {}), active_scope)
 
+        if parsed.get("json"):
+            payload = []
+            for alias, alias_config in pods.items():
+                matched = match_pods(
+                    items,
+                    alias_config["prefix"],
+                    alias_config.get("id_pattern"),
+                    default_id_pattern,
+                )
+                payload.append(
+                    {
+                        "alias": alias,
+                        "pods": [pod["metadata"]["name"] for pod in matched],
+                    }
+                )
+            print(json.dumps(payload, indent=2))
+            return
+
         for alias, alias_config in pods.items():
+            prefix = alias_config["prefix"]
             matched = match_pods(
                 items,
-                alias_config["prefix"],
+                prefix,
                 alias_config.get("id_pattern"),
                 default_id_pattern,
             )
             print(f"{alias}:")
             for pod in matched:
                 print(f"  - {pod['metadata']['name']}")
+
+            if not matched:
+                discarded = [
+                    item["metadata"]["name"]
+                    for item in items
+                    if item["metadata"]["name"].startswith(prefix)
+                ]
+                if discarded:
+                    print(f"  kube list: candidates discarded by id_pattern for '{alias}':")
+                    for name in discarded:
+                        print(f"    - {name}")
 
     @staticmethod
     def _shell(parsed: dict, config: KubeConfig) -> None:
@@ -244,5 +285,15 @@ class Kube:
 
     @staticmethod
     def _configure(parsed: dict) -> None:
-        """Stub handler for `kube configure context|namespace|pod` (real logic: issue #24)."""
-        print(f"kube configure {parsed['configure_target']}: not yet implemented")
+        """Handle `kube configure context|namespace|pod`: dispatch to `configure.py`.
+
+        Loads its own fresh `KubeConfig()` rather than the one loaded for
+        read-only commands in `run()`, since `configure` edits `config.raw`
+        (the pre-default dict), not `config.data`.
+        """
+        config = KubeConfig()
+        {
+            "context": configure_context,
+            "namespace": configure_namespace,
+            "pod": configure_pod,
+        }[parsed["configure_target"]](config)
