@@ -239,6 +239,14 @@ class Kube:
             real_pod = pod_alias
         else:
             alias_config = scoped_pods[pod_alias]
+            pod_namespace = alias_config.get("namespace")
+            if pod_namespace and pod_namespace != parsed["namespace_alias"]:
+                print(
+                    f"kube shell: warning — pod alias '{pod_alias}' is configured for "
+                    f"namespace '{pod_namespace}', not '{parsed['namespace_alias']}' — "
+                    f"proceeding with '{parsed['namespace_alias']}'"
+                )
+
             default_id_pattern = config.data.get(
                 "pod_id_pattern", Constants.DEFAULT_POD_ID_PATTERN
             )
