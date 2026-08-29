@@ -240,6 +240,73 @@ def test_list_pods_groups_matched_pods_per_alias_in_deterministic_order(
     assert out.index("my-pod-aaaaaaaaaa") < out.index("my-pod-bbbbbbbbbb")
 
 
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_filters_candidates_by_own_namespace_field(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (
+        [
+            _pod("app-aaaaaaaaaa", "2024-01-01T00:00:00Z"),
+            _pod("db-bbbbbbbbbb", "2024-01-01T00:00:00Z"),
+        ],
+        None,
+    )
+    config = _config(
+        namespaces={"prod": {"app": "prod-app-ns", "db": "prod-db-ns"}},
+        pods={
+            "prod": {
+                "app": {"prefix": "app-", "namespace": "app"},
+                "db": {"prefix": "db-", "namespace": "db"},
+            }
+        },
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+    )
+
+    Kube._list_pods({"list_target": "pods", "namespace": "app"}, config)
+
+    mock_list_pods.assert_called_once_with("prod-app-ns")
+    out = capsys.readouterr().out
+    assert "app:" in out
+    assert "db:" not in out
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_keeps_alias_without_namespace_field_regardless_of_request(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (
+        [
+            _pod("app-aaaaaaaaaa", "2024-01-01T00:00:00Z"),
+            _pod("shared-cccccccccc", "2024-01-01T00:00:00Z"),
+        ],
+        None,
+    )
+    config = _config(
+        namespaces={"prod": {"app": "prod-app-ns", "db": "prod-db-ns"}},
+        pods={
+            "prod": {
+                "app": {"prefix": "app-", "namespace": "app"},
+                "shared": {"prefix": "shared-"},
+            }
+        },
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+    )
+
+    Kube._list_pods({"list_target": "pods", "namespace": "app"}, config)
+
+    out = capsys.readouterr().out
+    assert "app:" in out
+    assert "shared:" in out
+
+
 @patch("kube.executor.exec_shell")
 @patch("kube.executor.get_pod")
 @patch("kube.executor.list_pods")
@@ -293,6 +360,44 @@ def test_shell_single_match_resolves_and_execs(
     mock_exec.assert_called_once_with("prod-default-ns", "my-pod-aaaaaaaaaa", "bash")
     out = capsys.readouterr().out
     assert "warning" not in out.lower()
+
+
+@patch("kube.executor.exec_shell")
+@patch("kube.executor.get_pod")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.check_aws_credentials")
+def test_shell_warns_when_pod_alias_namespace_conflicts_with_argument(
+    mock_check, mock_detect, mock_list_pods, mock_get_pod, mock_exec, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (
+        [_pod("app-aaaaaaaaaa", "2024-01-01T00:00:00Z")],
+        None,
+    )
+    mock_get_pod.return_value = ({"status": {"phase": "Running"}}, None)
+    mock_exec.return_value = (True, None)
+    config = _config(
+        namespaces={"prod": {"app": "prod-app-ns", "db": "prod-db-ns"}},
+        pods={
+            "prod": {
+                "app": {"prefix": "app-", "namespace": "app"},
+                "db": {"prefix": "db-", "namespace": "db"},
+            }
+        },
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+        shell="bash",
+    )
+
+    Kube._shell({"namespace_alias": "db", "pod_alias": "app"}, config)
+
+    mock_list_pods.assert_called_once_with("prod-db-ns")
+    mock_exec.assert_called_once_with("prod-db-ns", "app-aaaaaaaaaa", "bash")
+    out = capsys.readouterr().out
+    assert "warning" in out.lower()
+    assert "app" in out
+    assert "db" in out
 
 
 @patch("kube.executor.exec_shell")
