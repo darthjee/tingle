@@ -21,10 +21,9 @@ def test_parse_list_namespace_identifies_subcommand_and_target():
     assert result == {"subcommand": "list", "list_target": "namespace"}
 
 
-def test_parse_list_pods_without_namespace_flag_defaults_to_none():
-    result = KubeArgParser().parse(["list", "pods"])
-
-    assert result == {"subcommand": "list", "list_target": "pods", "namespace": None}
+def test_parse_list_pods_without_namespace_flag_raises():
+    with pytest.raises(SystemExit):
+        KubeArgParser().parse(["list", "pods"])
 
 
 def test_parse_list_pods_with_namespace_flag():
