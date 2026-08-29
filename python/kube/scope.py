@@ -86,6 +86,35 @@ def list_available_contexts(contexts: dict) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+def resolve_namespace_alias(
+    namespaces: dict, active_scope: str | None, namespace_alias: str
+) -> tuple[str, str | None]:
+    """Resolve `namespace_alias` against `namespaces` for `active_scope`.
+
+    Looks up `namespaces.get(active_scope, {})`. Returns a `(real_name,
+    notice)` tuple: `(real_name, None)` when the alias is found, or
+    `(namespace_alias, notice)` pass-through on miss — mirroring
+    `resolve_context_alias`'s shape/wording style.
+    """
+    scoped_namespaces = namespaces.get(active_scope, {})
+    if namespace_alias in scoped_namespaces:
+        return scoped_namespaces[namespace_alias], None
+
+    notice = (
+        f"kube: '{namespace_alias}' not found in configured namespaces — using it as-is."
+    )
+    return namespace_alias, notice
+
+
+def active_scope_pods(pods: dict, active_scope: str | None) -> dict:
+    """Return the pod alias config entries for `active_scope`.
+
+    Returns `pods.get(active_scope, {})` — `{alias: {prefix, id_pattern,
+    namespace}}` — or `{}` when there is no active scope or none configured.
+    """
+    return pods.get(active_scope, {})
+
+
 def detect_active_scope(contexts: dict) -> str | None:
     """Detect the currently active context's alias, if any.
 

@@ -5,9 +5,11 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from kube.scope import (
+    active_scope_pods,
     detect_active_scope,
     list_available_contexts,
     resolve_context_alias,
+    resolve_namespace_alias,
     switch_context,
 )
 
@@ -134,3 +136,49 @@ def test_detect_active_scope_kubectl_failure_returns_none(mock_run):
     mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
 
     assert detect_active_scope({}) is None
+
+
+def test_resolve_namespace_alias_found_returns_real_name_with_no_notice():
+    namespaces = {"prod": {"default": "prod-default-ns"}}
+
+    real_name, notice = resolve_namespace_alias(namespaces, "prod", "default")
+
+    assert real_name == "prod-default-ns"
+    assert notice is None
+
+
+def test_resolve_namespace_alias_not_found_passes_through_with_notice():
+    namespaces = {"prod": {"default": "prod-default-ns"}}
+
+    real_name, notice = resolve_namespace_alias(namespaces, "prod", "unknown")
+
+    assert real_name == "unknown"
+    assert notice is not None
+    assert "unknown" in notice
+
+
+def test_resolve_namespace_alias_no_active_scope_passes_through_with_notice():
+    namespaces = {"prod": {"default": "prod-default-ns"}}
+
+    real_name, notice = resolve_namespace_alias(namespaces, None, "default")
+
+    assert real_name == "default"
+    assert notice is not None
+
+
+def test_active_scope_pods_returns_configured_aliases():
+    pods = {"prod": {"api": {"prefix": "api-", "id_pattern": "^[a-z0-9]{10}$"}}}
+
+    assert active_scope_pods(pods, "prod") == {
+        "api": {"prefix": "api-", "id_pattern": "^[a-z0-9]{10}$"}
+    }
+
+
+def test_active_scope_pods_no_active_scope_returns_empty_dict():
+    pods = {"prod": {"api": {"prefix": "api-"}}}
+
+    assert active_scope_pods(pods, None) == {}
+
+
+def test_active_scope_pods_missing_scope_returns_empty_dict():
+    assert active_scope_pods({}, "prod") == {}

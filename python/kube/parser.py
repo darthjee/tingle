@@ -9,7 +9,7 @@ supports (which stays scoped to `check_file_size`).
 Usage:
     tingle kube switch <context_alias>
     tingle kube list namespace
-    tingle kube list pods [--namespace <alias>]
+    tingle kube list pods --namespace <alias>
     tingle kube shell <namespace_alias> <pod_alias>
     tingle kube configure context|namespace|pod
 """
@@ -54,7 +54,7 @@ class KubeArgParser:
         pods_parser = list_subparsers.add_parser("pods", help="List configured pod aliases")
         pods_parser.add_argument(
             "--namespace",
-            default=None,
+            required=True,
             help="Namespace alias to scope the pod list to",
         )
 
