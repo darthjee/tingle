@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from kube.completion import complete
 from kube.executor import Kube
 
 
@@ -21,6 +22,8 @@ def main() -> None:
     args = sys.argv[2:]
     if flow == "run":
         Kube().run(args)
+    elif flow == "complete":
+        print(" ".join(complete(args)))
 
 
 if __name__ == "__main__":
