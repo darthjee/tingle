@@ -6,6 +6,22 @@ workflows:
     jobs:
       - lint
       - tests
+  release:
+    jobs:
+      - build-and-publish-linux-image:
+          filters:
+            tags:
+              only: /v.*/
+            branches:
+              ignore: /.*/
+      - update-description:
+          requires:
+            - build-and-publish-linux-image
+          filters:
+            tags:
+              only: /v.*/
+            branches:
+              ignore: /.*/
 
 jobs:
   lint:
@@ -37,3 +53,44 @@ jobs:
       - run:
           name: Upload coverage to Codacy
           command: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -r coverage.xml
+  build-and-publish-linux-image:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Build image
+          command: docker build -t darthjee/tingle:$CIRCLE_TAG -f shell/linux/Dockerfile .
+      - run:
+          name: Smoke test - GNU sed
+          command: |
+            docker run --rm darthjee/tingle:$CIRCLE_TAG sed --version | grep -qi "GNU sed"
+      - run:
+          name: Smoke test - non-root user
+          command: |
+            uid=$(docker run --rm darthjee/tingle:$CIRCLE_TAG id -u)
+            if [ "$uid" = "0" ]; then
+              echo "Container runs as root (uid 0)"
+              exit 1
+            fi
+      - run:
+          name: Publish image
+          command: |
+            echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
+            docker push darthjee/tingle:$CIRCLE_TAG
+  update-description:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Update Docker Hub description
+          command: |
+            token=$(curl -s -H "Content-Type: application/json" \
+              -X POST \
+              -d "{\"username\": \"$DOCKER_HUB_USERNAME\", \"password\": \"$DOCKER_HUB_PASSWORD\"}" \
+              https://hub.docker.com/v2/users/login/ | python3 -c 'import sys, json; print(json.load(sys.stdin)["token"])')
+            description=$(python3 -c 'import json; print(json.dumps(open("DOCKERHUB_DESCRIPTION.md").read()))')
+            curl -s -X PATCH \
+              -H "Authorization: JWT $token" \
+              -H "Content-Type: application/json" \
+              -d "{\"full_description\": $description}" \
+              https://hub.docker.com/v2/repositories/darthjee/tingle/
