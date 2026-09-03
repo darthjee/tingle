@@ -7,6 +7,6 @@
   "linux": {
     "path": "shell/linux/main.sh",
     "short_help": "Run GNU/Linux tools (sed, shell) inside a container.",
-    "long_help": "Runs real GNU/Linux command-line tools inside a Docker container (the current working directory mounted in at the same path), for cases where the host tool differs from its Linux counterpart in ways that break scripts or muscle memory — e.g. macOS's BSD sed vs GNU sed.\n\nUsage:\n    tingle linux shell\n    tingle linux sed <sed-args...>"
+    "long_help": "Runs real GNU/Linux command-line tools inside a Docker container (the current working directory mounted in at the same path), for cases where the host tool differs from its Linux counterpart in ways that break scripts or muscle memory — e.g. macOS's BSD sed vs GNU sed.\n\nUsage:\n    tingle linux shell\n    tingle linux sed <sed-args...>\n\nExamples:\n    tingle linux shell\n        Opens an interactive bash shell inside the tingle-linux container,\n        with the current working directory mounted at the same path, so you\n        can run Linux-native tools directly against your files."
   }
 }
