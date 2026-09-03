@@ -3,5 +3,10 @@
     "path": "shell/install/main.sh",
     "short_help": "Install tingle onto PATH and enable bash completion.",
     "long_help": "Adds tingle's bin/ folder to PATH and installs bash completion for tingle, both idempotently, by appending the necessary lines to ~/.bashrc if they are not already present.\n\nUsage:\n    tingle install\n\nRunning it more than once is safe: existing PATH and completion entries in ~/.bashrc are detected and left untouched."
+  },
+  "linux": {
+    "path": "shell/linux/main.sh",
+    "short_help": "Run GNU/Linux tools (sed, shell) inside a container.",
+    "long_help": "Runs real GNU/Linux command-line tools inside a Docker container (the current working directory mounted in at the same path), for cases where the host tool differs from its Linux counterpart in ways that break scripts or muscle memory — e.g. macOS's BSD sed vs GNU sed.\n\nUsage:\n    tingle linux shell\n    tingle linux sed <sed-args...>"
   }
 }
