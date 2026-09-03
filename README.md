@@ -41,6 +41,7 @@ tingle/
 | `kube` | Python | Kubernetes (EKS) helper with a scoped alias layer for switching contexts, listing namespaces/pods, and shelling into pods. |
 | `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
 | `install` | Shell | Adds `tingle` to `PATH` and installs bash completion, by idempotently appending a marker block to `~/.bashrc`. |
+| `linux` | Shell | Runs real GNU/Linux command-line tools (`shell`, `sed`) inside a Docker container, mounting the current working directory in at the same path. |
 
 ## Commands
 
