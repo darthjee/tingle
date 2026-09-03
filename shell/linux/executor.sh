@@ -21,8 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/docker_run.sh"
 
 _handle_shell() {
-    echo "tingle linux shell: not implemented yet (see issue #37)"
-    exit 1
+    docker_run true bash
 }
 
 _handle_sed() {
