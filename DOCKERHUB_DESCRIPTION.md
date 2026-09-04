@@ -12,7 +12,8 @@ userland.
 docker run --rm -v "$(pwd):$(pwd)" -w "$(pwd)" darthjee/tingle:<tag> <command> [args...]
 ```
 
-Tags follow plain semver (e.g. `v1.0.0`), published manually on `v*` git tag
-pushes to [darthjee/tingle](https://github.com/darthjee/tingle).
+Tags are `v`-prefixed semver (e.g. `v1.0.0`), published manually on `v*`
+git tag pushes to [darthjee/tingle](https://github.com/darthjee/tingle).
+The currently-published tag is pinned in `shell/linux/VERSION`.
 
 Source: [`shell/linux/Dockerfile`](https://github.com/darthjee/tingle/blob/main/shell/linux/Dockerfile).
