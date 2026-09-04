@@ -75,6 +75,11 @@ cmd_build() {
 }
 
 cmd_smoke_test() {
+  if ! changed_since_previous; then
+    echo "shell/linux/ unchanged since previous release tag — skipping smoke test"
+    exit 0
+  fi
+
   local tag
   tag=$(resolve_tag)
 
