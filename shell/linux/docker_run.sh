@@ -11,7 +11,12 @@
 #
 # Usage (sourced, not executed directly):
 #   source docker_run.sh
-#   docker_run <interactive: true|false> <command> [args...]
+#   docker_run <mode: none|tty|stdin> <command> [args...]
+#
+# Modes:
+#   none  - no -i, no -t (batch use)
+#   tty   - -it (interactive session with a TTY, e.g. `shell`)
+#   stdin - -i alone (attach stdin without allocating a TTY, e.g. `sed`)
 #
 # Dependencies: docker.
 #
@@ -19,15 +24,27 @@ set -euo pipefail
 
 TINGLE_LINUX_IMAGE="darthjee/tingle:0.0.1"
 
-# docker_run <interactive: true|false> <command> [args...]
+# docker_run <mode: none|tty|stdin> <command> [args...]
 docker_run() {
-    local interactive="$1"
+    local mode="$1"
     shift
 
     local tty_flags=()
-    if [ "$interactive" = "true" ]; then
-        tty_flags=(-it)
-    fi
+    case "$mode" in
+        tty)
+            tty_flags=(-it)
+            ;;
+        stdin)
+            tty_flags=(-i)
+            ;;
+        none)
+            tty_flags=()
+            ;;
+        *)
+            echo "docker_run: unknown mode '$mode'" >&2
+            return 1
+            ;;
+    esac
 
     docker run --rm "${tty_flags[@]}" \
         --user "$(id -u):$(id -g)" \

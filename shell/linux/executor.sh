@@ -21,12 +21,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/docker_run.sh"
 
 _handle_shell() {
-    docker_run true bash
+    docker_run tty bash
 }
 
 _handle_sed() {
-    echo "tingle linux sed: not implemented yet (see issue #38)"
-    exit 1
+    docker_run stdin sed "$@"
 }
 
 subcommand="${1:-}"
