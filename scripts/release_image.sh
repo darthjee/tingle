@@ -62,12 +62,12 @@ verify_version_pin() {
 }
 
 cmd_build() {
-  verify_version_pin
-
   if ! changed_since_previous; then
     echo "shell/linux/ unchanged since previous release tag — skipping build"
     exit 0
   fi
+
+  verify_version_pin
 
   local tag
   tag=$(resolve_tag)
@@ -89,12 +89,12 @@ cmd_smoke_test() {
 }
 
 cmd_publish() {
-  verify_version_pin
-
   if ! changed_since_previous; then
     echo "shell/linux/ unchanged since previous release tag — skipping publish"
     exit 0
   fi
+
+  verify_version_pin
 
   local tag
   tag=$(resolve_tag)
