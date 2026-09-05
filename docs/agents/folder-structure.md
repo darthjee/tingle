@@ -5,6 +5,7 @@
 | Directory / File | Description |
 |-----------------|-------------|
 | `bin/`          | Callable entry points meant to be on `PATH`; each thin wrapper dispatches into the matching script under `shell/`, `python/`, or `node/`. |
+| `scripts/`      | CI/release tooling scripts (not user-facing commands — see `bin/` for those). Currently holds `scripts/release_image.sh`, the `tingle-linux` Docker image build/publish/description script invoked by `.circleci/config.yml`. |
 | `shell/`        | Bash/Shell utility scripts. |
 | `python/`       | Python utility scripts. |
 | `node/`         | Node.js utility scripts. |

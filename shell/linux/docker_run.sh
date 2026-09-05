@@ -22,7 +22,7 @@
 #
 set -euo pipefail
 
-TINGLE_LINUX_IMAGE="darthjee/tingle:0.0.1"
+TINGLE_LINUX_IMAGE="darthjee/tingle:$(cat "$(dirname "${BASH_SOURCE[0]}")/VERSION")"
 
 # docker_run <mode: none|tty|stdin> <command> [args...]
 docker_run() {
