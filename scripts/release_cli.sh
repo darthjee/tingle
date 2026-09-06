@@ -103,10 +103,9 @@ cmd_build() {
 }
 
 release_body() {
-  local tag="$1"
-  cat <<EOF
-Download: https://github.com/darthjee/tingle/releases/download/${tag}/tingle-${tag}.zip
-Unzip it and run \`bin/tingle install\` to add tingle to your PATH.
+  cat <<'EOF'
+Install:
+curl -fsSL https://raw.githubusercontent.com/darthjee/tingle/main/install/bootstrap.sh | bash
 EOF
 }
 
@@ -222,7 +221,7 @@ cmd_publish() {
   fi
 
   local body release_id
-  body=$(release_body "$tag")
+  body=$(release_body)
   local escaped_body
   escaped_body=$(python3 -c 'import json, sys; print(json.dumps(sys.stdin.read()))' <<< "$body")
 
