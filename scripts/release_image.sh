@@ -14,7 +14,7 @@
 # $CIRCLE_TAG exactly or the job hard-fails before building/publishing.
 #
 # Change detection: build and publish are safe no-ops (exit 0) when
-# shell/linux/ hasn't changed since the previous v* tag — see
+# shell/linux/ hasn't changed since the previous X.Y.Z tag — see
 # changed_since_previous().
 #
 # Dependencies: git, docker, curl, python3.
