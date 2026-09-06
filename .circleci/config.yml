@@ -23,6 +23,14 @@ workflows:
               only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
             branches:
               ignore: /.*/
+      - build-and-publish-release:
+          requires:
+            - build-and-publish-linux-image
+          filters:
+            tags:
+              only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
+            branches:
+              ignore: /.*/
 
 jobs:
   lint:
@@ -74,3 +82,13 @@ jobs:
       - run:
           name: Update Docker Hub description
           command: scripts/release_image.sh update-description
+  build-and-publish-release:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Build release zip
+          command: scripts/release_cli.sh build
+      - run:
+          name: Publish release
+          command: scripts/release_cli.sh publish
