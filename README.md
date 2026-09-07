@@ -6,6 +6,38 @@ Scripts in **shell**, **Python** and **Node.js** for simple, recurring tasks:
 file scraping, bulk renaming, copying files between git branches,
 and whatever else comes up in daily work.
 
+## Installation
+
+Install `tingle` without cloning the repo:
+
+```
+curl -fsSL https://raw.githubusercontent.com/darthjee/tingle/main/install/bootstrap.sh | bash
+```
+
+This downloads the pinned release zip from GitHub Releases, unpacks it to
+`~/.tingle`, and finishes by running `tingle install` (see [Commands](#commands)
+below) to wire `tingle` into `~/.bashrc`.
+
+Override defaults with one-off env var prefixes (not `export`):
+
+```
+TINGLE_VERSION=0.1.0 curl -fsSL https://raw.githubusercontent.com/darthjee/tingle/main/install/bootstrap.sh | bash
+```
+
+- `TINGLE_VERSION` — release tag to install, as plain `X.Y.Z` with no `v`
+  prefix (default: the pinned version in `install/bootstrap.sh`).
+- `TINGLE_REPO` — GitHub `owner/repo` to install from, e.g. your own fork
+  (default: `darthjee/tingle`).
+- `TINGLE_ASSUME_YES` — set to any value to skip the `y/N` confirmation
+  prompt.
+
+Prerequisites: `curl`, `unzip`, `bash`; `jq` for `bin/tingle`; `docker` for
+`tingle linux`.
+
+The installer places everything under `~/.tingle`. Once it finishes, run
+`source ~/.bashrc` (or start a new shell) to pick up the `PATH` and
+completion changes.
+
 ## Name Origin
 
 The name **Tingle** is a tribute to the eccentric and iconic character from the
@@ -62,7 +94,10 @@ prints an error along with the same command listing, and exits non-zero.
 Run `tingle install` to wire up `tingle` for interactive shell use: it
 idempotently appends a marker block to `~/.bashrc` that adds `tingle` to
 `PATH` and sources `completions/tingle.bash`, enabling `tingle <TAB>` bash
-completion of command names.
+completion of command names. This is the same shell-wiring step the
+[web installer](#installation) finishes with, so re-running it by hand is
+only needed if you skip the one-liner and set up an already-cloned repo
+manually.
 
 ## Usage
 
