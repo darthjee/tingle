@@ -45,7 +45,7 @@ class Kube:
         parsed = KubeArgParser().parse(args)
         config = KubeConfig()
 
-        if config.pass_through:
+        if config.notice:
             print(config.notice)
 
         handler = self._handlers(config).get(parsed["subcommand"])
