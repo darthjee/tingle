@@ -16,6 +16,9 @@ class Constants:
     # Where the config file lives
     CONFIG_PATH: ClassVar[Path] = Path.home() / ".tingle" / "kube" / "config.json"
 
+    # Schema version written into a freshly bootstrapped config
+    CURRENT_VERSION: ClassVar[int] = 1
+
     # Defaults applied when a top-level key is absent
     DEFAULT_AWS_PROFILE = "default"
     DEFAULT_POD_ID_PATTERN = r"^[a-z0-9]{10}$"

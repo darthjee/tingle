@@ -57,6 +57,16 @@ class KubeConfig:
         if error:
             return error
 
+        self._write(draft)
+
+        return None
+
+    def _write(self, draft: dict) -> None:
+        """Atomically write `draft` as JSON to `self._path`.
+
+        Creates parent directories if absent, writing via a temp file
+        + `os.replace` so a crash mid-write never leaves a partial file.
+        """
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
         fd, tmp_name = tempfile.mkstemp(
@@ -70,13 +80,17 @@ class KubeConfig:
             if os.path.exists(tmp_name):
                 os.remove(tmp_name)
 
-        return None
+    def _bootstrap(self) -> dict:
+        """Create a fresh, valid config file and flag a bootstrap notice."""
+        raw = {"version": Constants.CURRENT_VERSION}
+        self._write(raw)
+        self.notice = f"kube: created new config at {self._path}"
+        return raw
 
     def _read(self) -> dict | None:
         """Read and JSON-parse the config file, flagging pass-through on failure."""
         if not self._path.exists():
-            self._fallback(f"config not found at {self._path}")
-            return None
+            return self._bootstrap()
 
         try:
             text = self._path.read_text()
