@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from kube.config import KubeConfig
 from kube.configure import configure_context, configure_namespace, configure_pod
+from kube.constants import Constants
 
 
 def _real_config(tmp_path, raw=None):
@@ -85,13 +87,33 @@ def test_configure_context_invalid_menu_choice_reprompts(tmp_path, monkeypatch):
     assert saved["contexts"] == {"prod": "arn:aws:eks:prod"}
 
 
+def test_configure_context_bootstraps_missing_config_on_first_run(
+    tmp_path, monkeypatch, capsys
+):
+    path = tmp_path / "config.json"
+    config = KubeConfig(path)
+    _inputs(monkeypatch, ["1", "prod", "arn:aws:eks:prod"])
+
+    configure_context(config)
+
+    out = capsys.readouterr().out
+    assert "config missing required key(s): version" not in out
+
+    import json
+
+    saved = json.loads(path.read_text())
+    assert saved["version"] == Constants.CURRENT_VERSION
+    assert saved["contexts"] == {"prod": "arn:aws:eks:prod"}
+
+
 def test_configure_context_empty_input_aborts(tmp_path, monkeypatch, capsys):
     config, path = _real_config(tmp_path)
+    before = path.read_text()
     _inputs(monkeypatch, [""])
 
     configure_context(config)
 
-    assert not path.exists()
+    assert path.read_text() == before
     assert "aborted" in capsys.readouterr().out
 
 
@@ -100,10 +122,11 @@ def test_configure_context_empty_input_aborts(tmp_path, monkeypatch, capsys):
 
 def test_configure_namespace_requires_existing_context(tmp_path, monkeypatch, capsys):
     config, path = _real_config(tmp_path)
+    before = path.read_text()
 
     configure_namespace(config)
 
-    assert not path.exists()
+    assert path.read_text() == before
     assert "no context aliases configured" in capsys.readouterr().out
 
 

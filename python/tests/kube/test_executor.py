@@ -596,6 +596,22 @@ def test_configure_dispatches_to_configure_pod(
     mock_configure_namespace.assert_not_called()
 
 
+@patch("kube.executor.configure_context")
+@patch("kube.executor.KubeConfig")
+def test_run_prints_notice_when_set_without_pass_through(
+    mock_config_cls, mock_configure_context, capsys
+):
+    mock_config = MagicMock()
+    mock_config.pass_through = False
+    mock_config.notice = "kube: created new config at /some/path"
+    mock_config_cls.return_value = mock_config
+
+    Kube().run(["configure", "context"])
+
+    out = capsys.readouterr().out
+    assert "kube: created new config at /some/path" in out
+
+
 @patch("kube.executor.detect_active_scope")
 @patch("kube.executor.list_namespaces")
 @patch("kube.executor.check_aws_credentials")
