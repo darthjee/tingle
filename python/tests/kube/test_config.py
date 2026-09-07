@@ -5,16 +5,30 @@ from __future__ import annotations
 import json
 
 from kube.config import KubeConfig
+from kube.constants import Constants
 
 
-def test_missing_config_file_falls_back_to_pass_through(tmp_path):
+def test_missing_config_file_is_bootstrapped(tmp_path):
     missing = tmp_path / "config.json"
 
     config = KubeConfig(missing)
 
-    assert config.pass_through is True
-    assert config.data == {}
-    assert "not found" in config.notice
+    assert config.pass_through is False
+    assert "created" in config.notice
+    assert str(missing) in config.notice
+    assert config.data["version"] == Constants.CURRENT_VERSION
+    assert missing.exists()
+    assert json.loads(missing.read_text()) == {"version": Constants.CURRENT_VERSION}
+
+
+def test_second_read_after_bootstrap_loads_normally(tmp_path):
+    missing = tmp_path / "config.json"
+    KubeConfig(missing)
+
+    config = KubeConfig(missing)
+
+    assert config.pass_through is False
+    assert config.notice is None
 
 
 def test_invalid_json_falls_back_to_pass_through(tmp_path):
@@ -149,12 +163,12 @@ def test_raw_reflects_unmodified_file_contents_without_defaults(tmp_path):
     assert "aws_profile" not in config.raw
 
 
-def test_raw_is_empty_when_file_missing(tmp_path):
+def test_raw_is_bootstrapped_when_file_missing(tmp_path):
     missing = tmp_path / "config.json"
 
     config = KubeConfig(missing)
 
-    assert config.raw == {}
+    assert config.raw == {"version": Constants.CURRENT_VERSION}
 
 
 def test_validate_accepts_minimal_valid_draft(tmp_path):
