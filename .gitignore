@@ -1,4 +1,5 @@
 .claude/state/
+dist/
 
 # Python test/coverage artifacts
 python/.coverage
