@@ -2,6 +2,16 @@
 
 Personal repository of everyday utility scripts — a code "Swiss Army knife".
 
+[![Build Status](https://circleci.com/gh/darthjee/tingle.svg?style=shield)](https://circleci.com/gh/darthjee/tingle)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/aed499abf82847498ae54673db8f348c)](https://app.codacy.com/gh/darthjee/tingle/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![Codacy Badge](https://app.codacy.com/project/badge/Coverage/aed499abf82847498ae54673db8f348c)](https://app.codacy.com/gh/darthjee/tingle/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
+
+![tingle](https://raw.githubusercontent.com/darthjee/tingle/master/tingle.png)
+
+**Current Version:** [0.0.1](https://github.com/darthjee/tingle/releases/tag/0.0.1)
+**Next Release:** [0.0.2](https://github.com/darthjee/tingle/compare/0.0.1...main)
+
+
 Scripts in **shell**, **Python** and **Node.js** for simple, recurring tasks:
 file scraping, bulk renaming, copying files between git branches,
 and whatever else comes up in daily work.
