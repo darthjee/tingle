@@ -24,7 +24,7 @@ def exec_shell(namespace: str, pod: str, shell: str) -> tuple[bool, str | None]:
     `scope.switch_context`'s shape: `error` is `None` on success, or a
     message derived from the exit code on failure.
     """
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
         ["kubectl", "exec", "-n", namespace, "-it", pod, "--", shell],
         check=False,
     )
