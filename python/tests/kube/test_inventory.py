@@ -7,8 +7,9 @@ from unittest.mock import MagicMock, patch
 from kube.inventory import get_pod, list_namespaces, list_pods
 
 
+@patch("kube.inventory.binaries.resolve", side_effect=lambda name: name)
 @patch("kube.inventory.subprocess.run")
-def test_list_namespaces_success_returns_items(mock_run):
+def test_list_namespaces_success_returns_items(mock_run, mock_resolve):
     mock_run.return_value = MagicMock(
         returncode=0,
         stdout='{"items": [{"metadata": {"name": "default"}}]}',
@@ -47,8 +48,9 @@ def test_list_namespaces_invalid_json_returns_error(mock_run):
     assert error is not None
 
 
+@patch("kube.inventory.binaries.resolve", side_effect=lambda name: name)
 @patch("kube.inventory.subprocess.run")
-def test_list_pods_success_returns_items(mock_run):
+def test_list_pods_success_returns_items(mock_run, mock_resolve):
     mock_run.return_value = MagicMock(
         returncode=0,
         stdout='{"items": [{"metadata": {"name": "api-abc1234567"}}]}',
@@ -89,8 +91,9 @@ def test_list_pods_invalid_json_returns_error(mock_run):
     assert error is not None
 
 
+@patch("kube.inventory.binaries.resolve", side_effect=lambda name: name)
 @patch("kube.inventory.subprocess.run")
-def test_get_pod_success_returns_pod(mock_run):
+def test_get_pod_success_returns_pod(mock_run, mock_resolve):
     mock_run.return_value = MagicMock(
         returncode=0,
         stdout='{"metadata": {"name": "api-abc1234567"}}',

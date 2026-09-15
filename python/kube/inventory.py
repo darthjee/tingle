@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 import subprocess
 
+from kube import binaries
+
 
 def list_namespaces() -> tuple[list[dict], str | None]:
     """List all namespaces via `kubectl get namespaces -o json`.
@@ -21,8 +23,8 @@ def list_namespaces() -> tuple[list[dict], str | None]:
     (each a raw namespace dict) and `error` is `None` on success, or `([],
     error)` on a non-zero exit or JSON parse failure.
     """
-    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["kubectl", "get", "namespaces", "-o", "json"],
+    result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("kubectl"), "get", "namespaces", "-o", "json"],
         capture_output=True,
         text=True,
         check=False,
@@ -46,8 +48,8 @@ def get_pod(namespace: str, name: str) -> tuple[dict | None, str | None]:
     `error` is `None` on success, or `(None, error)` on a non-zero exit
     (e.g. nonexistent pod name) or JSON parse failure.
     """
-    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["kubectl", "get", "pod", "-n", namespace, name, "-o", "json"],
+    result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("kubectl"), "get", "pod", "-n", namespace, name, "-o", "json"],
         capture_output=True,
         text=True,
         check=False,
@@ -71,8 +73,8 @@ def list_pods(namespace: str) -> tuple[list[dict], str | None]:
     (each a raw pod dict) and `error` is `None` on success, or `([], error)`
     on a non-zero exit (e.g. nonexistent namespace) or JSON parse failure.
     """
-    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["kubectl", "get", "pods", "-n", namespace, "-o", "json"],
+    result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("kubectl"), "get", "pods", "-n", namespace, "-o", "json"],
         capture_output=True,
         text=True,
         check=False,

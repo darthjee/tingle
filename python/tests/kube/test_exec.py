@@ -7,8 +7,9 @@ from unittest.mock import MagicMock, patch
 from kube.exec import exec_shell, prompt_pod_choice
 
 
+@patch("kube.exec.binaries.resolve", side_effect=lambda name: name)
 @patch("kube.exec.subprocess.run")
-def test_exec_shell_success_returns_success(mock_run):
+def test_exec_shell_success_returns_success(mock_run, mock_resolve):
     mock_run.return_value = MagicMock(returncode=0)
 
     success, error = exec_shell("default", "api-abc1234567", "/bin/sh")
