@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import subprocess
 
+from kube import binaries
+
 
 def check_aws_credentials(profile: str) -> tuple[bool, str | None]:
     """Check whether AWS credentials for `profile` are valid.
@@ -22,8 +24,8 @@ def check_aws_credentials(profile: str) -> tuple[bool, str | None]:
     zero, `False` otherwise, and `error` carries the captured stderr (or a
     generic message) on failure, `None` on success.
     """
-    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["aws", "sts", "get-caller-identity", "--profile", profile],
+    result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("aws"), "sts", "get-caller-identity", "--profile", profile],
         capture_output=True,
         text=True,
         check=False,

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import subprocess
 
+from kube import binaries
+
 
 def resolve_context_alias(contexts: dict, context_alias: str) -> tuple[str, str | None]:
     """Resolve `context_alias` against `contexts` (alias -> real name/ARN).
@@ -33,8 +35,8 @@ def switch_context(real_name: str) -> tuple[bool, str | None]:
     Returns a `(success, error)` tuple. `error` carries the captured stderr
     (or a mismatch message) on failure, `None` on success.
     """
-    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["kubectx", real_name],
+    result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("kubectx"), real_name],
         capture_output=True,
         text=True,
         check=False,
@@ -43,8 +45,8 @@ def switch_context(real_name: str) -> tuple[bool, str | None]:
         error = result.stderr.strip() if result.stderr else f"kubectx {real_name} failed"
         return False, error
 
-    current = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["kubectl", "config", "current-context"],
+    current = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("kubectl"), "config", "current-context"],
         capture_output=True,
         text=True,
         check=False,
@@ -74,8 +76,8 @@ def list_available_contexts(contexts: dict) -> list[str]:
     if contexts:
         return sorted(contexts.keys())
 
-    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["kubectl", "config", "get-contexts", "-o", "name"],
+    result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("kubectl"), "config", "get-contexts", "-o", "name"],
         capture_output=True,
         text=True,
         check=False,
@@ -122,8 +124,8 @@ def detect_active_scope(contexts: dict) -> str | None:
     `contexts` (value -> key). Returns the matching alias, or `None` when
     the current context isn't in `contexts` (no scope / pass-through mode).
     """
-    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["kubectl", "config", "current-context"],
+    result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("kubectl"), "config", "current-context"],
         capture_output=True,
         text=True,
         check=False,

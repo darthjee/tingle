@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import subprocess
 
+from kube import binaries
+
 
 def exec_shell(namespace: str, pod: str, shell: str) -> tuple[bool, str | None]:
     """Launch an interactive `kubectl exec -it` session in `pod`.
@@ -24,8 +26,8 @@ def exec_shell(namespace: str, pod: str, shell: str) -> tuple[bool, str | None]:
     `scope.switch_context`'s shape: `error` is `None` on success, or a
     message derived from the exit code on failure.
     """
-    result = subprocess.run(  # nosec B603 - fixed binary, list-form args, no shell
-        ["kubectl", "exec", "-n", namespace, "-it", pod, "--", shell],
+    result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
+        [binaries.resolve("kubectl"), "exec", "-n", namespace, "-it", pod, "--", shell],
         check=False,
     )
     if result.returncode != 0:
