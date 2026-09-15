@@ -33,8 +33,9 @@ def test_resolve_context_alias_not_found_passes_through_with_notice():
     assert "unknown" in notice
 
 
+@patch("kube.scope.binaries.resolve", side_effect=lambda name: name)
 @patch("kube.scope.subprocess.run")
-def test_switch_context_validated_returns_success(mock_run):
+def test_switch_context_validated_returns_success(mock_run, mock_resolve):
     mock_run.side_effect = [
         MagicMock(returncode=0, stdout="", stderr=""),
         MagicMock(returncode=0, stdout="arn:aws:eks:prod\n", stderr=""),
@@ -91,8 +92,9 @@ def test_list_available_contexts_from_config():
     assert list_available_contexts(contexts) == ["prod", "qa"]
 
 
+@patch("kube.scope.binaries.resolve", side_effect=lambda name: name)
 @patch("kube.scope.subprocess.run")
-def test_list_available_contexts_falls_back_to_kubectl(mock_run):
+def test_list_available_contexts_falls_back_to_kubectl(mock_run, mock_resolve):
     mock_run.return_value = MagicMock(
         returncode=0, stdout="arn:aws:eks:prod\narn:aws:eks:qa\n", stderr=""
     )

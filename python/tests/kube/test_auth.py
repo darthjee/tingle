@@ -39,8 +39,9 @@ def test_failure_with_empty_stderr_returns_generic_message(mock_run):
     assert error == "aws sts get-caller-identity failed"
 
 
+@patch("kube.auth.binaries.resolve", side_effect=lambda name: name)
 @patch("kube.auth.subprocess.run")
-def test_passes_correct_profile_through(mock_run):
+def test_passes_correct_profile_through(mock_run, mock_resolve):
     mock_run.return_value = MagicMock(returncode=0, stdout="{}", stderr="")
 
     check_aws_credentials("qa-profile")
