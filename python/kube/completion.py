@@ -70,7 +70,7 @@ def _scan(tokens: list[str]) -> tuple[str | None, list[str], dict, str | None]:
     count = len(tokens)
     while index < count:
         token = tokens[index]
-        if token == "--json":
+        if token == "--json":  # nosec B105 - CLI flag literal, not a credential
             flags["json"] = True
             pending_flag = None
         elif token == "--namespace":  # nosec B105 - CLI flag literal, not a credential
