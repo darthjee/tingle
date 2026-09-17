@@ -11,7 +11,7 @@ and stop cleanly rather than crash.
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404 - usage confined to fixed CLI binaries via binaries.resolve(), list-form args, no shell
 
 from kube import binaries
 
