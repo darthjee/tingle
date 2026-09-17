@@ -23,6 +23,8 @@ def list_namespaces() -> tuple[list[dict], str | None]:
     (each a raw namespace dict) and `error` is `None` on success, or `([],
     error)` on a non-zero exit or JSON parse failure.
     """
+    # Bandit B607 (partial executable path) resolved via binaries.resolve()
+    # in issue #58 / PR #78; see the module docstring for `binaries.py`.
     result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
         [binaries.resolve("kubectl"), "get", "namespaces", "-o", "json"],
         capture_output=True,
@@ -48,6 +50,8 @@ def get_pod(namespace: str, name: str) -> tuple[dict | None, str | None]:
     `error` is `None` on success, or `(None, error)` on a non-zero exit
     (e.g. nonexistent pod name) or JSON parse failure.
     """
+    # Bandit B607 (partial executable path) resolved via binaries.resolve()
+    # in issue #58 / PR #78; see the module docstring for `binaries.py`.
     result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
         [binaries.resolve("kubectl"), "get", "pod", "-n", namespace, name, "-o", "json"],
         capture_output=True,
@@ -73,6 +77,8 @@ def list_pods(namespace: str) -> tuple[list[dict], str | None]:
     (each a raw pod dict) and `error` is `None` on success, or `([], error)`
     on a non-zero exit (e.g. nonexistent namespace) or JSON parse failure.
     """
+    # Bandit B607 (partial executable path) resolved via binaries.resolve()
+    # in issue #58 / PR #78; see the module docstring for `binaries.py`.
     result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
         [binaries.resolve("kubectl"), "get", "pods", "-n", namespace, "-o", "json"],
         capture_output=True,
