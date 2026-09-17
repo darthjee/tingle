@@ -11,7 +11,7 @@ how to proceed.
 from __future__ import annotations
 
 import json
-import subprocess
+import subprocess  # nosec B404 - usage confined to fixed CLI binaries via binaries.resolve(), list-form args, no shell
 
 from kube import binaries
 

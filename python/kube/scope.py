@@ -10,7 +10,7 @@ of these raise — callers print their own messages and decide how to proceed.
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404 - usage confined to fixed CLI binaries via binaries.resolve(), list-form args, no shell
 
 from kube import binaries
 
