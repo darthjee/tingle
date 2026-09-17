@@ -1,5 +1,7 @@
 # Project Instructions
 
+_Last updated: 2026-09-17_
+
 Tingle is a personal repository of everyday utility scripts — a code "Swiss Army
 knife". It has no single theme; each script is a small, independent tool for a
 recurring task such as file scraping, bulk renaming, or copying files between
