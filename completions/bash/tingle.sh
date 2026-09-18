@@ -11,7 +11,7 @@
 #
 
 _tingle_complete_command_names() {
-    local tingle_folder commands_dir cmd_file cmd_files names cur
+    local tingle_folder commands_dir cmd_file cmd_files cur
 
     tingle_folder="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
     commands_dir="$tingle_folder/commands"
