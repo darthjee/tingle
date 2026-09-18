@@ -199,45 +199,43 @@ class Kube:
         }
 
         if parsed.get("json"):
-            payload = []
-            for alias, alias_config in pods.items():
-                matched = match_pods(
-                    items,
-                    alias_config["prefix"],
-                    alias_config.get("id_pattern"),
-                    default_id_pattern,
-                )
-                payload.append(
-                    {
-                        "alias": alias,
-                        "pods": [pod["metadata"]["name"] for pod in matched],
-                    }
-                )
+            payload = Kube._pods_json_payload(pods, items, default_id_pattern)
             print(json.dumps(payload, indent=2))
             return
 
+        Kube._print_pods_text(pods, items, default_id_pattern)
+
+    @staticmethod
+    def _pods_json_payload(pods: dict, items: list, default_id_pattern: str) -> list:
+        """Build the `kube list pods --json` payload for each alias."""
+        payload = []
         for alias, alias_config in pods.items():
-            prefix = alias_config["prefix"]
-            matched = match_pods(
-                items,
-                prefix,
-                alias_config.get("id_pattern"),
-                default_id_pattern,
+            matched, _discarded = Kube._match_pods_for_alias(
+                items, alias_config, default_id_pattern
+            )
+            payload.append(
+                {
+                    "alias": alias,
+                    "pods": [pod["metadata"]["name"] for pod in matched],
+                }
+            )
+        return payload
+
+    @staticmethod
+    def _print_pods_text(pods: dict, items: list, default_id_pattern: str) -> None:
+        """Print the `kube list pods` text output for each alias."""
+        for alias, alias_config in pods.items():
+            matched, discarded = Kube._match_pods_for_alias(
+                items, alias_config, default_id_pattern
             )
             print(f"{alias}:")
             for pod in matched:
                 print(f"  - {pod['metadata']['name']}")
 
-            if not matched:
-                discarded = [
-                    item["metadata"]["name"]
-                    for item in items
-                    if item["metadata"]["name"].startswith(prefix)
-                ]
-                if discarded:
-                    print(f"  kube list: candidates discarded by id_pattern for '{alias}':")
-                    for name in discarded:
-                        print(f"    - {name}")
+            if not matched and discarded:
+                print(f"  kube list: candidates discarded by id_pattern for '{alias}':")
+                for name in discarded:
+                    print(f"    - {name}")
 
     @staticmethod
     def _shell(parsed: dict, config: KubeConfig) -> None:
