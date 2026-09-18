@@ -26,6 +26,8 @@ def exec_shell(namespace: str, pod: str, shell: str) -> tuple[bool, str | None]:
     `scope.switch_context`'s shape: `error` is `None` on success, or a
     message derived from the exit code on failure.
     """
+    # Bandit B607 (partial executable path) resolved via binaries.resolve()
+    # in issue #58 / PR #78; see the module docstring for `binaries.py`.
     result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
         [binaries.resolve("kubectl"), "exec", "-n", namespace, "-it", pod, "--", shell],
         check=False,
