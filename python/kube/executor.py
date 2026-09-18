@@ -113,6 +113,32 @@ class Kube:
         return credentials_ok
 
     @staticmethod
+    def _match_pods_for_alias(items: list, alias_config: dict, default_id_pattern: str) -> tuple:
+        """Match `items` against an alias's prefix/id_pattern.
+
+        Returns `(matched, discarded)`, where `discarded` lists the names of
+        `items` whose `metadata.name` starts with the alias's `prefix` but
+        were not matched — computed only when nothing matched.
+        """
+        prefix = alias_config["prefix"]
+        matched = match_pods(
+            items,
+            prefix,
+            alias_config.get("id_pattern"),
+            default_id_pattern,
+        )
+
+        discarded = []
+        if not matched:
+            discarded = [
+                item["metadata"]["name"]
+                for item in items
+                if item["metadata"]["name"].startswith(prefix)
+            ]
+
+        return matched, discarded
+
+    @staticmethod
     def _list_namespace(parsed: dict, config: KubeConfig) -> None:
         """Handle `kube list namespace`: list real namespaces, annotated with aliases."""
         if not Kube._check_aws_credentials(config):
