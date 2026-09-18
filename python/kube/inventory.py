@@ -14,6 +14,7 @@ import json
 import subprocess  # nosec B404 - usage confined to fixed CLI binaries via binaries.resolve(), list-form args, no shell
 
 from kube import binaries
+from kube.validation import is_valid_resource_name
 
 
 def list_namespaces() -> tuple[list[dict], str | None]:
@@ -50,6 +51,11 @@ def get_pod(namespace: str, name: str) -> tuple[dict | None, str | None]:
     `error` is `None` on success, or `(None, error)` on a non-zero exit
     (e.g. nonexistent pod name) or JSON parse failure.
     """
+    if not is_valid_resource_name(namespace, max_length=63):
+        return None, f"invalid namespace: {namespace!r}"
+    if not is_valid_resource_name(name):
+        return None, f"invalid pod name: {name!r}"
+
     # Bandit B607 (partial executable path) resolved via binaries.resolve()
     # in issue #58 / PR #78; see the module docstring for `binaries.py`.
     result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
@@ -77,6 +83,9 @@ def list_pods(namespace: str) -> tuple[list[dict], str | None]:
     (each a raw pod dict) and `error` is `None` on success, or `([], error)`
     on a non-zero exit (e.g. nonexistent namespace) or JSON parse failure.
     """
+    if not is_valid_resource_name(namespace, max_length=63):
+        return [], f"invalid namespace: {namespace!r}"
+
     # Bandit B607 (partial executable path) resolved via binaries.resolve()
     # in issue #58 / PR #78; see the module docstring for `binaries.py`.
     result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
