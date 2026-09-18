@@ -45,6 +45,24 @@ def test_exec_shell_nonzero_exit_returns_error(mock_run):
     assert error is not None
 
 
+@patch("kube.exec.subprocess.run")
+def test_exec_shell_invalid_namespace_returns_error(mock_run):
+    success, error = exec_shell("--kubeconfig=/tmp/evil", "api-abc1234567", "/bin/sh")
+
+    assert success is False
+    assert error is not None
+    mock_run.assert_not_called()
+
+
+@patch("kube.exec.subprocess.run")
+def test_exec_shell_invalid_pod_returns_error(mock_run):
+    success, error = exec_shell("default", "--kubeconfig=/tmp/evil", "/bin/sh")
+
+    assert success is False
+    assert error is not None
+    mock_run.assert_not_called()
+
+
 def test_prompt_pod_choice_valid_selection_returns_pod():
     candidates = [
         {"metadata": {"name": "api-abc1234567"}},

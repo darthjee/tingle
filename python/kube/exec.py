@@ -14,6 +14,7 @@ from __future__ import annotations
 import subprocess  # nosec B404 - usage confined to fixed CLI binaries via binaries.resolve(), list-form args, no shell
 
 from kube import binaries
+from kube.validation import is_valid_resource_name
 
 
 def exec_shell(namespace: str, pod: str, shell: str) -> tuple[bool, str | None]:
@@ -26,6 +27,11 @@ def exec_shell(namespace: str, pod: str, shell: str) -> tuple[bool, str | None]:
     `scope.switch_context`'s shape: `error` is `None` on success, or a
     message derived from the exit code on failure.
     """
+    if not is_valid_resource_name(namespace, max_length=63):
+        return False, f"invalid namespace: {namespace!r}"
+    if not is_valid_resource_name(pod):
+        return False, f"invalid pod name: {pod!r}"
+
     # Bandit B607 (partial executable path) resolved via binaries.resolve()
     # in issue #58 / PR #78; see the module docstring for `binaries.py`.
     result = subprocess.run(  # nosec B603, B607 - fixed binary, list-form args, no shell
