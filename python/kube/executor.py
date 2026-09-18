@@ -280,18 +280,12 @@ class Kube:
                 print(error)
                 return
 
-            prefix = alias_config["prefix"]
-            matched = match_pods(
-                items, prefix, alias_config.get("id_pattern"), default_id_pattern
+            matched, discarded = Kube._match_pods_for_alias(
+                items, alias_config, default_id_pattern
             )
 
             if not matched:
                 print(f"kube shell: no pods matched alias '{pod_alias}' in '{real_namespace}'")
-                discarded = [
-                    item["metadata"]["name"]
-                    for item in items
-                    if item["metadata"]["name"].startswith(prefix)
-                ]
                 if discarded:
                     print("kube shell: candidates discarded by id_pattern:")
                     for name in discarded:
