@@ -132,3 +132,30 @@ def test_get_pod_invalid_json_returns_error(mock_run):
 
     assert pod is None
     assert error is not None
+
+
+@patch("kube.inventory.subprocess.run")
+def test_list_pods_invalid_namespace_returns_error_without_calling_subprocess(mock_run):
+    items, error = list_pods("--kubeconfig=/tmp/evil")
+
+    assert items == []
+    assert error == "invalid namespace: '--kubeconfig=/tmp/evil'"
+    mock_run.assert_not_called()
+
+
+@patch("kube.inventory.subprocess.run")
+def test_get_pod_invalid_namespace_returns_error_without_calling_subprocess(mock_run):
+    pod, error = get_pod("--kubeconfig=/tmp/evil", "api-abc1234567")
+
+    assert pod is None
+    assert error == "invalid namespace: '--kubeconfig=/tmp/evil'"
+    mock_run.assert_not_called()
+
+
+@patch("kube.inventory.subprocess.run")
+def test_get_pod_invalid_name_returns_error_without_calling_subprocess(mock_run):
+    pod, error = get_pod("default", "--kubeconfig=/tmp/evil")
+
+    assert pod is None
+    assert error == "invalid pod name: '--kubeconfig=/tmp/evil'"
+    mock_run.assert_not_called()
