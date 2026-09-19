@@ -1,6 +1,6 @@
 # Project Instructions
 
-_Last updated: 2026-09-17_
+_Last updated: 2026-09-18_
 
 Tingle is a personal repository of everyday utility scripts — a code "Swiss Army
 knife". It has no single theme; each script is a small, independent tool for a
@@ -20,6 +20,18 @@ git branches.
 - Each script should document its own usage and dependencies in a header
   comment.
 - New scripts should be added to the table in `README.md`.
+
+## Boundaries
+
+- Do not introduce cross-script dependencies unless truly shared.
+- Do not add or modify a script without documenting its usage and
+  dependencies in a header comment.
+- Do not add a new script without also adding it to the table in
+  `README.md`.
+- Do not place implementation code outside `shell/`, `python/`, `node/`, or
+  `bin/`, or documentation outside `docs/agents/`.
+- Do not make an architectural change without updating the relevant file(s)
+  under `docs/agents/`.
 
 ## Documentation
 
