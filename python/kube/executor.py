@@ -238,6 +238,65 @@ class Kube:
                     print(f"    - {name}")
 
     @staticmethod
+    def _resolve_real_pod(
+        parsed: dict, real_namespace: str, active_scope: str, config: KubeConfig
+    ) -> str | None:
+        """Resolve `parsed['pod_alias']` to a real pod name in `real_namespace`.
+
+        Returns the real pod name on success, or `None` when resolution
+        failed — in every `None` case this method has already printed the
+        reason.
+        """
+        pod_alias = parsed["pod_alias"]
+        scoped_pods = active_scope_pods(config.data.get("pods", {}), active_scope)
+
+        if pod_alias not in scoped_pods:
+            notice = (
+                f"kube: '{pod_alias}' not found in configured pods — using it as-is."
+            )
+            print(notice)
+            return pod_alias
+
+        alias_config = scoped_pods[pod_alias]
+        pod_namespace = alias_config.get("namespace")
+        if pod_namespace and pod_namespace != parsed["namespace_alias"]:
+            print(
+                f"kube shell: warning — pod alias '{pod_alias}' is configured for "
+                f"namespace '{pod_namespace}', not '{parsed['namespace_alias']}' — "
+                f"proceeding with '{parsed['namespace_alias']}'"
+            )
+
+        default_id_pattern = config.data.get(
+            "pod_id_pattern", Constants.DEFAULT_POD_ID_PATTERN
+        )
+
+        items, error = list_pods(real_namespace)
+        if error:
+            print(error)
+            return None
+
+        matched, discarded = Kube._match_pods_for_alias(
+            items, alias_config, default_id_pattern
+        )
+
+        if not matched:
+            print(f"kube shell: no pods matched alias '{pod_alias}' in '{real_namespace}'")
+            if discarded:
+                print("kube shell: candidates discarded by id_pattern:")
+                for name in discarded:
+                    print(f"  - {name}")
+            return None
+
+        if len(matched) == 1:
+            return matched[0]["metadata"]["name"]
+
+        chosen = prompt_pod_choice(matched)
+        if chosen is None:
+            print("kube shell: no pod selected")
+            return None
+        return chosen["metadata"]["name"]
+
+    @staticmethod
     def _shell(parsed: dict, config: KubeConfig) -> None:
         """Handle `kube shell <namespace_alias> <pod_alias>`: resolve, pre-check, exec."""
         if not Kube._check_aws_credentials(config):
@@ -252,54 +311,9 @@ class Kube:
         if namespace_notice:
             print(namespace_notice)
 
-        pod_alias = parsed["pod_alias"]
-        scoped_pods = active_scope_pods(config.data.get("pods", {}), active_scope)
-
-        if pod_alias not in scoped_pods:
-            notice = (
-                f"kube: '{pod_alias}' not found in configured pods — using it as-is."
-            )
-            print(notice)
-            real_pod = pod_alias
-        else:
-            alias_config = scoped_pods[pod_alias]
-            pod_namespace = alias_config.get("namespace")
-            if pod_namespace and pod_namespace != parsed["namespace_alias"]:
-                print(
-                    f"kube shell: warning — pod alias '{pod_alias}' is configured for "
-                    f"namespace '{pod_namespace}', not '{parsed['namespace_alias']}' — "
-                    f"proceeding with '{parsed['namespace_alias']}'"
-                )
-
-            default_id_pattern = config.data.get(
-                "pod_id_pattern", Constants.DEFAULT_POD_ID_PATTERN
-            )
-
-            items, error = list_pods(real_namespace)
-            if error:
-                print(error)
-                return
-
-            matched, discarded = Kube._match_pods_for_alias(
-                items, alias_config, default_id_pattern
-            )
-
-            if not matched:
-                print(f"kube shell: no pods matched alias '{pod_alias}' in '{real_namespace}'")
-                if discarded:
-                    print("kube shell: candidates discarded by id_pattern:")
-                    for name in discarded:
-                        print(f"  - {name}")
-                return
-
-            if len(matched) == 1:
-                real_pod = matched[0]["metadata"]["name"]
-            else:
-                chosen = prompt_pod_choice(matched)
-                if chosen is None:
-                    print("kube shell: no pod selected")
-                    return
-                real_pod = chosen["metadata"]["name"]
+        real_pod = Kube._resolve_real_pod(parsed, real_namespace, active_scope, config)
+        if real_pod is None:
+            return
 
         pod, error = get_pod(real_namespace, real_pod)
         if error:
