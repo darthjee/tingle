@@ -350,7 +350,7 @@ def test_shell_single_match_resolves_and_execs(
         namespaces={"prod": {"default": "prod-default-ns"}},
         pods={"prod": {"api": {"prefix": "my-pod-"}}},
         pod_id_pattern=r"^[a-z0-9]{10}$",
-        shell="bash",
+        shell="bash",  # nosec B604 - mock config value; exec_shell is patched, no real subprocess call
     )
 
     Kube._shell({"namespace_alias": "default", "pod_alias": "api"}, config)
@@ -387,7 +387,7 @@ def test_shell_warns_when_pod_alias_namespace_conflicts_with_argument(
             }
         },
         pod_id_pattern=r"^[a-z0-9]{10}$",
-        shell="bash",
+        shell="bash",  # nosec B604 - mock config value; exec_shell is patched, no real subprocess call
     )
 
     Kube._shell({"namespace_alias": "db", "pod_alias": "app"}, config)
