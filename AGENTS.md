@@ -36,6 +36,21 @@ git branches.
 - Do not make an architectural change without updating the relevant file(s)
   under `docs/agents/`.
 
+## Tools
+
+Specialist agents are defined under `.claude/agents/`, which holds their
+full descriptions. Delegate work to the agent that owns the area:
+
+- `architect` — cross-cutting tasks, multi-agent coordination, root-level
+  files.
+- `cli` — entry points under `bin/` (arg parsing, `--help`, exit codes,
+  dispatch into the language folders).
+- `node` — Node.js scripts under `node/`.
+- `python` — Python scripts under `python/`.
+- `shell` — Bash/Shell scripts under `shell/`.
+- `product-owner` — content under `docs/agents/` (architecture, flow, folder
+  structure, contributing, issues, plans).
+
 ## Documentation
 
 All project documentation lives under [`docs/agents/`](docs/agents/):
