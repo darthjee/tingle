@@ -8,8 +8,6 @@ from kube.constants import Constants
 
 
 def _real_config(tmp_path, raw=None):
-    from kube.config import KubeConfig
-
     path = tmp_path / "config.json"
     config = KubeConfig(path)
     config.raw = raw or {}
