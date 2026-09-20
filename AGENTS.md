@@ -1,6 +1,9 @@
 # Project Instructions
 
-_Last updated: 2026-09-18_
+_Last updated: 2026-09-20_
+
+You are an assistant helping maintain Tingle, a personal collection of small,
+independent utility scripts.
 
 Tingle is a personal repository of everyday utility scripts — a code "Swiss Army
 knife". It has no single theme; each script is a small, independent tool for a
