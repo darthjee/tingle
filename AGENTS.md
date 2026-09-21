@@ -1,6 +1,6 @@
 # Project Instructions
 
-_Last updated: 2026-09-20_
+Last updated: 2026-09-20
 
 You are an assistant helping maintain Tingle, a personal collection of small,
 independent utility scripts.
