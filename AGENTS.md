@@ -18,23 +18,22 @@ git branches.
 
 ## Conventions
 
-- Scripts are independent and runnable on their own — avoid introducing
-  cross-script dependencies unless truly shared.
-- Each script should document its own usage and dependencies in a header
-  comment.
-- New scripts should be added to the table in `README.md`.
+- **Should**: Scripts are independent and runnable on their own — avoid
+  introducing cross-script dependencies unless truly shared.
+- **Should**: Each script document its own usage and dependencies in a
+  header comment.
+- **Should**: New scripts be added to the table in `README.md`.
 
 ## Boundaries
 
-- Do not introduce cross-script dependencies unless truly shared.
-- Do not add or modify a script without documenting its usage and
-  dependencies in a header comment.
-- Do not add a new script without also adding it to the table in
-  `README.md`.
-- Do not place implementation code outside `shell/`, `python/`, `node/`, or
-  `bin/`, or documentation outside `docs/agents/`.
-- Do not make an architectural change without updating the relevant file(s)
-  under `docs/agents/`.
+- **Never**: introduce cross-script dependencies unless truly shared.
+- **Must**: document a script's usage and dependencies in a header comment
+  whenever it is added or modified.
+- **Must**: add a new script to the table in `README.md`.
+- **Never**: place implementation code outside `shell/`, `python/`,
+  `node/`, or `bin/`, or documentation outside `docs/agents/`.
+- **Must**: update the relevant file(s) under `docs/agents/` whenever an
+  architectural change is made.
 
 ## Tools
 
