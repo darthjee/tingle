@@ -1,5 +1,4 @@
-"""
-config.py — Load, validate, and default ~/.tingle/kube/config.json.
+"""config.py — Load, validate, and default ~/.tingle/kube/config.json.
 
 Reads the config file, validates its shape against the schema in
 `constants.py`, and applies defaults for `aws_profile`, `pod_id_pattern`,
