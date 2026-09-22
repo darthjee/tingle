@@ -8,8 +8,8 @@ Personal repository of everyday utility scripts — a code "Swiss Army knife".
 
 ![tingle](https://raw.githubusercontent.com/darthjee/tingle/master/tingle.png)
 
-**Current Version:** [0.0.1](https://github.com/darthjee/tingle/releases/tag/0.0.1)
-**Next Release:** [0.0.2](https://github.com/darthjee/tingle/compare/0.0.1...main)
+**Current Version:** [0.0.2](https://github.com/darthjee/tingle/releases/tag/0.0.2)
+**Next Release:** [0.0.3](https://github.com/darthjee/tingle/compare/0.0.2...main)
 
 Scripts in **shell**, **Python** and **Node.js** for simple, recurring tasks:
 file scraping, bulk renaming, copying files between git branches,
