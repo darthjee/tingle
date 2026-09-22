@@ -1,5 +1,4 @@
-"""
-matching.py — Pod-matching pipeline for kube discovery.
+"""matching.py — Pod-matching pipeline for kube discovery.
 
 Standalone, reusable filter/sort pipeline: given a flat list of pods (as
 returned by `kube/inventory.py`) and a pod alias's `prefix` + `id_pattern`
