@@ -1,5 +1,4 @@
-"""
-completion.py — Bash-completion candidate resolution for kube.
+"""completion.py — Bash-completion candidate resolution for kube.
 
 `commands.sh` invokes `main.py complete "${COMP_WORDS[@]:2}"` — the raw argv
 starting at the subcommand, including a possibly-empty trailing element for
