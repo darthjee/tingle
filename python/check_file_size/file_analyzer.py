@@ -11,6 +11,7 @@ class FileAnalyzer:
     """Count lines and classify files by threshold."""
 
     def __init__(self, warn: int, error: int, critical: int):
+        """Store the warn/error/critical line-count thresholds."""
         self._warn = warn
         self._error = error
         self._critical = critical

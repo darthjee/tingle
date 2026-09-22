@@ -22,6 +22,12 @@ class KubeConfig:
     """Load ~/.tingle/kube/config.json, validating and defaulting it."""
 
     def __init__(self, path: Path | None = None):
+        """Load and validate the config at `path` (default: `Constants.CONFIG_PATH`).
+
+        Loading happens immediately: a missing file is bootstrapped on disk,
+        while an unreadable or invalid one flags pass-through mode (see
+        `pass_through` / `notice`) instead of raising.
+        """
         self._path = path or Constants.CONFIG_PATH
         self.pass_through = False
         self.notice: str | None = None

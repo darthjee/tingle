@@ -12,6 +12,7 @@ class Reporter:
     """Print the analysis table and summary for a set of results."""
 
     def __init__(self, analyzer: FileAnalyzer, target: Path):
+        """Store the analyzer used to classify results and the target being reported on."""
         self._analyzer = analyzer
         self._target = target
 
