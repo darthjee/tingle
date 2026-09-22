@@ -11,6 +11,7 @@ class FileCollector:
     """Walk paths recursively, applying exclusions and filters."""
 
     def __init__(self, excludes: list[str], extensions: list[str] | None):
+        """Store case-insensitive exclusions and optional extension filters (`None`: no filter)."""
         self._exclude_set = {e.lower() for e in excludes}
         self._ext_set = {e.lower() for e in extensions} if extensions else None
 

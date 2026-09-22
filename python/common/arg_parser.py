@@ -16,6 +16,7 @@ class ArgParser:
     """Build and parse command-line arguments from flag definitions."""
 
     def __init__(self, flags: list[dict]):
+        """Store the flag-definition dicts used to build the parser."""
         self._flags = flags
 
     def parse(self, argv: list[str] | None = None) -> dict:
