@@ -1,5 +1,4 @@
-"""
-auth.py — AWS credential pre-check for kube.
+"""auth.py — AWS credential pre-check for kube.
 
 Standalone, reusable helper that verifies AWS credentials are usable for a
 given profile before touching the cluster. Wraps
