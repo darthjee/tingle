@@ -1,5 +1,4 @@
-"""
-validation.py — Kubernetes resource name validation for kube.
+"""validation.py — Kubernetes resource name validation for kube.
 
 Validates caller-supplied resource names (namespaces, pod names, etc.)
 against RFC 1123 label rules before they are interpolated into `kubectl`
