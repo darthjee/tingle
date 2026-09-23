@@ -1,5 +1,4 @@
-"""
-parser.py — Subcommand-aware argument parser for kube.
+"""parser.py — Subcommand-aware argument parser for kube.
 
 `switch`, `list`, `shell`, and `configure` each take a different argument
 shape, so this wraps `argparse.ArgumentParser` with `add_subparsers()`
