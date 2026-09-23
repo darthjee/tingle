@@ -1,5 +1,4 @@
-"""
-scope.py — Context alias resolution and active-scope detection for kube.
+"""scope.py — Context alias resolution and active-scope detection for kube.
 
 Standalone, reusable functions wrapping `kubectx`/`kubectl` subprocess calls:
 resolving a `context_alias` against the config's `contexts` dict, switching
