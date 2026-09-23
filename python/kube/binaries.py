@@ -1,5 +1,4 @@
-"""
-binaries.py — Executable path resolution for kube.
+"""binaries.py — Executable path resolution for kube.
 
 Resolves a bare executable name (e.g. "aws", "kubectl") to its absolute
 path via `shutil.which`, satisfying Bandit B607 ("starting a process with
