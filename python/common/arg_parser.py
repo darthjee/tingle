@@ -1,5 +1,4 @@
-"""
-arg_parser.py — Generic, reusable command-line argument parser.
+"""arg_parser.py — Generic, reusable command-line argument parser.
 
 Wraps `argparse.ArgumentParser`, turning a plain list of flag-definition
 dicts into a parsed `dict` of option name → value. Command-specific
