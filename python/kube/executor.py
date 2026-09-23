@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 
-from kube.auth import check_aws_credentials
+from kube.auth import check_aws_credentials, detect_credential_source
 from kube.config import KubeConfig
 from kube.configure import configure_context, configure_namespace, configure_pod
 from kube.constants import Constants
@@ -71,13 +71,7 @@ class Kube:
         if notice:
             print(notice)
 
-        aws_profile = config.data.get("aws_profile", Constants.DEFAULT_AWS_PROFILE)
-        credentials_ok, credentials_error = check_aws_credentials(aws_profile)
-        if not credentials_ok:
-            print(
-                f"kube switch: AWS credential check failed for profile "
-                f"'{aws_profile}': {credentials_error}"
-            )
+        if not Kube._check_aws_credentials(config, "switch"):
             return
 
         success, error = switch_context(real_name)
@@ -101,14 +95,36 @@ class Kube:
             Kube._list_pods(parsed, config)
 
     @staticmethod
-    def _check_aws_credentials(config: KubeConfig) -> bool:
-        """Run the AWS pre-check, printing an abort message on failure."""
+    def _check_aws_credentials(config: KubeConfig, command: str) -> bool:
+        """Run the AWS pre-check for `kube <command>`, printing an abort message on failure.
+
+        Detects the credential source first: exported environment
+        credentials are checked without `--profile` (printing a notice that
+        `aws_profile` is ignored); incomplete environment credentials print a
+        warning and fall back to the configured profile.
+        """
+        source = detect_credential_source()
         aws_profile = config.data.get("aws_profile", Constants.DEFAULT_AWS_PROFILE)
-        credentials_ok, credentials_error = check_aws_credentials(aws_profile)
+
+        if source == "env":
+            print("kube: using AWS credentials from environment (aws_profile ignored)")
+            credentials_ok, credentials_error = check_aws_credentials(None)
+        else:
+            if source == "partial":
+                print(
+                    "kube: warning: incomplete AWS environment credentials "
+                    "(need both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY); "
+                    f"falling back to profile '{aws_profile}'"
+                )
+            credentials_ok, credentials_error = check_aws_credentials(aws_profile)
+
         if not credentials_ok:
+            target = (
+                "environment credentials" if source == "env" else f"profile '{aws_profile}'"
+            )
             print(
-                f"kube list: AWS credential check failed for profile "
-                f"'{aws_profile}': {credentials_error}"
+                f"kube {command}: AWS credential check failed for {target}: "
+                f"{credentials_error}"
             )
         return credentials_ok
 
@@ -141,7 +157,7 @@ class Kube:
     @staticmethod
     def _list_namespace(parsed: dict, config: KubeConfig) -> None:
         """Handle `kube list namespace`: list real namespaces, annotated with aliases."""
-        if not Kube._check_aws_credentials(config):
+        if not Kube._check_aws_credentials(config, "list"):
             return
 
         active_scope = detect_active_scope(config.data.get("contexts", {}))
@@ -173,7 +189,7 @@ class Kube:
     @staticmethod
     def _list_pods(parsed: dict, config: KubeConfig) -> None:
         """Handle `kube list pods --namespace <alias>`: list matched pods per alias."""
-        if not Kube._check_aws_credentials(config):
+        if not Kube._check_aws_credentials(config, "list"):
             return
 
         active_scope = detect_active_scope(config.data.get("contexts", {}))
@@ -299,7 +315,7 @@ class Kube:
     @staticmethod
     def _shell(parsed: dict, config: KubeConfig) -> None:
         """Handle `kube shell <namespace_alias> <pod_alias>`: resolve, pre-check, exec."""
-        if not Kube._check_aws_credentials(config):
+        if not Kube._check_aws_credentials(config, "shell"):
             return
 
         active_scope = detect_active_scope(config.data.get("contexts", {}))

@@ -82,6 +82,37 @@ it splits into `main.py` (the `run`/`complete` dispatcher), `executor.py`
 (holds the `CheckFileSize` orchestrator class), `constants.py`,
 `skip_checks.py`, `file_collector.py`, `file_analyzer.py`, and `reporter.py`.
 
+#### kube AWS credentials
+
+`python/kube/auth.py` owns the AWS side of kube's pre-check. It works out
+which credentials the AWS CLI will use and checks that they are valid. It
+does this before kube touches the cluster, so a bad login fails early with a
+clear message instead of an opaque `kubectl` error. It exposes two functions:
+
+- `detect_credential_source() -> str` reads the process environment and
+  returns one of:
+  - `"env"`: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are both set
+    and non-empty.
+  - `"partial"`: only one of the two is non-empty.
+  - `"profile"`: neither is set.
+
+  `AWS_SESSION_TOKEN` does not affect detection. It is still passed to the
+  AWS CLI through the environment, so temporary credentials keep working.
+- `check_aws_credentials(profile: str | None) -> tuple[bool, str | None]`
+  runs `aws sts get-caller-identity` and returns `(True, None)` on success
+  or `(False, <error>)` on failure.
+  - **`None`-profile convention:** with a profile name it adds
+    `--profile <profile>`. With `profile=None` it leaves the flag out, so
+    the AWS CLI uses its own credential chain, starting with the environment
+    variables. The caller (`executor.py`) passes `None` when the source is
+    `"env"`, and passes the configured `aws_profile` for `"partial"` and
+    `"profile"`.
+
+No config key was added for this. `aws_profile` (default `"default"`) is
+still the only AWS setting in kube's config. It is ignored when the
+environment already has full credentials. See [flow.md](flow.md#kube-aws-credential-pre-check)
+for the runtime sequence.
+
 #### Test folder location
 
 Tests for `python/` live under `python/tests/`, mirroring the package layout
