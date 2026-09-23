@@ -1,5 +1,4 @@
-"""
-inventory.py — Kubectl inventory helpers for kube.
+"""inventory.py — Kubectl inventory helpers for kube.
 
 Standalone, reusable functions wrapping the read-only `kubectl` calls needed
 for discovery: listing namespaces and listing pods within a namespace. Dumb
