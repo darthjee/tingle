@@ -1,6 +1,7 @@
-"""Unit tests for check_file_size.skip_checks.SkipChecks, plus the --top 0
-and default-exclude edge cases that live at the FileCollector/CheckFileSize
-level.
+"""Unit tests for check_file_size.skip_checks.SkipChecks.
+
+Also covers the --top 0 and default-exclude edge cases that live at the
+FileCollector/CheckFileSize level.
 """
 
 from __future__ import annotations
