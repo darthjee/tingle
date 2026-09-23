@@ -41,7 +41,11 @@ def test_shell_aborts_when_aws_precheck_fails(
     mock_list_pods.assert_not_called()
     mock_exec.assert_not_called()
     out = capsys.readouterr().out
-    assert "AWS credential check failed" in out
+    assert (
+        "kube shell: AWS credential check failed for profile 'prod': "
+        "Unable to locate credentials"
+    ) in out
+    assert "environment" not in out
 
 
 @patch("kube.executor.exec_shell")
@@ -260,3 +264,133 @@ def test_shell_get_pod_error_aborts_before_exec(
     mock_exec.assert_not_called()
     out = capsys.readouterr().out
     assert 'pods "my-pod-aaaaaaaaaa" not found' in out
+
+
+@patch("kube.executor.exec_shell")
+@patch("kube.executor.get_pod")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_shell_env_mode_prints_notice_and_skips_profile(
+    mock_source, mock_check, mock_detect, mock_list_pods, mock_get_pod, mock_exec, capsys
+):
+    mock_source.return_value = "env"
+    mock_check.return_value = (True, None)
+    mock_list_pods.return_value = ([], None)
+    mock_get_pod.return_value = ({"status": {"phase": "Running"}}, None)
+    mock_exec.return_value = (True, None)
+    config = _config(aws_profile="prod")
+
+    Kube._shell({"namespace_alias": "default", "pod_alias": "api"}, config)
+
+    mock_check.assert_called_once_with(None)
+    out = capsys.readouterr().out
+    assert "kube: using AWS credentials from environment (aws_profile ignored)" in out
+    assert "warning" not in out
+
+
+@patch("kube.executor.exec_shell")
+@patch("kube.executor.get_pod")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_shell_partial_mode_warns_and_falls_back_to_profile(
+    mock_source, mock_check, mock_detect, mock_list_pods, mock_get_pod, mock_exec, capsys
+):
+    mock_source.return_value = "partial"
+    mock_check.return_value = (True, None)
+    mock_list_pods.return_value = ([], None)
+    mock_get_pod.return_value = ({"status": {"phase": "Running"}}, None)
+    mock_exec.return_value = (True, None)
+    config = _config(aws_profile="prod")
+
+    Kube._shell({"namespace_alias": "default", "pod_alias": "api"}, config)
+
+    mock_check.assert_called_once_with("prod")
+    out = capsys.readouterr().out
+    assert (
+        "kube: warning: incomplete AWS environment credentials "
+        "(need both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY); "
+        "falling back to profile 'prod'"
+    ) in out
+    assert "kube: using AWS credentials from environment (aws_profile ignored)" not in out
+
+
+@patch("kube.executor.exec_shell")
+@patch("kube.executor.get_pod")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_shell_profile_mode_prints_no_notice(
+    mock_source, mock_check, mock_detect, mock_list_pods, mock_get_pod, mock_exec, capsys
+):
+    mock_source.return_value = "profile"
+    mock_check.return_value = (True, None)
+    mock_list_pods.return_value = ([], None)
+    mock_get_pod.return_value = ({"status": {"phase": "Running"}}, None)
+    mock_exec.return_value = (True, None)
+    config = _config(aws_profile="prod")
+
+    Kube._shell({"namespace_alias": "default", "pod_alias": "api"}, config)
+
+    mock_check.assert_called_once_with("prod")
+    out = capsys.readouterr().out
+    assert "kube: using AWS credentials from environment (aws_profile ignored)" not in out
+    assert "incomplete AWS environment credentials" not in out
+
+
+@patch("kube.executor.exec_shell")
+@patch("kube.executor.get_pod")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_shell_env_mode_failure_mentions_environment_credentials(
+    mock_source, mock_check, mock_detect, mock_list_pods, mock_get_pod, mock_exec, capsys
+):
+    mock_source.return_value = "env"
+    mock_check.return_value = (False, "Unable to locate credentials")
+    mock_list_pods.return_value = ([], None)
+    mock_get_pod.return_value = ({"status": {"phase": "Running"}}, None)
+    mock_exec.return_value = (True, None)
+    config = _config(aws_profile="prod")
+
+    Kube._shell({"namespace_alias": "default", "pod_alias": "api"}, config)
+
+    mock_check.assert_called_once_with(None)
+    mock_list_pods.assert_not_called()
+    out = capsys.readouterr().out
+    assert (
+        "kube shell: AWS credential check failed for environment credentials: "
+        "Unable to locate credentials"
+    ) in out
+
+
+@patch("kube.executor.exec_shell")
+@patch("kube.executor.get_pod")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_shell_partial_mode_failure_mentions_profile(
+    mock_source, mock_check, mock_detect, mock_list_pods, mock_get_pod, mock_exec, capsys
+):
+    mock_source.return_value = "partial"
+    mock_check.return_value = (False, "Unable to locate credentials")
+    mock_list_pods.return_value = ([], None)
+    mock_get_pod.return_value = ({"status": {"phase": "Running"}}, None)
+    mock_exec.return_value = (True, None)
+    config = _config(aws_profile="prod")
+
+    Kube._shell({"namespace_alias": "default", "pod_alias": "api"}, config)
+
+    mock_check.assert_called_once_with("prod")
+    mock_list_pods.assert_not_called()
+    out = capsys.readouterr().out
+    assert (
+        "kube shell: AWS credential check failed for profile 'prod': "
+        "Unable to locate credentials"
+    ) in out

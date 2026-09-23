@@ -34,8 +34,11 @@ def test_list_namespace_aborts_when_aws_precheck_fails(
     mock_check.assert_called_once_with("prod")
     mock_list_namespaces.assert_not_called()
     out = capsys.readouterr().out
-    assert "AWS credential check failed" in out
-    assert "Unable to locate credentials" in out
+    assert (
+        "kube list: AWS credential check failed for profile 'prod': "
+        "Unable to locate credentials"
+    ) in out
+    assert "environment" not in out
 
 
 @patch("kube.executor.detect_active_scope")
@@ -100,3 +103,113 @@ def test_list_namespace_json_output(mock_check, mock_list_namespaces, mock_detec
     payload = json.loads(out)
     assert {"alias": "default", "name": "prod-default-ns"} in payload
     assert {"alias": None, "name": "unaliased-ns"} in payload
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_namespaces")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_list_env_mode_prints_notice_and_skips_profile(
+    mock_source, mock_check, mock_list_namespaces, mock_detect, capsys
+):
+    mock_source.return_value = "env"
+    mock_check.return_value = (True, None)
+    mock_list_namespaces.return_value = ([], None)
+    config = _config(aws_profile="prod")
+
+    Kube._list_namespace({"list_target": "namespace"}, config)
+
+    mock_check.assert_called_once_with(None)
+    out = capsys.readouterr().out
+    assert "kube: using AWS credentials from environment (aws_profile ignored)" in out
+    assert "warning" not in out
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_namespaces")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_list_partial_mode_warns_and_falls_back_to_profile(
+    mock_source, mock_check, mock_list_namespaces, mock_detect, capsys
+):
+    mock_source.return_value = "partial"
+    mock_check.return_value = (True, None)
+    mock_list_namespaces.return_value = ([], None)
+    config = _config(aws_profile="prod")
+
+    Kube._list_namespace({"list_target": "namespace"}, config)
+
+    mock_check.assert_called_once_with("prod")
+    out = capsys.readouterr().out
+    assert (
+        "kube: warning: incomplete AWS environment credentials "
+        "(need both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY); "
+        "falling back to profile 'prod'"
+    ) in out
+    assert "kube: using AWS credentials from environment (aws_profile ignored)" not in out
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_namespaces")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_list_profile_mode_prints_no_notice(
+    mock_source, mock_check, mock_list_namespaces, mock_detect, capsys
+):
+    mock_source.return_value = "profile"
+    mock_check.return_value = (True, None)
+    mock_list_namespaces.return_value = ([], None)
+    config = _config(aws_profile="prod")
+
+    Kube._list_namespace({"list_target": "namespace"}, config)
+
+    mock_check.assert_called_once_with("prod")
+    out = capsys.readouterr().out
+    assert "kube: using AWS credentials from environment (aws_profile ignored)" not in out
+    assert "incomplete AWS environment credentials" not in out
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_namespaces")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_list_env_mode_failure_mentions_environment_credentials(
+    mock_source, mock_check, mock_list_namespaces, mock_detect, capsys
+):
+    mock_source.return_value = "env"
+    mock_check.return_value = (False, "Unable to locate credentials")
+    mock_list_namespaces.return_value = ([], None)
+    config = _config(aws_profile="prod")
+
+    Kube._list_namespace({"list_target": "namespace"}, config)
+
+    mock_check.assert_called_once_with(None)
+    mock_list_namespaces.assert_not_called()
+    out = capsys.readouterr().out
+    assert (
+        "kube list: AWS credential check failed for environment credentials: "
+        "Unable to locate credentials"
+    ) in out
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_namespaces")
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.detect_credential_source")
+def test_list_partial_mode_failure_mentions_profile(
+    mock_source, mock_check, mock_list_namespaces, mock_detect, capsys
+):
+    mock_source.return_value = "partial"
+    mock_check.return_value = (False, "Unable to locate credentials")
+    mock_list_namespaces.return_value = ([], None)
+    config = _config(aws_profile="prod")
+
+    Kube._list_namespace({"list_target": "namespace"}, config)
+
+    mock_check.assert_called_once_with("prod")
+    mock_list_namespaces.assert_not_called()
+    out = capsys.readouterr().out
+    assert (
+        "kube list: AWS credential check failed for profile 'prod': "
+        "Unable to locate credentials"
+    ) in out
