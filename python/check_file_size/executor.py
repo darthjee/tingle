@@ -9,12 +9,14 @@ bottlenecks before feeding a repository to an AI.
 Usage:
     ./check_file_size.py <path> [options]
 
-Examples:
+Examples
+--------
     ./check_file_size.py ./src
     ./check_file_size.py ./src --warn 300 --error 500 --critical 1000
     ./check_file_size.py ./src --top 20
     ./check_file_size.py ./src --exclude node_modules,dist,build
     ./check_file_size.py ./src --ext .py --ext .js
+
 """
 
 from __future__ import annotations
