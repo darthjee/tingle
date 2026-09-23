@@ -1,5 +1,4 @@
-"""
-configure.py — Interactive `configure context|namespace|pod` flows for kube.
+"""configure.py — Interactive `configure context|namespace|pod` flows for kube.
 
 Each flow edits `KubeConfig.raw` (the pre-default dict) and persists it via
 `KubeConfig.save`, so a user who never set `aws_profile`/`pod_id_pattern`/
