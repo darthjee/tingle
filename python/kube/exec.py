@@ -1,5 +1,4 @@
-"""
-exec.py — Interactive exec and ambiguity-prompt helpers for kube.
+"""exec.py — Interactive exec and ambiguity-prompt helpers for kube.
 
 Standalone, reusable pieces for the `shell` command: launching an
 interactive `kubectl exec` session (inheriting the terminal's stdio rather
