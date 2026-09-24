@@ -16,4 +16,4 @@ Agent-facing project documentation lives under
 live under [`docs/guides/`](docs/guides/README.md). See
 [AGENTS.md](AGENTS.md#documentation) for the index.
 
-Last updated: 2026-09-23
+Last updated: 2026-09-24
