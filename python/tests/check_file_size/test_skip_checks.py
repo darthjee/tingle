@@ -92,3 +92,31 @@ def test_default_exclude_skips_node_modules_nested_file(tmp_path):
     results = collector.collect(tmp_path)
 
     assert results == [kept]
+
+
+@pytest.mark.parametrize("filename", ["app.min.js", "style.min.css", "APP.MIN.JS"])
+def test_is_binary_file_multi_part_extension_short_circuits(tmp_path, filename):
+    file_path = tmp_path / filename
+    # Empty file — only the extension check can flag it as binary.
+    file_path.touch()
+
+    assert SkipChecks.is_binary_file(file_path) is True
+
+
+@pytest.mark.parametrize("filename", ["app.js", "style.css"])
+def test_is_binary_file_plain_js_css_not_skipped(tmp_path, filename):
+    file_path = tmp_path / filename
+    file_path.write_text("body {}\n")
+
+    assert SkipChecks.is_binary_file(file_path) is False
+
+
+def test_collector_skips_minified_js(tmp_path):
+    kept = tmp_path / "app.js"
+    kept.write_text("x\n")
+    (tmp_path / "app.min.js").write_text("y\n")
+
+    collector = FileCollector(Constants.DEFAULT_EXCLUDES, None)
+    results = collector.collect(tmp_path)
+
+    assert results == [kept]

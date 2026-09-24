@@ -13,8 +13,9 @@ class SkipChecks:
     @staticmethod
     def is_binary_file(path: Path) -> bool:
         """Check if a file is binary by extension or content."""
-        # 1. Known binary extension
-        if path.suffix.lower() in Constants.BINARY_EXTENSIONS:
+        # 1. Known binary extension (supports multi-part ones like .min.js)
+        name = path.name.lower()
+        if any(name.endswith(ext) for ext in Constants.BINARY_EXTENSIONS):
             return True
 
         # 2. Content-based detection — read first 1024 bytes

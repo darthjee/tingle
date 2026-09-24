@@ -118,7 +118,8 @@ automatically. A file counts as binary when:
   (`.pdf`, `.docx`, ...), archives (`.zip`, `.tar`, `.gz`, ...), compiled
   code and libraries (`.exe`, `.so`, `.pyc`, `.class`, `.jar`, `.wasm`,
   ...), fonts (`.ttf`, `.woff2`, ...), databases (`.db`, `.sqlite`, ...),
-  and a few others such as `.lock` and `.map`; or
+  and a few others such as `.lock`, `.map` and minified assets (`.min.js`,
+  `.min.css`); or
 - its first 1024 bytes contain a NUL byte or are not valid UTF-8; or
 - it cannot be read (for example, because of permissions).
 
