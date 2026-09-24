@@ -2,11 +2,16 @@
   "install": {
     "path": "shell/install/main.sh",
     "short_help": "Install tingle onto PATH and enable bash completion.",
-    "long_help": "Adds tingle's bin/ folder to PATH and installs bash completion for tingle, both idempotently, by appending the necessary lines to ~/.bashrc if they are not already present.\n\nUsage:\n    tingle install\n\nRunning it more than once is safe: existing PATH and completion entries in ~/.bashrc are detected and left untouched."
+    "long_help": "Adds tingle's bin/ folder to PATH and installs bash completion for tingle by writing a marked block to ~/.bashrc.\n\nUsage:\n    tingle install\n\nRunning it more than once is safe: if the block is already present and points at the current tingle folder, ~/.bashrc is left untouched. If the tingle folder has moved since it was installed, re-running tingle install from the new location rewrites the existing block to point at the new path.\n\nOnly bash (~/.bashrc) is supported; zsh and fish are not wired up. On macOS, bash login shells read ~/.bash_profile, so make sure it sources ~/.bashrc for the wiring to apply.\n\nTo remove the wiring again, run tingle uninstall."
   },
   "linux": {
     "path": "shell/linux/main.sh",
     "short_help": "Run GNU/Linux tools (sed, shell) inside a container.",
     "long_help": "Runs real GNU/Linux command-line tools inside a Docker container (the current working directory mounted in at the same path), for cases where the host tool differs from its Linux counterpart in ways that break scripts or muscle memory — e.g. macOS's BSD sed vs GNU sed.\n\nUsage:\n    tingle linux shell\n    tingle linux sed <sed-args...>\n\nExamples:\n    tingle linux shell\n        Opens an interactive bash shell inside the tingle-linux container,\n        with the current working directory mounted at the same path, so you\n        can run Linux-native tools directly against your files.\n\n    tingle linux sed -i 's/foo/bar/' somefile.txt\n        Runs GNU sed inside the tingle-linux container with all arguments\n        forwarded verbatim. Here it edits somefile.txt in place using GNU\n        -i syntax (no backup-suffix argument, unlike BSD sed).\n\n    cat file | tingle linux sed 's/a/b/'\n        Pipes stdin through GNU sed inside the container and writes the\n        result to stdout."
+  },
+  "uninstall": {
+    "path": "shell/uninstall/main.sh",
+    "short_help": "Remove tingle's PATH and bash completion wiring from ~/.bashrc.",
+    "long_help": "Removes the tingle block (the lines between '# >>> tingle >>>' and '# <<< tingle <<<') that tingle install added to ~/.bashrc. The rest of ~/.bashrc is left untouched.\n\nUsage:\n    tingle uninstall\n\nThe tingle folder itself is not deleted; remove it manually if you no longer need it. Running it more than once is safe: if no tingle block is found, nothing is changed. Restart your shell afterwards to drop tingle from PATH."
   }
 }
