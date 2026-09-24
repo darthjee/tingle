@@ -65,3 +65,16 @@ def test_run_applies_top_flag_to_limit_results(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "b.py" in out
     assert "a.py" not in out
+
+
+def test_run_output_is_plain_text_when_not_a_tty(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "a.py").write_text("1\n")
+
+    CheckFileSize().run([str(target)])
+
+    out = capsys.readouterr().out
+    assert "Analyzing:" in out
+    assert "\033[" not in out

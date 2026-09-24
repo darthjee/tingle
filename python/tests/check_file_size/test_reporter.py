@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
+from check_file_size.constants import Constants
 from check_file_size.file_analyzer import FileAnalyzer
+from check_file_size.palette import Palette
 from check_file_size.reporter import Reporter
+
+
+class FakeTTY(io.StringIO):
+    """In-memory stream that reports itself as a TTY."""
+
+    def isatty(self) -> bool:
+        return True
 
 
 def test_report_mixed_results_prints_row_per_result_and_summary(tmp_path, capsys):
@@ -97,3 +107,36 @@ def test_report_display_path_falls_back_to_str_on_value_error(tmp_path, capsys):
     out = capsys.readouterr().out
 
     assert str(unrelated) in out
+
+
+def test_report_is_plain_text_when_stdout_is_not_a_tty(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
+
+    Reporter(analyzer, tmp_path).report([(tmp_path / "a.py", 1000)])
+
+    out = capsys.readouterr().out
+    assert "\033[" not in out
+    assert "🟣 CRITICAL" in out
+
+
+def test_report_is_plain_text_when_no_color_is_set(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+    analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
+
+    Reporter(analyzer, tmp_path, Palette(FakeTTY())).report([(tmp_path / "a.py", 1)])
+
+    out = capsys.readouterr().out
+    assert "\033[" not in out
+    assert "✅ OK" in out
+
+
+def test_report_is_coloured_with_a_tty_palette(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
+
+    Reporter(analyzer, tmp_path, Palette(FakeTTY())).report([(tmp_path / "a.py", 500)])
+
+    out = capsys.readouterr().out
+    assert f"{Constants.RED}{Constants.BOLD}🔴 ERROR" in out
+    assert f"{Constants.BOLD}Summary:{Constants.RESET}" in out

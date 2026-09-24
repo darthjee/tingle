@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from check_file_size.constants import Constants
 from check_file_size.file_analyzer import FileAnalyzer
 from check_file_size.file_collector import FileCollector
+from check_file_size.palette import Palette
 from check_file_size.reporter import Reporter
 from common.arg_parser import ArgParser
 
@@ -100,16 +101,19 @@ class CheckFileSize:
         target = Path(args["path"]).resolve()
 
         if not target.exists():
-            print(f"{Constants.RED}Error: path not found: {target}{Constants.RESET}")
+            err = Palette(sys.stderr)
+            print(f"{err.RED}Error: path not found: {target}{err.RESET}")
             sys.exit(1)
+
+        out = Palette(sys.stdout)
 
         excludes = [e.strip() for e in args["exclude"].split(",") if e.strip()]
 
         # Header
-        print(f"{Constants.CYAN}{Constants.BOLD}Analyzing:{Constants.RESET} {target}")
+        print(f"{out.CYAN}{out.BOLD}Analyzing:{out.RESET} {target}")
         print(
-            f"{Constants.DIM}Thresholds: warn={args['warn']} | error={args['error']} | "
-            f"critical={args['critical']}{Constants.RESET}"
+            f"{out.DIM}Thresholds: warn={args['warn']} | error={args['error']} | "
+            f"critical={args['critical']}{out.RESET}"
         )
         print()
 
@@ -118,7 +122,7 @@ class CheckFileSize:
         files = collector.collect(target)
 
         if not files:
-            print(f"{Constants.YELLOW}No files found for analysis.{Constants.RESET}")
+            print(f"{out.YELLOW}No files found for analysis.{out.RESET}")
             sys.exit(0)
 
         # Analyze
@@ -136,4 +140,4 @@ class CheckFileSize:
         if args["top"] > 0:
             results = results[:args["top"]]
 
-        Reporter(analyzer, target).report(results)
+        Reporter(analyzer, target, out).report(results)

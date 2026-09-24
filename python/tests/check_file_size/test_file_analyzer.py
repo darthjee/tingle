@@ -51,23 +51,24 @@ def test_count_lines_permission_denied_returns_minus_one(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "lines, expected_label",
+    "lines, expected_label, expected_level",
     [
-        (1000, "🟣 CRITICAL"),
-        (999, "🔴 ERROR"),
-        (500, "🔴 ERROR"),
-        (499, "⚠️  WARN"),
-        (300, "⚠️  WARN"),
-        (299, "✅ OK"),
-        (0, "✅ OK"),
+        (1000, "🟣 CRITICAL", "critical"),
+        (999, "🔴 ERROR", "error"),
+        (500, "🔴 ERROR", "error"),
+        (499, "⚠️  WARN", "warn"),
+        (300, "⚠️  WARN", "warn"),
+        (299, "✅ OK", "ok"),
+        (0, "✅ OK", "ok"),
     ],
 )
-def test_classify_boundaries(lines, expected_label):
+def test_classify_boundaries(lines, expected_label, expected_level):
     analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
 
-    label, _color = analyzer.classify(lines)
+    label, level = analyzer.classify(lines)
 
     assert label == expected_label
+    assert level == expected_level
 
 
 def test_format_number_uses_dot_thousands_separator():
