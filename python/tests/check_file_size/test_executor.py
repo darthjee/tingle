@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from check_file_size.executor import CheckFileSize
+from check_file_size.file_analyzer import FileAnalyzer
 
 
 def test_run_no_args_prints_help_and_exits_zero(capsys):
@@ -190,3 +191,43 @@ def test_run_fail_on_with_no_files_exits_zero(tmp_path, capsys):
 
     assert exc_info.value.code == 0
     assert "No files found for analysis." in capsys.readouterr().out
+
+
+def test_parse_excludes_strips_whitespace_and_drops_empty_entries():
+    assert CheckFileSize._parse_excludes(" a , ,b,, c ") == ["a", "b", "c"]
+
+
+def test_parse_excludes_empty_string_returns_empty_list():
+    assert CheckFileSize._parse_excludes("") == []
+
+
+def test_analyze_sorts_descending_and_drops_unreadable(monkeypatch):
+    counts = {"a": 5, "b": -1, "c": 20, "d": 0}
+    analyzer = FileAnalyzer(300, 500, 1000)
+    monkeypatch.setattr(analyzer, "count_lines", lambda f: counts[f])
+
+    results = CheckFileSize._analyze(analyzer, ["a", "b", "c", "d"])
+
+    assert results == [("c", 20), ("a", 5), ("d", 0)]
+
+
+@pytest.mark.parametrize(
+    ("fail_on", "lines", "expected"),
+    [
+        (None, 5000, False),
+        ("error", 499, False),
+        ("error", 500, True),
+        ("error", 501, True),
+    ],
+)
+def test_gate_failed(fail_on, lines, expected):
+    analyzer = FileAnalyzer(300, 500, 1000)
+    results = [("small.py", 1), ("big.py", lines)]
+
+    assert CheckFileSize._gate_failed(analyzer, results, fail_on) is expected
+
+
+def test_gate_failed_with_no_results_is_false():
+    analyzer = FileAnalyzer(300, 500, 1000)
+
+    assert CheckFileSize._gate_failed(analyzer, [], "warn") is False
