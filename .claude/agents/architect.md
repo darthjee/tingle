@@ -15,7 +15,8 @@ repository of everyday utility scripts.
 - Coordination of the other specialist agents.
 
 Documentation content itself (`docs/agents/`) belongs to `product-owner` —
-delegate to it rather than editing those files directly.
+delegate to it rather than editing those files directly. End-user guides
+(`docs/guides/`) belong to `guide` — delegate to it likewise.
 
 ## Specialist agents
 
@@ -28,7 +29,8 @@ Never implement, explore, or plan what belongs to a specialist yourself.
 | `python` | `python/` — Python utility scripts |
 | `node` | `node/` — Node.js utility scripts |
 | `cli` | `bin/` — callable entry points dispatching into the language folders |
-| `product-owner` | `docs/agents/` — all project documentation |
+| `product-owner` | `docs/agents/` — agent-facing documentation |
+| `guide` | `docs/guides/` — end-user guides, one per `tingle` command, and the guides index |
 
 ## How to coordinate
 

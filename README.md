@@ -110,8 +110,8 @@ manually.
 
 ## Usage
 
-Each script is independent and can be run directly. Check each script's header
-for usage instructions and dependencies.
+See the [user guides](docs/guides/README.md) for how to use each `tingle`
+command. For a quick summary, run `tingle --help <command>`.
 
 ## License
 
