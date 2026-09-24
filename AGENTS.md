@@ -1,6 +1,6 @@
 # Project Instructions
 
-Last updated: 2026-09-20
+Last updated: 2026-09-23
 
 You are an assistant helping maintain Tingle, a personal collection of small,
 independent utility scripts.
@@ -31,9 +31,13 @@ git branches.
   whenever it is added or modified.
 - **Must**: add a new script to the table in `README.md`.
 - **Never**: place implementation code outside `shell/`, `python/`,
-  `node/`, or `bin/`, or documentation outside `docs/agents/`.
+  `node/`, or `bin/`.
+- **Never**: place documentation anywhere other than `docs/guides/`
+  (user-facing guides) or `docs/agents/` (agent-facing docs).
 - **Must**: update the relevant file(s) under `docs/agents/` whenever an
   architectural change is made.
+- **Must**: update the matching guide in `docs/guides/` whenever a
+  command's behaviour changes.
 
 ## Tools
 
@@ -49,10 +53,14 @@ full descriptions. Delegate work to the agent that owns the area:
 - `shell` — Bash/Shell scripts under `shell/`.
 - `product-owner` — content under `docs/agents/` (architecture, flow, folder
   structure, contributing, issues, plans).
+- `guide` — content under `docs/guides/` (end-user guides, one per `tingle`
+  command, and the guides index).
 
 ## Documentation
 
-All project documentation lives under [`docs/agents/`](docs/agents/):
+Agent-facing project documentation lives under
+[`docs/agents/`](docs/agents/); end-user guides live under
+[`docs/guides/`](docs/guides/README.md):
 
 | File | Contents |
 |------|----------|
@@ -62,6 +70,7 @@ All project documentation lives under [`docs/agents/`](docs/agents/):
 | [Plans](docs/agents/plans/) | Implementation plans for ongoing or upcoming features. |
 | [Issues](docs/agents/issues/) | Detailed specs for open issues. |
 | [Contributing](docs/agents/contributing.md) | Commit guidelines, PR standards, code organization, and refactoring rules. |
+| [User Guides](docs/guides/README.md) | End-user guides, one per `tingle` command. |
 
 ### Issues (`docs/agents/issues/`)
 
