@@ -78,7 +78,7 @@ tingle/
 
 | Script | Language | Description |
 | --- | --- | --- |
-| `check_file_size` | Python | Token efficiency triage: lists source files by line count against configurable warn/error/critical thresholds. |
+| [`check_file_size`](docs/guides/check_file_size.md) | Python | Token efficiency triage: lists source files by line count against configurable warn/error/critical thresholds. |
 | `kube` | Python | Kubernetes (EKS) helper with a scoped alias layer for switching contexts, listing namespaces/pods, and shelling into pods. |
 | `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
 | [`install`](docs/guides/install.md) | Shell | Adds `tingle` to `PATH` and installs bash completion, by idempotently appending a marker block to `~/.bashrc`. |
