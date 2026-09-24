@@ -15,6 +15,23 @@ tingle's bash completion script, so you can run `tingle` from anywhere and use
 - `jq`, which `bin/tingle` needs to run (and which the completion script
   uses too).
 
+## Supported shells
+
+tingle only wires itself into **bash**, through `~/.bashrc`. Other shells are
+not configured:
+
+- **zsh** (the default shell on macOS) and **fish** are not supported. If you
+  use one of them, add tingle's `bin/` folder to your `PATH` yourself in that
+  shell's configuration file.
+- **macOS and bash:** Terminal starts bash as a login shell, which reads
+  `~/.bash_profile` instead of `~/.bashrc`. For the tingle block to take
+  effect, make sure `~/.bash_profile` loads `~/.bashrc` by adding this line to
+  it:
+
+  ```
+  [ -f ~/.bashrc ] && source ~/.bashrc
+  ```
+
 ## When to run it
 
 - **Web installer:** if you installed tingle with the one-line installer
@@ -49,8 +66,9 @@ source "/path/to/tingle/completions/tingle.bash"
 # <<< tingle <<<
 ```
 
-Nothing else in `~/.bashrc` is touched: existing content is never rewritten
-or removed.
+Nothing else in `~/.bashrc` is touched: tingle only ever writes or rewrites
+its own block, between the `# >>> tingle >>>` and `# <<< tingle <<<` markers.
+The rest of the file is never rewritten or removed.
 
 When it finishes, it prints:
 
@@ -60,13 +78,27 @@ tingle installed. Run 'source /home/you/.bashrc' or restart your shell to start 
 
 ## Running it again
 
-Running `tingle install` more than once is safe. If `~/.bashrc` already
-contains the `# >>> tingle >>>` marker, tingle leaves the file unchanged and
-prints:
+Running `tingle install` more than once is safe. What happens depends on
+where the existing block points:
 
-```
-tingle is already installed in /home/you/.bashrc
-```
+- **Same folder:** if `~/.bashrc` already contains the tingle block and it
+  points to the folder you are running tingle from, the file is left
+  unchanged and tingle prints:
+
+  ```
+  tingle is already installed in /home/you/.bashrc
+  ```
+
+- **Moved or reinstalled elsewhere:** if the block points to a different
+  folder (for example, you moved your clone or reinstalled tingle in a new
+  location), tingle rewrites the block in place so it points to the new
+  folder, and prints:
+
+  ```
+  tingle install updated in /home/you/.bashrc (now pointing to /new/path/to/tingle). Run 'source /home/you/.bashrc' or restart your shell to pick it up.
+  ```
+
+In both cases, the rest of `~/.bashrc` is never touched.
 
 ## Check that it worked
 
@@ -80,3 +112,8 @@ tingle is already installed in /home/you/.bashrc
    commands.
 3. Type `tingle ` followed by <kbd>TAB</kbd>. Bash should suggest the
    available command names.
+
+## Uninstalling
+
+To remove the tingle block from `~/.bashrc`, run `tingle uninstall`. See the
+[`uninstall` guide](uninstall.md) for details.

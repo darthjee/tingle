@@ -81,7 +81,8 @@ tingle/
 | [`check_file_size`](docs/guides/check_file_size.md) | Python | Token efficiency triage: lists source files by line count against configurable warn/error/critical thresholds. |
 | `kube` | Python | Kubernetes (EKS) helper with a scoped alias layer for switching contexts, listing namespaces/pods, and shelling into pods. |
 | `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
-| [`install`](docs/guides/install.md) | Shell | Adds `tingle` to `PATH` and installs bash completion, by idempotently appending a marker block to `~/.bashrc`. |
+| [`install`](docs/guides/install.md) | Shell | Adds `tingle` to `PATH` and installs bash completion, by idempotently appending a marker block to `~/.bashrc` (rewritten in place if the tingle folder moved). Bash only. |
+| [`uninstall`](docs/guides/uninstall.md) | Shell | Removes the `tingle` marker block from `~/.bashrc`, leaving the tingle folder in place. |
 | [`linux`](docs/guides/linux.md) | Shell | Runs real GNU/Linux command-line tools (`shell`, `sed`) inside a Docker container, mounting the current working directory in at the same path. |
 
 ## Commands
@@ -106,7 +107,9 @@ idempotently appends a marker block to `~/.bashrc` that adds `tingle` to
 completion of command names. This is the same shell-wiring step the
 [web installer](#installation) finishes with, so re-running it by hand is
 only needed if you skip the one-liner and set up an already-cloned repo
-manually.
+manually, or after moving the tingle folder (the existing block is rewritten
+to the new path). Only bash is supported. Run `tingle uninstall` to remove the
+marker block again; it does not delete the tingle folder.
 
 ## Usage
 
