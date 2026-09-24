@@ -38,67 +38,65 @@ from check_file_size.palette import Palette
 from check_file_size.reporter import Reporter
 from common.arg_parser import ArgParser
 
+# Flag definitions for ArgParser.
+FLAGS: list[dict] = [
+    {
+        "name": "path",
+        "type": str,
+        "help": "File or directory to analyze (recursive)",
+    },
+    {
+        "name": "--warn",
+        "type": int,
+        "default": Constants.DEFAULT_WARN,
+        "help": f"Yellow threshold in lines (default: {Constants.DEFAULT_WARN})",
+    },
+    {
+        "name": "--error",
+        "type": int,
+        "default": Constants.DEFAULT_ERROR,
+        "help": f"Red threshold in lines (default: {Constants.DEFAULT_ERROR})",
+    },
+    {
+        "name": "--critical",
+        "type": int,
+        "default": Constants.DEFAULT_CRITICAL,
+        "help": f"Critical threshold in lines (default: {Constants.DEFAULT_CRITICAL})",
+    },
+    {
+        "name": "--top",
+        "type": int,
+        "default": 0,
+        "help": "Show only top N largest files (0 = all)",
+    },
+    {
+        "name": "--exclude",
+        "type": str,
+        "default": ",".join(Constants.DEFAULT_EXCLUDES),
+        "help": (
+            "Directories to ignore (comma-separated). "
+            f"Default: {','.join(Constants.DEFAULT_EXCLUDES)}"
+        ),
+    },
+    {
+        "name": "--ext",
+        "type": str,
+        "action": "append",
+        "default": None,
+        "help": "Filter by extension (can be repeated). Ex: --ext .py --ext .js",
+    },
+    {
+        "name": "--fail-on",
+        "type": str,
+        "choices": ["warn", "error", "critical"],
+        "default": None,
+        "help": "Exit with status 2 if any file reaches this level or higher",
+    },
+]
+
 
 class CheckFileSize:
     """Orchestrate the analysis flow: parse → collect → analyze → report."""
-
-    @staticmethod
-    def _flags() -> list[dict]:
-        """Build the flag definitions for ArgParser."""
-        return [
-            {
-                "name": "path",
-                "type": str,
-                "help": "File or directory to analyze (recursive)",
-            },
-            {
-                "name": "--warn",
-                "type": int,
-                "default": Constants.DEFAULT_WARN,
-                "help": f"Yellow threshold in lines (default: {Constants.DEFAULT_WARN})",
-            },
-            {
-                "name": "--error",
-                "type": int,
-                "default": Constants.DEFAULT_ERROR,
-                "help": f"Red threshold in lines (default: {Constants.DEFAULT_ERROR})",
-            },
-            {
-                "name": "--critical",
-                "type": int,
-                "default": Constants.DEFAULT_CRITICAL,
-                "help": f"Critical threshold in lines (default: {Constants.DEFAULT_CRITICAL})",
-            },
-            {
-                "name": "--top",
-                "type": int,
-                "default": 0,
-                "help": "Show only top N largest files (0 = all)",
-            },
-            {
-                "name": "--exclude",
-                "type": str,
-                "default": ",".join(Constants.DEFAULT_EXCLUDES),
-                "help": (
-                    "Directories to ignore (comma-separated). "
-                    f"Default: {','.join(Constants.DEFAULT_EXCLUDES)}"
-                ),
-            },
-            {
-                "name": "--ext",
-                "type": str,
-                "action": "append",
-                "default": None,
-                "help": "Filter by extension (can be repeated). Ex: --ext .py --ext .js",
-            },
-            {
-                "name": "--fail-on",
-                "type": str,
-                "choices": ["warn", "error", "critical"],
-                "default": None,
-                "help": "Exit with status 2 if any file reaches this level or higher",
-            },
-        ]
 
     @staticmethod
     def _parse(arg_parser: ArgParser, args: list[str]) -> dict:
@@ -116,7 +114,7 @@ class CheckFileSize:
 
     def run(self, args: list[str]):
         """Entry point for the script."""
-        arg_parser = ArgParser(self._flags())
+        arg_parser = ArgParser(FLAGS)
 
         # No arguments → show help and exit
         if len(args) == 0:
