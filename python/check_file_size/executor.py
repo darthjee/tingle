@@ -112,6 +112,46 @@ class CheckFileSize:
                 raise SystemExit(1) from exc
             raise
 
+    @staticmethod
+    def _resolve_target(path: str) -> Path:
+        """Resolve `path`, exiting with status 1 when it does not exist."""
+        target = Path(path).resolve()
+        if not target.exists():
+            err = Palette(sys.stderr)
+            print(f"{err.RED}Error: path not found: {target}{err.RESET}", file=sys.stderr)
+            sys.exit(1)
+        return target
+
+    @staticmethod
+    def _parse_excludes(raw: str) -> list[str]:
+        """Split a comma-separated exclude list, dropping blank entries."""
+        return [e.strip() for e in raw.split(",") if e.strip()]
+
+    @staticmethod
+    def _print_header(out: Palette, target: Path, args: dict) -> None:
+        """Print the analysis header (target and thresholds)."""
+        print(f"{out.CYAN}{out.BOLD}Analyzing:{out.RESET} {target}")
+        print(
+            f"{out.DIM}Thresholds: warn={args['warn']} | error={args['error']} | "
+            f"critical={args['critical']}{out.RESET}"
+        )
+        print()
+
+    @staticmethod
+    def _analyze(analyzer: FileAnalyzer, files) -> list[tuple[Path, int]]:
+        """Count lines per file, drop unreadable ones and sort descending."""
+        counted = ((f, analyzer.count_lines(f)) for f in files)
+        results = [(f, lines) for f, lines in counted if lines >= 0]
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results
+
+    @staticmethod
+    def _gate_failed(analyzer: FileAnalyzer, results, fail_on: str | None) -> bool:
+        """Return True when `--fail-on` is set and any result reaches it."""
+        if fail_on is None:
+            return False
+        return any(analyzer.reaches(lines, fail_on) for _path, lines in results)
+
     def run(self, args: list[str]):
         """Entry point for the script."""
         arg_parser = ArgParser(FLAGS)
@@ -122,51 +162,24 @@ class CheckFileSize:
             sys.exit(0)
 
         args = self._parse(arg_parser, args)
-        target = Path(args["path"]).resolve()
-
-        if not target.exists():
-            err = Palette(sys.stderr)
-            print(f"{err.RED}Error: path not found: {target}{err.RESET}", file=sys.stderr)
-            sys.exit(1)
+        target = self._resolve_target(args["path"])
 
         out = Palette(sys.stdout)
+        self._print_header(out, target, args)
 
-        excludes = [e.strip() for e in args["exclude"].split(",") if e.strip()]
-
-        # Header
-        print(f"{out.CYAN}{out.BOLD}Analyzing:{out.RESET} {target}")
-        print(
-            f"{out.DIM}Thresholds: warn={args['warn']} | error={args['error']} | "
-            f"critical={args['critical']}{out.RESET}"
-        )
-        print()
-
-        # Collect files
-        collector = FileCollector(excludes, args["ext"])
+        collector = FileCollector(self._parse_excludes(args["exclude"]), args["ext"])
         files = collector.collect(target)
 
         if not files:
             print(f"{out.YELLOW}No files found for analysis.{out.RESET}")
             sys.exit(0)
 
-        # Analyze
         analyzer = FileAnalyzer(args["warn"], args["error"], args["critical"])
-        results = []
-        for f in files:
-            lines = analyzer.count_lines(f)
-            if lines >= 0:
-                results.append((f, lines))
-
-        # Sort by line count (descending)
-        results.sort(key=lambda x: x[1], reverse=True)
+        results = self._analyze(analyzer, files)
 
         # Evaluate the --fail-on gate on every analysed file (before --top)
-        fail_on = args["fail_on"]
-        gate_failed = fail_on is not None and any(
-            analyzer.reaches(lines, fail_on) for _path, lines in results
-        )
+        gate_failed = self._gate_failed(analyzer, results, args["fail_on"])
 
-        # Apply --top if provided
         if args["top"] > 0:
             results = results[:args["top"]]
 
