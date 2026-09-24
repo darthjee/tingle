@@ -23,7 +23,7 @@ import subprocess  # nosec B404 - usage confined to fixed CLI binaries via binar
 from kube import binaries
 
 ENV_ACCESS_KEY = "AWS_ACCESS_KEY_ID"
-ENV_SECRET_KEY = "AWS_SECRET_ACCESS_KEY"
+ENV_SECRET_KEY = "AWS_SECRET_ACCESS_KEY"  # nosec B105 - env var name, not a secret value  # noqa
 
 
 def _is_set(name: str) -> bool:
