@@ -17,12 +17,21 @@
 # shell/linux/ hasn't changed since the previous X.Y.Z tag — see
 # changed_since_previous().
 #
+# Descriptions: update-description sends the one-line summary in
+# DOCKERHUB_SHORT_DESCRIPTION.txt (trimmed, 1-100 characters) as the Docker
+# Hub "description" and DOCKERHUB_DESCRIPTION.md as "full_description", in
+# a single PATCH. It fails when either file is missing, the summary is
+# empty or too long, or the login/PATCH HTTP call fails.
+#
 # Dependencies: git, docker, curl, python3.
 
 set -euo pipefail
 
 VERSION_FILE="shell/linux/VERSION"
 IMAGE_NAME="darthjee/tingle"
+SHORT_DESCRIPTION_FILE="DOCKERHUB_SHORT_DESCRIPTION.txt"
+FULL_DESCRIPTION_FILE="DOCKERHUB_DESCRIPTION.md"
+SHORT_DESCRIPTION_MAX_LENGTH=100
 
 resolve_tag() {
   if [ -n "${CIRCLE_TAG:-}" ]; then
@@ -109,17 +118,55 @@ cmd_publish() {
 }
 
 cmd_update_description() {
-  local token description
-  token=$(curl -s -H "Content-Type: application/json" \
+  if [ ! -f "$SHORT_DESCRIPTION_FILE" ]; then
+    echo "Missing short description file: $SHORT_DESCRIPTION_FILE" >&2
+    exit 1
+  fi
+
+  if [ ! -f "$FULL_DESCRIPTION_FILE" ]; then
+    echo "Missing full description file: $FULL_DESCRIPTION_FILE" >&2
+    exit 1
+  fi
+
+  local short_description
+  short_description=$(python3 -c 'import sys; print(open(sys.argv[1]).read().strip())' "$SHORT_DESCRIPTION_FILE")
+
+  if [ -z "$short_description" ]; then
+    echo "Short description in $SHORT_DESCRIPTION_FILE is empty" >&2
+    exit 1
+  fi
+
+  local short_length
+  short_length=$(printf '%s' "$short_description" | python3 -c 'import sys; print(len(sys.stdin.read()))')
+
+  if [ "$short_length" -gt "$SHORT_DESCRIPTION_MAX_LENGTH" ]; then
+    echo "Short description in $SHORT_DESCRIPTION_FILE is $short_length characters (max $SHORT_DESCRIPTION_MAX_LENGTH)" >&2
+    exit 1
+  fi
+
+  local body
+  body=$(python3 -c '
+import json, sys
+print(json.dumps({
+    "description": sys.argv[1],
+    "full_description": open(sys.argv[2]).read(),
+}))
+' "$short_description" "$FULL_DESCRIPTION_FILE")
+
+  local token
+  token=$(curl -fsS -H "Content-Type: application/json" \
     -X POST \
     -d "{\"username\": \"$DOCKER_HUB_USERNAME\", \"password\": \"$DOCKER_HUB_PASSWORD\"}" \
     https://hub.docker.com/v2/users/login/ | python3 -c 'import sys, json; print(json.load(sys.stdin)["token"])')
-  description=$(python3 -c 'import json; print(json.dumps(open("DOCKERHUB_DESCRIPTION.md").read()))')
-  curl -s -X PATCH \
+
+  curl -fsS -X PATCH \
     -H "Authorization: JWT $token" \
     -H "Content-Type: application/json" \
-    -d "{\"full_description\": $description}" \
-    https://hub.docker.com/v2/repositories/darthjee/tingle/
+    -d "$body" \
+    -o /dev/null \
+    "https://hub.docker.com/v2/repositories/$IMAGE_NAME/"
+
+  echo "Updated Docker Hub description for $IMAGE_NAME"
 }
 
 main() {
