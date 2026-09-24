@@ -1,0 +1,63 @@
+# Prospector profile, used by Codacy's Prospector integration.
+#
+# Codacy exposes all of pydocstyle as a single pattern (`Prospector_pydocstyle`),
+# so individual codes can't be switched off in the UI. D212 (multi-line summary on
+# the first line) and D213 (summary on the second line) are mutually exclusive;
+# D212 has been the project convention since #134-#140, so D213 is disabled here
+# (issue #203). ruff enforces D212 locally via `extend-select` in
+# `python/pyproject.toml`. D203 (blank line before class docstring) is disabled
+# for the same reason: it conflicts with D211, and the code follows D211.
+#
+# Once this file exists Codacy uses it instead of the UI pattern settings, so it
+# reproduces the tool set Codacy enabled before (dodgy, mccabe, profile-validator,
+# pycodestyle, pydocstyle, pyflakes) and explicitly turns everything else off.
+# Pylint runs as its own Codacy tool (PyLintPython3), not through Prospector.
+
+doc-warnings: true
+test-warnings: true
+member-warnings: false
+inherits: []
+
+pydocstyle:
+  run: true
+  disable:
+    - D203
+    - D213
+
+dodgy:
+  run: true
+
+mccabe:
+  run: true
+
+# Line length is left at Prospector's default: ruff's default rule set doesn't
+# check E501, and Codacy never reported it before this profile existed.
+pycodestyle:
+  run: true
+
+pyflakes:
+  run: true
+
+pylint:
+  run: false
+
+pep8-naming:
+  run: false
+
+vulture:
+  run: false
+
+mypy:
+  run: false
+
+bandit:
+  run: false
+
+pyroma:
+  run: false
+
+pyright:
+  run: false
+
+ruff:
+  run: false
