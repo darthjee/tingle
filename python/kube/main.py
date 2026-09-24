@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-main.py — Flow-verb dispatcher entrypoint for kube.
+"""main.py — Flow-verb dispatcher entrypoint for kube.
 
 `cli` invokes this file with a flow verb as the first argument
 (e.g. `run`) followed by the command's own arguments.

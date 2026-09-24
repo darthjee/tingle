@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-executor.py — Token efficiency triage: file size analysis.
+"""executor.py — Token efficiency triage: file size analysis.
 
 Analyzes source files and lists them by size (line count), classifying
 them by configurable thresholds. Useful for identifying token consumption

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-executor.py — Orchestrator for the kube command.
+"""executor.py — Orchestrator for the kube command.
 
 Kubernetes (EKS) helper built around short, scoped aliases for contexts,
 namespaces, and pods, backed by ~/.tingle/kube/config.json.
