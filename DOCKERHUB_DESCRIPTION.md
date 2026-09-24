@@ -1,19 +1,64 @@
 # tingle
 
-GNU/Linux tool container backing `tingle linux` — provides a non-root,
-`ubuntu`-based image with a baseline GNU toolbox (`coreutils`, `findutils`,
-`grep`, `sed`, `gawk`, `tar`, `diffutils`) so `tingle linux` subcommands
-(`shell`, `sed`, ...) get consistent GNU behavior independent of macOS's BSD
-userland.
+The GNU toolbox image behind the `tingle linux` command of
+[tingle](https://github.com/darthjee/tingle). It gives `tingle linux`
+subcommands (`shell`, `sed`, ...) consistent GNU behavior, independent of
+the BSD userland shipped with macOS.
+
+## What it contains
+
+Built on `ubuntu:24.04` with a baseline GNU toolbox:
+
+- `coreutils`
+- `findutils`
+- `grep`
+- `sed`
+- `gawk`
+- `tar`
+- `diffutils`
+
+The image runs as the non-root user `tingle` (uid 1000), so files touched
+through a volume mount stay owned by your user on the host.
+
+There is no `CMD` or `ENTRYPOINT`: every run supplies its own command.
 
 ## Usage
 
+### Through `tingle linux` (preferred)
+
+Install [tingle](https://github.com/darthjee/tingle) and run:
+
 ```bash
-docker run --rm -v "$(pwd):$(pwd)" -w "$(pwd)" darthjee/tingle:<tag> <command> [args...]
+tingle linux sed --version
+tingle linux shell
 ```
 
-Tags are plain semver (e.g. `1.0.0`), published manually on `X.Y.Z`
-git tag pushes to [darthjee/tingle](https://github.com/darthjee/tingle).
-The currently-published tag is pinned in `shell/linux/VERSION`.
+See the
+[`tingle linux` guide](https://github.com/darthjee/tingle/blob/main/docs/guides/linux.md)
+for all subcommands and options.
 
-Source: [`shell/linux/Dockerfile`](https://github.com/darthjee/tingle/blob/main/shell/linux/Dockerfile).
+### Directly with Docker
+
+```bash
+docker run --rm -v "$PWD:$PWD" -w "$PWD" darthjee/tingle:<tag> <cmd> [args...]
+```
+
+For example:
+
+```bash
+docker run --rm -v "$PWD:$PWD" -w "$PWD" darthjee/tingle:<tag> sed --version
+```
+
+## Tags
+
+- Tags are plain semver (for example `1.0.0`), the same string as the
+  matching `X.Y.Z` git tag.
+- Images are built and published by CircleCI when that git tag is pushed.
+- The current tag is pinned in
+  [`shell/linux/VERSION`](https://github.com/darthjee/tingle/blob/main/shell/linux/VERSION).
+
+## Links
+
+- Repository: https://github.com/darthjee/tingle
+- `tingle linux` guide: https://github.com/darthjee/tingle/blob/main/docs/guides/linux.md
+- Dockerfile: https://github.com/darthjee/tingle/blob/main/shell/linux/Dockerfile
