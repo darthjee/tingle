@@ -75,3 +75,22 @@ def test_format_number_uses_dot_thousands_separator():
     assert FileAnalyzer.format_number(1234) == "1.234"
     assert FileAnalyzer.format_number(1234567) == "1.234.567"
     assert FileAnalyzer.format_number(0) == "0"
+
+
+@pytest.mark.parametrize(
+    "lines, level, expected",
+    [
+        (299, "warn", False),
+        (300, "warn", True),
+        (1000, "warn", True),
+        (499, "error", False),
+        (500, "error", True),
+        (1000, "error", True),
+        (999, "critical", False),
+        (1000, "critical", True),
+    ],
+)
+def test_reaches_compares_levels_by_severity(lines, level, expected):
+    analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
+
+    assert analyzer.reaches(lines, level) is expected

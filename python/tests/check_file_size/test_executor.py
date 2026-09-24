@@ -102,3 +102,91 @@ def test_run_help_flag_still_exits_zero(capsys):
 
     assert exc_info.value.code == 0
     assert "usage" in capsys.readouterr().out.lower()
+
+
+def _project(tmp_path, *line_counts):
+    target = tmp_path / "project"
+    target.mkdir()
+    for i, count in enumerate(line_counts):
+        (target / f"f{i}.py").write_text("1\n" * count)
+    return target
+
+
+@pytest.mark.parametrize(
+    "level, lines",
+    [("warn", 3), ("error", 5), ("critical", 10)],
+)
+def test_run_fail_on_exits_two_when_level_reached(tmp_path, capsys, level, lines):
+    target = _project(tmp_path, 1, lines)
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run(
+            [str(target), "--warn", "3", "--error", "5", "--critical", "10", "--fail-on", level]
+        )
+
+    assert exc_info.value.code == 2
+    out = capsys.readouterr().out
+    assert "Summary:" in out
+    assert "Total:" in out
+
+
+@pytest.mark.parametrize(
+    "level, lines",
+    [("warn", 2), ("error", 4), ("critical", 9)],
+)
+def test_run_fail_on_passes_below_level(tmp_path, capsys, level, lines):
+    target = _project(tmp_path, 1, lines)
+
+    CheckFileSize().run(
+        [str(target), "--warn", "3", "--error", "5", "--critical", "10", "--fail-on", level]
+    )
+
+    assert "Summary:" in capsys.readouterr().out
+
+
+def test_run_fail_on_still_fails_when_offender_hidden_by_top(tmp_path, capsys):
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "shown.py").write_text("1\n" * 30)
+    (target / "hidden.py").write_text("1\n" * 28)
+
+    # --top 1 hides hidden.py, which also breaches the gate; the report is
+    # still printed in full before exiting 2.
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run(
+            [str(target), "--warn", "25", "--error", "100", "--critical", "200",
+             "--top", "1", "--fail-on", "warn"]
+        )
+
+    assert exc_info.value.code == 2
+    out = capsys.readouterr().out
+    assert "shown.py" in out
+    assert "hidden.py" not in out
+    assert "1 file(s)" in out
+
+
+def test_run_without_fail_on_never_exits_non_zero(tmp_path, capsys):
+    target = _project(tmp_path, 50)
+
+    CheckFileSize().run([str(target), "--warn", "3", "--error", "5", "--critical", "10"])
+
+    assert "1 CRITICAL" in capsys.readouterr().out
+
+
+def test_run_fail_on_invalid_value_exits_one(tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(tmp_path), "--fail-on", "foo"])
+
+    assert exc_info.value.code == 1
+    assert "invalid choice" in capsys.readouterr().err
+
+
+def test_run_fail_on_with_no_files_exits_zero(tmp_path, capsys):
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(empty_dir), "--fail-on", "warn"])
+
+    assert exc_info.value.code == 0
+    assert "No files found for analysis." in capsys.readouterr().out

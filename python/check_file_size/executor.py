@@ -86,6 +86,13 @@ class CheckFileSize:
                 "default": None,
                 "help": "Filter by extension (can be repeated). Ex: --ext .py --ext .js",
             },
+            {
+                "name": "--fail-on",
+                "type": str,
+                "choices": ["warn", "error", "critical"],
+                "default": None,
+                "help": "Exit with status 2 if any file reaches this level or higher",
+            },
         ]
 
     @staticmethod
@@ -150,8 +157,17 @@ class CheckFileSize:
         # Sort by line count (descending)
         results.sort(key=lambda x: x[1], reverse=True)
 
+        # Evaluate the --fail-on gate on every analysed file (before --top)
+        fail_on = args["fail_on"]
+        gate_failed = fail_on is not None and any(
+            analyzer.reaches(lines, fail_on) for _path, lines in results
+        )
+
         # Apply --top if provided
         if args["top"] > 0:
             results = results[:args["top"]]
 
         Reporter(analyzer, target, out).report(results)
+
+        if gate_failed:
+            sys.exit(2)

@@ -8,6 +8,9 @@ from pathlib import Path
 class FileAnalyzer:
     """Count lines and classify files by threshold."""
 
+    # Classification levels, from least to most severe
+    LEVELS = ("ok", "warn", "error", "critical")
+
     def __init__(self, warn: int, error: int, critical: int):
         """Store the warn/error/critical line-count thresholds."""
         self._warn = warn
@@ -37,6 +40,11 @@ class FileAnalyzer:
             return ("⚠️  WARN", "warn")
         else:
             return ("✅ OK", "ok")
+
+    def reaches(self, lines: int, level: str) -> bool:
+        """Return True when `lines` is classified at `level` or higher."""
+        _label, actual = self.classify(lines)
+        return self.LEVELS.index(actual) >= self.LEVELS.index(level)
 
     @staticmethod
     def format_number(n: int) -> str:
