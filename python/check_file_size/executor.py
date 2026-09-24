@@ -88,6 +88,20 @@ class CheckFileSize:
             },
         ]
 
+    @staticmethod
+    def _parse(arg_parser: ArgParser, args: list[str]) -> dict:
+        """Parse args, remapping argparse usage errors (exit 2) to exit 1.
+
+        Exit status 2 is reserved for a failed `--fail-on` gate; `--help`
+        still exits 0.
+        """
+        try:
+            return arg_parser.parse(args)
+        except SystemExit as exc:
+            if exc.code not in (0, None):
+                raise SystemExit(1) from exc
+            raise
+
     def run(self, args: list[str]):
         """Entry point for the script."""
         arg_parser = ArgParser(self._flags())
@@ -97,12 +111,12 @@ class CheckFileSize:
             arg_parser.build().print_help()
             sys.exit(0)
 
-        args = arg_parser.parse(args)
+        args = self._parse(arg_parser, args)
         target = Path(args["path"]).resolve()
 
         if not target.exists():
             err = Palette(sys.stderr)
-            print(f"{err.RED}Error: path not found: {target}{err.RESET}")
+            print(f"{err.RED}Error: path not found: {target}{err.RESET}", file=sys.stderr)
             sys.exit(1)
 
         out = Palette(sys.stdout)

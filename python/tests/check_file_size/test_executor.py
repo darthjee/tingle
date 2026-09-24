@@ -23,8 +23,10 @@ def test_run_path_not_found_prints_error_and_exits_one(tmp_path, capsys):
         CheckFileSize().run([str(missing)])
 
     assert exc_info.value.code == 1
-    out = capsys.readouterr().out
-    assert "Error: path not found" in out
+    captured = capsys.readouterr()
+    assert "Error: path not found" in captured.err
+    assert "Error: path not found" not in captured.out
+    assert "\033[" not in captured.err
 
 
 def test_run_no_files_found_prints_message_and_exits_zero(tmp_path, capsys):
@@ -78,3 +80,25 @@ def test_run_output_is_plain_text_when_not_a_tty(tmp_path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert "Analyzing:" in out
     assert "\033[" not in out
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [["--top", "abc"], ["--unknown-option"], ["--warn", "x"]],
+)
+def test_run_usage_error_exits_one_on_stderr(tmp_path, capsys, extra):
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(tmp_path), *extra])
+
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert "usage" in captured.err.lower()
+    assert captured.out == ""
+
+
+def test_run_help_flag_still_exits_zero(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run(["--help"])
+
+    assert exc_info.value.code == 0
+    assert "usage" in capsys.readouterr().out.lower()
