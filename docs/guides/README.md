@@ -8,6 +8,6 @@ For a quick summary of any command, run `tingle --help <command>`.
 ## Guides
 
 - [`install`](install.md) — Install tingle onto PATH and enable bash completion.
-- `linux` — Run GNU/Linux tools (sed, shell) inside a container. *(guide coming soon)*
+- [`linux`](linux.md) — Run GNU/Linux tools (sed, shell) inside a container.
 - `kube` — Kubernetes (EKS) subcommand with a scoped alias layer. *(guide coming soon)*
 - `check_file_size` — Token efficiency triage: file size analysis. *(guide coming soon)*
