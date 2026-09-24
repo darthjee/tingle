@@ -11,7 +11,9 @@ Tingle is a collection of small, independent utility scripts written in Shell
 
 ## Documentation
 
-All project documentation lives under [`docs/agents/`](docs/agents/). See
+Agent-facing project documentation lives under
+[`docs/agents/`](docs/agents/). End-user guides for each `tingle` command
+live under [`docs/guides/`](docs/guides/README.md). See
 [AGENTS.md](AGENTS.md#documentation) for the index.
 
-Last updated: 2026-09-20
+Last updated: 2026-09-23
