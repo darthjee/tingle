@@ -10,7 +10,7 @@ from common.arg_parser import ArgParser
 
 
 def _sample_flags() -> list[dict]:
-    """Flag shapes mirroring check_file_size._flags()."""
+    """Flag shapes mirroring check_file_size.executor.FLAGS."""
     return [
         {
             "name": "path",
