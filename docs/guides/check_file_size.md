@@ -35,6 +35,7 @@ tingle check_file_size <path> [options]
 | `--top N` | `0` | Show only the `N` largest files. `0` shows all files. |
 | `--exclude LIST` | see below | Comma-separated directory names to skip. |
 | `--ext EXT` | no filter | Only analyse files with this extension. Can be repeated. |
+| `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
 
 ### `--exclude`
 
@@ -75,6 +76,32 @@ tingle check_file_size ./src --ext .py --ext .js
 Include the leading dot (`.py`, not `py`). The comparison is
 case-insensitive and uses the file's last extension, so `archive.tar.gz`
 counts as `.gz`.
+
+### `--fail-on`
+
+Turns the command into a size gate, for example in CI. `LEVEL` is one of
+`warn`, `error` or `critical` (lowercase). The command fails when at least
+one analysed file is classified at that level **or higher**, using the order
+WARN < ERROR < CRITICAL:
+
+| `--fail-on` | Fails on |
+| --- | --- |
+| `warn` | WARN, ERROR or CRITICAL files |
+| `error` | ERROR or CRITICAL files |
+| `critical` | CRITICAL files only |
+
+The full report is always printed first; then the command exits with status
+`2` if the gate failed, or `0` if it passed. Without `--fail-on`, the gate is
+off and a completed analysis always exits `0`.
+
+A few details:
+
+- `--top` does not hide files from the gate. Every analysed file counts,
+  including those not shown in the table.
+- If there are no files to analyse (`No files found for analysis.`), the
+  command exits `0`.
+- The level refers to the thresholds in use, so `--warn`, `--error` and
+  `--critical` change what the gate catches.
 
 ### Single-file targets
 
@@ -158,8 +185,20 @@ WARN.
 With `--top`, both lines only count the rows shown, not every file that was
 scanned.
 
-The output is coloured with ANSI escape codes, even when redirected to a
-file or a pipe.
+### Colours
+
+The output is coloured with ANSI escape codes only when it is written to a
+terminal. When it is redirected to a file or a pipe (as in most CI logs),
+the output is plain text with the same layout and emoji labels. Standard
+output and standard error are checked separately.
+
+To turn colours off in a terminal too, set the
+[`NO_COLOR`](https://no-color.org/) environment variable to any non-empty
+value:
+
+```
+NO_COLOR=1 tingle check_file_size ./src
+```
 
 ## Examples
 
@@ -195,21 +234,45 @@ Analyse only Python and JavaScript files:
 tingle check_file_size ./src --ext .py --ext .js
 ```
 
+### Using in CI
+
+Fail the build when any file under `./src` reaches the ERROR threshold:
+
+```
+tingle check_file_size ./src --fail-on error
+```
+
+The report is printed as usual, and the step fails with exit status `2` if
+an ERROR or CRITICAL file is found. Combine it with the other options to fit
+your project, for example:
+
+```
+tingle check_file_size ./src --ext .py --error 400 --fail-on error
+```
+
 ## Exit status and errors
 
 | Situation | Output | Exit status |
 | --- | --- | --- |
 | No arguments | Prints the option help | `0` |
-| `<path>` does not exist | `Error: path not found: <absolute path>` on **standard output** | `1` |
+| `<path>` does not exist | `Error: path not found: <absolute path>` on **standard error** | `1` |
+| Unknown option or invalid value (e.g. `--top abc`, `--fail-on foo`) | A usage error on standard error | `1` |
 | No files left to analyse | The header, then `No files found for analysis.` | `0` |
-| Unknown option or invalid value (e.g. `--top abc`) | A usage error on standard error | `2` |
-| Analysis completed | The report | `0` |
+| Analysis completed, no `--fail-on` | The report | `0` |
+| Analysis completed, `--fail-on` gate passed | The report | `0` |
+| Analysis completed, `--fail-on` gate failed | The report | `2` |
 
-The exit status is `0` whenever the analysis completes, **even if WARN,
-ERROR or CRITICAL files are found**. The command is therefore not a CI gate
-today: it will not fail a build because of large files. A flag for that is
-being discussed in
-[#185](https://github.com/darthjee/tingle/issues/185).
+In short:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success, or the size gate passed / was not requested |
+| `1` | Runtime or usage error (path not found, unknown option, invalid value) |
+| `2` | The size gate failed (`--fail-on`) |
+
+Status `2` means only "the size gate failed", so a CI job can tell large
+files apart from a misconfigured command. The report always goes to
+standard output and error messages to standard error.
 
 ## Quick help
 

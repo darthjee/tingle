@@ -4,32 +4,34 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .constants import Constants
 from .file_analyzer import FileAnalyzer
+from .palette import Palette
 
 
 class Reporter:
     """Print the analysis table and summary for a set of results."""
 
-    def __init__(self, analyzer: FileAnalyzer, target: Path):
-        """Store the analyzer used to classify results and the target being reported on."""
+    def __init__(self, analyzer: FileAnalyzer, target: Path, palette: Palette | None = None):
+        """Store the analyzer, the reported target and the palette (default: stdout's)."""
         self._analyzer = analyzer
         self._target = target
+        self._palette = palette if palette is not None else Palette()
 
     def report(self, results: list[tuple[Path, int]]) -> None:
         """Print the table and summary for the given (path, lines) results."""
         analyzer = self._analyzer
         target = self._target
+        c = self._palette
 
         # Table header
         print(f"{'Status':<16} {'Lines':>10}  {'File'}")
         print(f"{'─' * 16} {'─' * 10}  {'─' * 50}")
 
-        counts = {"OK": 0, "WARN": 0, "ERROR": 0, "CRITICAL": 0}
+        counts = {"ok": 0, "warn": 0, "error": 0, "critical": 0}
         total_lines = 0
 
         for path, lines in results:
-            label, color = analyzer.classify(lines)
+            label, level = analyzer.classify(lines)
             try:
                 display_path = str(
                     path.relative_to(target.parent)
@@ -37,27 +39,23 @@ class Reporter:
             except ValueError:
                 display_path = str(path)
 
-            print(f"{color}{label:<16}{Constants.RESET} {analyzer.format_number(lines):>10}  {display_path}")
+            print(
+                f"{c.level_color(level)}{label:<16}{c.RESET} "
+                f"{analyzer.format_number(lines):>10}  {display_path}"
+            )
 
             total_lines += lines
-            if "OK" in label:
-                counts["OK"] += 1
-            elif "WARN" in label:
-                counts["WARN"] += 1
-            elif "ERROR" in label:
-                counts["ERROR"] += 1
-            elif "CRITICAL" in label:
-                counts["CRITICAL"] += 1
+            counts[level] += 1
 
         # Summary
         print()
-        print(f"{Constants.GRAY}{'─' * 78}{Constants.RESET}")
+        print(f"{c.GRAY}{'─' * 78}{c.RESET}")
         print(
-            f"{Constants.BOLD}Summary:{Constants.RESET} "
+            f"{c.BOLD}Summary:{c.RESET} "
             f"{len(results)} file(s) | "
-            f"{Constants.GREEN}{counts['OK']} OK{Constants.RESET} | "
-            f"{Constants.YELLOW}{counts['WARN']} WARN{Constants.RESET} | "
-            f"{Constants.RED}{counts['ERROR']} ERROR{Constants.RESET} | "
-            f"{Constants.MAGENTA}{counts['CRITICAL']} CRITICAL{Constants.RESET}"
+            f"{c.GREEN}{counts['ok']} OK{c.RESET} | "
+            f"{c.YELLOW}{counts['warn']} WARN{c.RESET} | "
+            f"{c.RED}{counts['error']} ERROR{c.RESET} | "
+            f"{c.MAGENTA}{counts['critical']} CRITICAL{c.RESET}"
         )
-        print(f"{Constants.BOLD}Total:{Constants.RESET} {analyzer.format_number(total_lines)} lines")
+        print(f"{c.BOLD}Total:{c.RESET} {analyzer.format_number(total_lines)} lines")

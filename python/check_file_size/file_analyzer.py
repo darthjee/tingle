@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .constants import Constants
-
 
 class FileAnalyzer:
     """Count lines and classify files by threshold."""
+
+    # Classification levels, from least to most severe
+    LEVELS = ("ok", "warn", "error", "critical")
 
     def __init__(self, warn: int, error: int, critical: int):
         """Store the warn/error/critical line-count thresholds."""
@@ -26,15 +27,24 @@ class FileAnalyzer:
             return -1
 
     def classify(self, lines: int) -> tuple[str, str]:
-        """Return (label, color) based on line count and thresholds."""
+        """Return (label, level) based on line count and thresholds.
+
+        `level` is one of `ok`, `warn`, `error` or `critical`; colours are
+        resolved from it by `Palette.level_color`.
+        """
         if lines >= self._critical:
-            return ("🟣 CRITICAL", Constants.MAGENTA + Constants.BOLD)
+            return ("🟣 CRITICAL", "critical")
         elif lines >= self._error:
-            return ("🔴 ERROR", Constants.RED + Constants.BOLD)
+            return ("🔴 ERROR", "error")
         elif lines >= self._warn:
-            return ("⚠️  WARN", Constants.YELLOW)
+            return ("⚠️  WARN", "warn")
         else:
-            return ("✅ OK", Constants.GREEN)
+            return ("✅ OK", "ok")
+
+    def reaches(self, lines: int, level: str) -> bool:
+        """Return True when `lines` is classified at `level` or higher."""
+        _label, actual = self.classify(lines)
+        return self.LEVELS.index(actual) >= self.LEVELS.index(level)
 
     @staticmethod
     def format_number(n: int) -> str:

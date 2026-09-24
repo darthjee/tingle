@@ -8,7 +8,9 @@ from typing import ClassVar
 class Constants:
     """Immutable configuration: colors, exclusions, binary extensions."""
 
-    # ANSI color codes
+    # Raw ANSI color codes. Do not print these directly: use
+    # `check_file_size.palette.Palette`, which drops them when the stream is
+    # not a TTY or NO_COLOR is set.
     RESET = "\033[0m"
     BOLD = "\033[1m"
     DIM = "\033[2m"
