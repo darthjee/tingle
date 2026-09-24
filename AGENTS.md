@@ -18,33 +18,36 @@ git branches.
 
 ## Conventions
 
-- **Should**: Scripts are independent and runnable on their own — avoid
+Priority keywords (**MUST**, **SHOULD**, **NEVER**) follow RFC 2119 and are
+written in uppercase on purpose.
+
+- **SHOULD**: Scripts are independent and runnable on their own — avoid
   introducing cross-script dependencies unless truly shared.
-- **Should**: Each script document its own usage and dependencies in a
+- **SHOULD**: Each script document its own usage and dependencies in a
   header comment.
-- **Should**: New scripts be added to the table in `README.md`.
+- **SHOULD**: New scripts be added to the table in `README.md`.
 
 ## Boundaries
 
-- **Never**: introduce cross-script dependencies unless truly shared.
-- **Must**: document a script's usage and dependencies in a header comment
+- **NEVER**: introduce cross-script dependencies unless truly shared.
+- **MUST**: document a script's usage and dependencies in a header comment
   whenever it is added or modified, unless the change does not affect its
   usage or dependencies (e.g. typo fixes, formatting, internal refactors).
-- **Must**: add a new script to the table in `README.md`, unless it is an
+- **MUST**: add a new script to the table in `README.md`, unless it is an
   internal helper not meant to be invoked directly.
-- **Never**: place implementation code outside `shell/`, `python/`,
+- **NEVER**: place implementation code outside `shell/`, `python/`,
   `node/`, or `bin/`, except for build, release, install and CI tooling and
   config (e.g. `Makefile`, `scripts/`, `install/`, `completions/`,
   `commands/`, `docker-compose.yml`, `.circleci/`, `.github/`).
-- **Never**: place documentation anywhere other than `docs/guides/`
+- **NEVER**: place documentation anywhere other than `docs/guides/`
   (user-facing guides) or `docs/agents/` (agent-facing docs), except for
   root-level files required by tooling or convention (`README.md`,
   `AGENTS.md`, `CLAUDE.md`, `DOCKERHUB_DESCRIPTION.md`, and
   templates/instructions under `.github/`).
-- **Must**: update the relevant file(s) under `docs/agents/` whenever an
+- **MUST**: update the relevant file(s) under `docs/agents/` whenever an
   architectural change is made; if no existing file covers the area, add
   one and list it in the Documentation table.
-- **Must**: update the matching guide in `docs/guides/` whenever a
+- **MUST**: update the matching guide in `docs/guides/` whenever a
   command's user-visible behaviour changes; if the command has no guide
   yet, note that in the PR description.
 
