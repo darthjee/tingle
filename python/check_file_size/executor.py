@@ -6,6 +6,10 @@ Analyzes source files and lists them by size (line count), classifying
 them by configurable thresholds. Useful for identifying token consumption
 bottlenecks before feeding a repository to an AI.
 
+With `--fail-on warn|error|critical` it acts as a CI gate: exit status is 0
+on success, 1 on errors (path not found, bad option) and 2 when any analysed
+file reaches the given level.
+
 Usage:
     ./check_file_size.py <path> [options]
 
@@ -16,6 +20,7 @@ Examples
     ./check_file_size.py ./src --top 20
     ./check_file_size.py ./src --exclude node_modules,dist,build
     ./check_file_size.py ./src --ext .py --ext .js
+    ./check_file_size.py ./src --fail-on error
 
 """
 
