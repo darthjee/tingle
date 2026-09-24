@@ -2,6 +2,11 @@
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint]
+# D212 (summary on the first line) is the project's docstring convention.
+# Its counterpart D213 is disabled for Codacy in /.prospector.yaml (issue #203).
+extend-select = ["D212"]
+
 [tool.ruff.lint.per-file-ignores]
 # kube/auth.py carries a bare `# noqa` for Prospector (Codacy), not for ruff;
 # it suppresses a dodgy false positive on an env var *name* (issue #192).

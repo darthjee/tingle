@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-main.py — Flow-verb dispatcher entrypoint for check_file_size.
+"""main.py — Flow-verb dispatcher entrypoint for check_file_size.
 
 `cli` invokes this file with a flow verb as the first argument
 (e.g. `run`) followed by the command's own arguments.
