@@ -110,7 +110,7 @@ In both cases, the rest of `~/.bashrc` is never touched.
 
 2. Run `tingle` with no arguments. You should see the list of available
    commands.
-3. Type `tingle ` followed by <kbd>TAB</kbd>. Bash should suggest the
+3. Type `tingle`, then a space, then press **Tab**. Bash should suggest the
    available command names.
 
 ## Uninstalling
