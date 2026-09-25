@@ -20,14 +20,12 @@ as the image's full description.
 - Root docs: rewrite the bare URL at `DOCKERHUB_DESCRIPTION.md:62` as a proper
   Markdown link (e.g. `- [Repository](https://github.com/darthjee/tingle)`),
   keeping the same destination.
-- Apply the same treatment to the other bare URLs in the same Links section so
-  MD034 does not fire on neighbouring lines.
+- Leave lines 63 and 64 alone: they are tracked separately by #212 and #213.
 - Make sure the result still renders correctly on Docker Hub (standard
   Markdown links only).
 
 ## Acceptance criteria
 
 - [ ] `DOCKERHUB_DESCRIPTION.md:62` uses a Markdown link instead of a bare URL.
-- [ ] No bare URLs remain in the `## Links` section of `DOCKERHUB_DESCRIPTION.md`.
 - [ ] Link destinations are unchanged.
-- [ ] markdownlint MD034 no longer reports `DOCKERHUB_DESCRIPTION.md`.
+- [ ] markdownlint MD034 no longer reports `DOCKERHUB_DESCRIPTION.md:62`.
