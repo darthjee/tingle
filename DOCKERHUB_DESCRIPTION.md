@@ -5,6 +5,8 @@ The GNU toolbox image behind the `tingle linux` command of
 subcommands (`shell`, `sed`, ...) consistent GNU behavior, independent of
 the BSD userland shipped with macOS.
 
+Supported platforms: `linux/amd64`, `linux/arm64`.
+
 ## What it contains
 
 Built on `ubuntu:24.04` with a baseline GNU toolbox:
