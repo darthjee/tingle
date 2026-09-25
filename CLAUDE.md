@@ -12,6 +12,13 @@ Tingle is a collection of small, independent utility scripts written in Shell
 (`shell/`), Python (`python/`) and Node.js (`node/`). See
 [AGENTS.md](AGENTS.md#stack).
 
+## Tools
+
+Specialist agents are defined under `.claude/agents/` (`architect`, `cli`,
+`node`, `python`, `shell`, `product-owner`, `guide`); delegate work to the
+agent that owns the area. See [AGENTS.md](AGENTS.md#tools) for each agent's
+scope.
+
 ## Documentation
 
 Agent-facing project documentation lives under
