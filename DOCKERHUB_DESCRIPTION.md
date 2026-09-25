@@ -59,6 +59,6 @@ docker run --rm -v "$PWD:$PWD" -w "$PWD" darthjee/tingle:<tag> sed --version
 
 ## Links
 
-- Repository: https://github.com/darthjee/tingle
+- [Repository](https://github.com/darthjee/tingle)
 - `tingle linux` guide: https://github.com/darthjee/tingle/blob/main/docs/guides/linux.md
 - Dockerfile: https://github.com/darthjee/tingle/blob/main/shell/linux/Dockerfile
