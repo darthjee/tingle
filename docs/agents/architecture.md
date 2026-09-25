@@ -45,6 +45,13 @@ dispatches to.
   probe for support. Commands without a `completion.<ext>` (e.g.
   `check_file_size`, `install`) get the hub's generic native file/folder
   completion fallback instead.
+- A completion handler's stdout is the list of suggestions, which the hub
+  filters with `compgen -W "<output>" -- "$cur"`. Empty output means no
+  suggestions. If the whole output, with surrounding whitespace trimmed, is
+  exactly the reserved sentinel `__tingle_files__`, the hub instead uses its
+  native file/folder completion — the same fallback a command with no
+  `completion.<ext>` gets. Use it for positions that take a path (e.g.
+  `tingle linux sed <TAB>`).
 - A completion handler receives raw argv, including a possibly-empty
   trailing element for the word currently being typed, and must not run it
   through a strict parser (e.g. `argparse`) — that trailing empty string is
@@ -139,6 +146,8 @@ Holds the bash completion scripts for `tingle`:
   arguments. Delegates to a command's own `completion.<ext>` via
   `tingle resolve <cmd>` when one exists, or falls back to native
   file/folder completion (`compgen -f` + `compopt -o filenames`) otherwise.
+  The same file/folder fallback runs when a handler prints exactly the
+  sentinel `__tingle_files__`.
 
 ### `.circleci/`
 

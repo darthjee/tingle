@@ -4,8 +4,9 @@
 #
 # Usage:
 #   main.sh run <subcommand> [args...]
+#   main.sh complete [args...]
 #
-# Dependencies: executor.sh in the same directory.
+# Dependencies: executor.sh and completion.sh in the same directory.
 #
 set -euo pipefail
 
@@ -16,5 +17,8 @@ shift
 case "$flow" in
     run)
         exec "$SCRIPT_DIR/executor.sh" "$@"
+        ;;
+    complete)
+        exec "$SCRIPT_DIR/completion.sh" "$@"
         ;;
 esac

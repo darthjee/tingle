@@ -26,6 +26,10 @@ tingle linux shell
 tingle linux sed <sed-args...>
 ```
 
+If you enabled bash completion with `tingle install`, pressing Tab completes
+the `shell` and `sed` subcommands, and file and folder names for `sed`
+arguments.
+
 ## `tingle linux shell`
 
 ```
