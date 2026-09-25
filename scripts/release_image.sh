@@ -22,6 +22,9 @@
 # the pinned tonistiigi/binfmt image only for platforms the builder does not
 # already support (on Docker Desktop no privileged container is run).
 #
+# build loads one local image per platform, tagged darthjee/tingle:<tag>-<arch>
+# (never pushed); smoke-test runs every check against each of them.
+#
 # Change detection: build and publish are safe no-ops (exit 0) when
 # shell/linux/ hasn't changed since the previous X.Y.Z tag — see
 # changed_since_previous().
@@ -146,7 +149,27 @@ cmd_build() {
 
   local tag
   tag=$(resolve_tag)
-  docker build -t "$IMAGE_NAME:$tag" -f shell/linux/Dockerfile .
+
+  local platform
+  for platform in $PLATFORMS; do
+    echo "Building $IMAGE_NAME:$tag-$(platform_arch "$platform") for $platform"
+    docker buildx build --builder "$BUILDER_NAME" --platform "$platform" --load \
+      -t "$IMAGE_NAME:$tag-$(platform_arch "$platform")" -f shell/linux/Dockerfile .
+  done
+}
+
+smoke_test_image() {
+  local image="$1"
+  local platform="$2"
+
+  docker run --rm --platform "$platform" "$image" sed --version | grep -qi "GNU sed"
+
+  local uid
+  uid=$(docker run --rm --platform "$platform" "$image" id -u)
+  if [ "$uid" = "0" ]; then
+    echo "Container runs as root (uid 0) on $platform" >&2
+    exit 1
+  fi
 }
 
 cmd_smoke_test() {
@@ -158,14 +181,11 @@ cmd_smoke_test() {
   local tag
   tag=$(resolve_tag)
 
-  docker run --rm "$IMAGE_NAME:$tag" sed --version | grep -qi "GNU sed"
-
-  local uid
-  uid=$(docker run --rm "$IMAGE_NAME:$tag" id -u)
-  if [ "$uid" = "0" ]; then
-    echo "Container runs as root (uid 0)"
-    exit 1
-  fi
+  local platform
+  for platform in $PLATFORMS; do
+    echo "Smoke-testing $IMAGE_NAME:$tag-$(platform_arch "$platform") on $platform"
+    smoke_test_image "$IMAGE_NAME:$tag-$(platform_arch "$platform")" "$platform"
+  done
 }
 
 cmd_publish() {
