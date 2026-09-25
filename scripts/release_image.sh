@@ -23,7 +23,10 @@
 # already support (on Docker Desktop no privileged container is run).
 #
 # build loads one local image per platform, tagged darthjee/tingle:<tag>-<arch>
-# (never pushed); smoke-test runs every check against each of them.
+# (never pushed); smoke-test runs every check against each of them. publish
+# pushes a single multi-platform darthjee/tingle:<tag> through the same
+# builder (reusing its cache) and fails unless `docker buildx imagetools
+# inspect` lists every platform in $PLATFORMS.
 #
 # Change detection: build and publish are safe no-ops (exit 0) when
 # shell/linux/ hasn't changed since the previous X.Y.Z tag — see
@@ -188,6 +191,23 @@ cmd_smoke_test() {
   done
 }
 
+verify_published_platforms() {
+  local image="$1"
+
+  local manifest
+  manifest=$(docker buildx imagetools inspect "$image")
+
+  local platform
+  for platform in $PLATFORMS; do
+    if ! grep -Eq "Platform:[[:space:]]+${platform}\$" <<< "$manifest"; then
+      echo "Published $image is missing platform $platform" >&2
+      exit 1
+    fi
+  done
+
+  echo "Published $image for: $(platforms_csv)"
+}
+
 cmd_publish() {
   if ! changed_since_previous; then
     echo "shell/linux/ unchanged since previous release tag — skipping publish"
@@ -200,7 +220,11 @@ cmd_publish() {
   tag=$(resolve_tag)
 
   echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
-  docker push "$IMAGE_NAME:$tag"
+
+  docker buildx build --builder "$BUILDER_NAME" --platform "$(platforms_csv)" --push \
+    -t "$IMAGE_NAME:$tag" -f shell/linux/Dockerfile .
+
+  verify_published_platforms "$IMAGE_NAME:$tag"
 }
 
 cmd_update_description() {
