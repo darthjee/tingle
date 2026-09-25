@@ -4,6 +4,7 @@
 # Docker image, plus update its Docker Hub description.
 #
 # Usage:
+#   scripts/release_image.sh setup-builder
 #   scripts/release_image.sh build
 #   scripts/release_image.sh smoke-test
 #   scripts/release_image.sh publish
@@ -12,6 +13,14 @@
 # Tag resolution: $CIRCLE_TAG when set (CI), else the trimmed content of
 # shell/linux/VERSION (local dev). In CI, the pin file must match
 # $CIRCLE_TAG exactly or the job hard-fails before building/publishing.
+#
+# Platforms: $PLATFORMS (space-separated, default "linux/amd64 linux/arm64")
+# selects the platforms to build, smoke-test and publish.
+#
+# setup-builder is idempotent: it creates (if missing) and bootstraps the
+# docker-container buildx builder "tingle-builder", and registers QEMU via
+# the pinned tonistiigi/binfmt image only for platforms the builder does not
+# already support (on Docker Desktop no privileged container is run).
 #
 # Change detection: build and publish are safe no-ops (exit 0) when
 # shell/linux/ hasn't changed since the previous X.Y.Z tag — see
@@ -32,6 +41,9 @@ IMAGE_NAME="darthjee/tingle"
 SHORT_DESCRIPTION_FILE="DOCKERHUB_SHORT_DESCRIPTION.txt"
 FULL_DESCRIPTION_FILE="DOCKERHUB_DESCRIPTION.md"
 SHORT_DESCRIPTION_MAX_LENGTH=100
+PLATFORMS="${PLATFORMS:-linux/amd64 linux/arm64}"
+BUILDER_NAME="tingle-builder"
+BINFMT_IMAGE="tonistiigi/binfmt:qemu-v10.2.3"
 
 resolve_tag() {
   if [ -n "${CIRCLE_TAG:-}" ]; then
@@ -39,6 +51,19 @@ resolve_tag() {
   else
     tr -d '[:space:]' < "$VERSION_FILE"
   fi
+}
+
+platform_arch() {
+  echo "${1#linux/}"
+}
+
+platforms_csv() {
+  local csv=""
+  local platform
+  for platform in $PLATFORMS; do
+    csv="${csv:+$csv,}$platform"
+  done
+  echo "$csv"
 }
 
 previous_tag() {
@@ -68,6 +93,47 @@ verify_version_pin() {
     echo "shell/linux/VERSION ($pinned) does not match \$CIRCLE_TAG ($CIRCLE_TAG)" >&2
     exit 1
   fi
+}
+
+builder_platforms() {
+  docker buildx inspect --bootstrap "$BUILDER_NAME" | awk -F': *' '/^Platforms:/{print $2; exit}'
+}
+
+missing_platform_archs() {
+  local supported
+  supported=$(builder_platforms)
+
+  local missing=""
+  local platform
+  for platform in $PLATFORMS; do
+    case ",${supported// /}," in
+      *",$platform,"*|*",$platform*,"*) ;;
+      *) missing="${missing:+$missing,}$(platform_arch "$platform")" ;;
+    esac
+  done
+  echo "$missing"
+}
+
+cmd_setup_builder() {
+  if ! docker buildx inspect "$BUILDER_NAME" >/dev/null 2>&1; then
+    docker buildx create --name "$BUILDER_NAME" --driver docker-container
+  fi
+
+  local missing
+  missing=$(missing_platform_archs)
+
+  if [ -n "$missing" ]; then
+    echo "Registering QEMU emulation for: $missing"
+    docker run --privileged --rm "$BINFMT_IMAGE" --install "$missing"
+
+    missing=$(missing_platform_archs)
+    if [ -n "$missing" ]; then
+      echo "Builder $BUILDER_NAME still does not support: $missing" >&2
+      exit 1
+    fi
+  fi
+
+  echo "Builder $BUILDER_NAME ready for: $(platforms_csv)"
 }
 
 cmd_build() {
@@ -173,6 +239,9 @@ main() {
   local subcommand="${1:-}"
 
   case "$subcommand" in
+    setup-builder)
+      cmd_setup_builder
+      ;;
     build)
       cmd_build
       ;;
@@ -186,7 +255,7 @@ main() {
       cmd_update_description
       ;;
     *)
-      echo "Usage: $0 {build|smoke-test|publish|update-description}" >&2
+      echo "Usage: $0 {setup-builder|build|smoke-test|publish|update-description}" >&2
       exit 1
       ;;
   esac
