@@ -8,13 +8,86 @@
 # `docker run <image> <cmd> <args...>`.
 
 # Multi-platform index digest of ubuntu:24.04 (resolves on linux/amd64 and
-# linux/arm64).
+# linux/arm64). Both stages build on it.
 ARG BASE_IMAGE=ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
 
-FROM ${BASE_IMAGE}
-
-# snapshot.ubuntu.com date every apt pin below resolves against.
+# snapshot.ubuntu.com date every apt pin (in both stages) resolves against.
 ARG UBUNTU_SNAPSHOT=20260920T000000Z
+
+# ---------------------------------------------------------------------------
+# fetch: downloads and verifies the upstream tools. Nothing from this stage
+# reaches the final image except /out/kubectl and /usr/local/aws-cli.
+# ---------------------------------------------------------------------------
+FROM ${BASE_IMAGE} AS fetch
+ARG UBUNTU_SNAPSHOT
+ARG TARGETARCH
+ARG KUBECTL_VERSION=1.37.1
+ARG AWS_CLI_VERSION=2.37.4
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Same ca-certificates bootstrap and ports.ubuntu.com mapping as the final
+# stage (see the comment there).
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && echo 'Acquire::Snapshots::URI::Host::ports.ubuntu.com "https://snapshot.ubuntu.com/ubuntu/@SNAPSHOTID@/";' \
+        > /etc/apt/apt.conf.d/99snapshot-ports \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get update --error-on=any --snapshot "$UBUNTU_SNAPSHOT" \
+    && apt-get install -y --no-install-recommends --allow-downgrades \
+        --snapshot "$UBUNTU_SNAPSHOT" \
+        ca-certificates=20260601~24.04.1 \
+        curl=8.5.0-2ubuntu10.13 \
+        gpg=2.4.4-2ubuntu17.6 \
+        libssl3t64=3.0.13-0ubuntu3.15 \
+        openssl=3.0.13-0ubuntu3.15 \
+        unzip=6.0-28ubuntu4.1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp/fetch
+
+# kubectl, checked against the upstream SHA-256.
+RUN arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
+    && base="https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${arch}" \
+    && curl -fsSL --proto '=https' -o kubectl "${base}/kubectl" \
+    && curl -fsSL --proto '=https' -o kubectl.sha256 "${base}/kubectl.sha256" \
+    && echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check --strict \
+    && install -D -m 0755 kubectl /out/kubectl \
+    && rm -f kubectl kubectl.sha256
+
+# AWS CLI v2 public key, copied from the AWS CLI install guide.
+#   Fingerprint: FB5D B77F D5C1 18B8 0511  ADA8 A631 0ACC 4672 475C
+#   Expires:     2027-07-01
+COPY shell/linux/aws-cli.asc /tmp/aws-cli.asc
+
+# AWS CLI v2, checked against its PGP signature. gpg only dearmors the key
+# (importing it would need gpg-agent); gpgv does the verification into a
+# throwaway keyring. The VALIDSIG check also pins the primary key
+# fingerprint, so a swapped key file fails the build.
+RUN arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
+    && case "$arch" in \
+        amd64) aws_arch=x86_64 ;; \
+        arm64) aws_arch=aarch64 ;; \
+        *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac \
+    && url="https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}-${AWS_CLI_VERSION}.zip" \
+    && curl -fsSL --proto '=https' -o awscliv2.zip "$url" \
+    && curl -fsSL --proto '=https' -o awscliv2.sig "${url}.sig" \
+    && GNUPGHOME="$(mktemp -d)" \
+    && export GNUPGHOME \
+    && gpg --batch --dearmor --output aws-cli.gpg /tmp/aws-cli.asc \
+    && gpgv --keyring ./aws-cli.gpg --status-fd 1 awscliv2.sig awscliv2.zip \
+        | grep '^\[GNUPG:\] VALIDSIG .* FB5DB77FD5C118B80511ADA8A6310ACC4672475C$' >/dev/null \
+    && unzip -q awscliv2.zip \
+    && ./aws/install --install-dir /usr/local/aws-cli --bin-dir /out/bin \
+    && rm -rf "$GNUPGHOME" aws-cli.gpg awscliv2.zip awscliv2.sig aws
+
+# ---------------------------------------------------------------------------
+# final image
+# ---------------------------------------------------------------------------
+FROM ${BASE_IMAGE}
+ARG UBUNTU_SNAPSHOT
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -85,6 +158,13 @@ RUN apt-get update \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd \
     && ln -s /usr/bin/batcat /usr/local/bin/bat \
     && rm -rf /var/lib/apt/lists/*
+
+# Upstream tools, verified in the fetch stage. Kept after the apt layer so
+# bumping KUBECTL_VERSION or AWS_CLI_VERSION doesn't invalidate it.
+COPY --from=fetch /out/kubectl /usr/local/bin/kubectl
+COPY --from=fetch /usr/local/aws-cli /usr/local/aws-cli
+RUN ln -s /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws \
+    && ln -s /usr/local/aws-cli/v2/current/bin/aws_completer /usr/local/bin/aws_completer
 
 RUN userdel --remove ubuntu 2>/dev/null; \
     useradd --create-home --uid 1000 tingle
