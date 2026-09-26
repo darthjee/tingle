@@ -63,9 +63,13 @@ jobs:
           name: Upload coverage to Codacy
           command: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -r coverage.xml
   build-and-publish-linux-image:
-    machine: true
+    machine:
+      image: ubuntu-2404:current
     steps:
       - checkout
+      - run:
+          name: Set up builder
+          command: scripts/release_image.sh setup-builder
       - run:
           name: Build image
           command: scripts/release_image.sh build
