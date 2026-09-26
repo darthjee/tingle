@@ -9,7 +9,10 @@
 #     bash-completion, tree, file
 #   - archives and dev: unzip, zip, xz, bc, make, shellcheck, rsync
 #   - terminal and processes: ps (procps), tmux, htop
+#   - identity: libnss-wrapper (used by the entrypoint)
 #   - from upstream: kubectl and the AWS CLI v2 (aws, aws_completer)
+#   - the entrypoint: shell/linux/entrypoint.sh, installed as
+#     /usr/local/bin/tingle-entrypoint
 #
 # Reproducibility:
 #   - the base image is pinned by its multi-platform index digest;
@@ -27,8 +30,22 @@
 # Runs as a non-root user (uid 1000) so files touched through a volume mount
 # are owned correctly on the host.
 #
-# No CMD/ENTRYPOINT is set — every subcommand supplies its own command via
-# `docker run <image> <cmd> <args...>`.
+# Entrypoint: /usr/local/bin/tingle-entrypoint wraps every command. It sets
+# HOME=/home/tingle and, when the container runs as a uid the image doesn't
+# know (`tingle linux` passes the host uid:gid, e.g. 501:20), gives it a
+# `tingle-host` passwd/group identity through libnss_wrapper, so `id -un`,
+# ssh and git work. It also writes an ~/.ssh/config wrapper around a mounted
+# ~/.ssh/host_config. Subcommands supply their own command via
+# `docker run <image> <cmd> <args...>`; with no command, CMD runs `bash`.
+#
+# Hardening:
+#   - /etc/passwd and /etc/group stay read-only and unmodified (the foreign
+#     uid's identity lives in a private temp copy served by nss_wrapper);
+#   - every setuid/setgid bit is stripped, so there is no su/sudo-style path
+#     back to root;
+#   - docker_run.sh always adds `--security-opt no-new-privileges`.
+#   /home/tingle and /home/tingle/.ssh are mode 1777 (sticky) so any uid
+#   can use them as HOME.
 
 # Multi-platform index digest of ubuntu:24.04 (resolves on linux/amd64 and
 # linux/arm64). Both stages build on it.
@@ -178,6 +195,8 @@ RUN apt-get update \
         htop=3.3.0-4build1 \
         procps=2:4.0.4-4ubuntu3.3 \
         tmux=3.4-1ubuntu0.1 \
+        # identity for foreign uids (see the entrypoint)
+        libnss-wrapper=1.1.15-2 \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd \
     && ln -s /usr/bin/batcat /usr/local/bin/bat \
     && rm -rf /var/lib/apt/lists/*
@@ -189,6 +208,17 @@ COPY --from=fetch /usr/local/aws-cli /usr/local/aws-cli
 RUN ln -s /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws \
     && ln -s /usr/local/aws-cli/v2/current/bin/aws_completer /usr/local/bin/aws_completer
 
+COPY --chmod=0755 shell/linux/entrypoint.sh /usr/local/bin/tingle-entrypoint
+
+# Kept last among the root steps so the setuid/setgid strip covers every
+# file installed above. /home/tingle/.ssh is created up front so a bind
+# mount of ~/.ssh/host_config doesn't make Docker create it root-owned.
 RUN userdel --remove ubuntu 2>/dev/null; \
-    useradd --create-home --uid 1000 tingle
+    useradd --create-home --uid 1000 tingle \
+    && mkdir -p /home/tingle/.ssh \
+    && chmod 1777 /home/tingle /home/tingle/.ssh \
+    && find / -xdev -perm /6000 -type f -exec chmod a-s {} +
 USER tingle
+
+ENTRYPOINT ["/usr/local/bin/tingle-entrypoint"]
+CMD ["bash"]

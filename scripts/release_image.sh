@@ -26,7 +26,12 @@
 # build loads one local image per platform, tagged darthjee/tingle:<tag>-<arch>
 # (never pushed); smoke-test runs every check against each of them — GNU sed,
 # a non-root user, and every tool in the smoke-check table (one container per
-# platform, with --network none). publish
+# platform, with --network none) — plus the identity and hardening checks in
+# smoke_test_identity(): the image's ENTRYPOINT/CMD and default bash, a
+# foreign uid (--user 501:20) resolving as tingle-host with a writable
+# HOME=/home/tingle and ~/.ssh and a working `ssh -G`, no nss_wrapper for the
+# default uid, an unchanged read-only /etc/passwd, byte-exact sed stdin/stdout,
+# non-zero exit codes passed through, and no setuid/setgid files. publish
 # pushes a single multi-platform darthjee/tingle:<tag> through the same
 # builder (reusing its cache) and fails unless `docker buildx imagetools
 # inspect` lists every platform in $PLATFORMS.
@@ -184,6 +189,7 @@ smoke_test_image() {
   fi
 
   smoke_test_tools "$image" "$platform"
+  smoke_test_identity "$image" "$platform"
 }
 
 # Smoke-check table: one "name|command" entry per tool. Each command must
@@ -240,6 +246,78 @@ smoke_test_tools() {
       fi
     done
   ' _ "$platform" "${TOOL_CHECKS[@]}"
+}
+
+ENTRYPOINT_PATH="/usr/local/bin/tingle-entrypoint"
+FOREIGN_USER="501:20"
+
+smoke_fail() {
+  echo "$1" >&2
+  exit 1
+}
+
+# Checks the entrypoint's identity handling and the image hardening. Checks
+# are grouped into as few containers as possible (runs are slow under QEMU),
+# all with --network none.
+smoke_test_identity() {
+  local image="$1"
+  local platform="$2"
+  local run=(docker run --rm --network none --platform "$platform")
+
+  local config
+  config=$(docker image inspect --format '{{json .Config.Entrypoint}} {{json .Config.Cmd}}' "$image")
+  if [ "$config" != "[\"$ENTRYPOINT_PATH\"] [\"bash\"]" ]; then
+    smoke_fail "Unexpected ENTRYPOINT/CMD on $platform: $config"
+  fi
+
+  local output
+  output=$(echo 'echo ok' | "${run[@]}" -i "$image")
+  if [ "$output" != "ok" ]; then
+    smoke_fail "Default command is not bash on $platform (got: $output)"
+  fi
+
+  # Default uid: no nss_wrapper, the tingle user, and no setuid/setgid files.
+  # Prints the sha256 of /etc/passwd for the foreign-uid comparison below.
+  local passwd_sha
+  # shellcheck disable=SC2016 # expanded inside the container, not here
+  passwd_sha=$("${run[@]}" "$image" bash -c '
+    platform="$1"
+    fail() { echo "$1 on $platform" >&2; exit 1; }
+    [ -z "${LD_PRELOAD:-}" ] || fail "LD_PRELOAD is set for the default uid ($LD_PRELOAD)"
+    [ "$(id -un)" = "tingle" ] || fail "Default uid does not resolve as tingle"
+    suid=$(find / -xdev -perm /6000 -type f 2>/dev/null)
+    [ -z "$suid" ] || fail "setuid/setgid files found: $suid"
+    sha256sum /etc/passwd | cut -d " " -f 1
+  ' _ "$platform")
+
+  # Foreign uid: nss_wrapper identity, writable HOME and ~/.ssh, working ssh,
+  # and a root-owned, read-only, unchanged /etc/passwd.
+  # shellcheck disable=SC2016 # expanded inside the container, not here
+  "${run[@]}" --user "$FOREIGN_USER" "$image" bash -c '
+    platform="$1"
+    expected_sha="$2"
+    fail() { echo "$1 on $platform (--user '"$FOREIGN_USER"')" >&2; exit 1; }
+    [ "$(id -un 2>/dev/null)" = "tingle-host" ] || fail "Foreign uid does not resolve as tingle-host"
+    [ "$HOME" = "/home/tingle" ] || fail "HOME is $HOME, not /home/tingle"
+    for dir in "$HOME" "$HOME/.ssh"; do
+      probe="$dir/.smoke-test-$$"
+      { touch "$probe" && rm "$probe"; } 2>/dev/null || fail "$dir is not writable"
+    done
+    ssh -G localhost >/dev/null 2>&1 || fail "ssh -G localhost failed"
+    [ "$(stat -c %u /etc/passwd)" = "0" ] || fail "/etc/passwd is not owned by root"
+    [ ! -w /etc/passwd ] || fail "/etc/passwd is writable"
+    [ "$(sha256sum /etc/passwd | cut -d " " -f 1)" = "$expected_sha" ] || fail "/etc/passwd changed"
+  ' _ "$platform" "$passwd_sha"
+
+  # The trailing "." keeps any extra trailing newline from being stripped.
+  output=$(printf a | "${run[@]}" -i "$image" sed s/a/b/; echo .)
+  if [ "$output" != "b." ]; then
+    smoke_fail "sed through the entrypoint printed '$output' instead of 'b' on $platform"
+  fi
+
+  if "${run[@]}" "$image" false; then
+    smoke_fail "Non-zero exit code was not passed through on $platform"
+  fi
 }
 
 cmd_smoke_test() {
