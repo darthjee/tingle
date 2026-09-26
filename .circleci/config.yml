@@ -77,6 +77,9 @@ jobs:
           name: Smoke test
           command: scripts/release_image.sh smoke-test
       - run:
+          name: Scan image
+          command: scripts/release_image.sh scan
+      - run:
           name: Publish image
           command: scripts/release_image.sh publish
   update-description:
