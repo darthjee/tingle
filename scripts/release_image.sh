@@ -7,6 +7,7 @@
 #   scripts/release_image.sh setup-builder
 #   scripts/release_image.sh build
 #   scripts/release_image.sh smoke-test
+#   scripts/release_image.sh scan
 #   scripts/release_image.sh publish
 #   scripts/release_image.sh update-description
 #
@@ -23,12 +24,19 @@
 # already support (on Docker Desktop no privileged container is run).
 #
 # build loads one local image per platform, tagged darthjee/tingle:<tag>-<arch>
-# (never pushed); smoke-test runs every check against each of them. publish
+# (never pushed); smoke-test runs every check against each of them — GNU sed,
+# a non-root user, and every tool in the smoke-check table (one container per
+# platform, with --network none). publish
 # pushes a single multi-platform darthjee/tingle:<tag> through the same
 # builder (reusing its cache) and fails unless `docker buildx imagetools
 # inspect` lists every platform in $PLATFORMS.
 #
-# Change detection: build and publish are safe no-ops (exit 0) when
+# Scan: scan runs the pinned Trivy image ($TRIVY_IMAGE) against each local
+# darthjee/tingle:<tag>-<arch> image through the docker socket and prints the
+# vulnerability report. It is report-only: findings, and Trivy failures such
+# as a DB download error, only print a warning — scan never fails the build.
+#
+# Change detection: build, smoke-test, scan and publish are safe no-ops (exit 0) when
 # shell/linux/ hasn't changed since the previous X.Y.Z tag — see
 # changed_since_previous().
 #
@@ -50,6 +58,7 @@ SHORT_DESCRIPTION_MAX_LENGTH=100
 PLATFORMS="${PLATFORMS:-linux/amd64 linux/arm64}"
 BUILDER_NAME="tingle-builder"
 BINFMT_IMAGE="tonistiigi/binfmt:qemu-v10.2.3"
+TRIVY_IMAGE="aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969"
 
 resolve_tag() {
   if [ -n "${CIRCLE_TAG:-}" ]; then
@@ -173,6 +182,64 @@ smoke_test_image() {
     echo "Container runs as root (uid 0) on $platform" >&2
     exit 1
   fi
+
+  smoke_test_tools "$image" "$platform"
+}
+
+# Smoke-check table: one "name|command" entry per tool. Each command must
+# succeed as the tingle user with no network access; its output is discarded.
+TOOL_CHECKS=(
+  "git|git --version"
+  "ssh|ssh -V"
+  "less|less --version"
+  "jq|jq --version"
+  "curl|curl --version"
+  "wget|wget --version"
+  "dig|dig -v"
+  "ping|ping -V"
+  "nc|command -v nc"
+  "ip|ip -V"
+  "vim|vim --version"
+  "rg|rg --version"
+  "fd|fd --version"
+  "bat|bat --version"
+  "bash-completion|test -f /usr/share/bash-completion/bash_completion"
+  "tree|tree --version"
+  "file|file --version"
+  "unzip|unzip -v"
+  "zip|zip -v"
+  "xz|xz --version"
+  "bc|bc --version"
+  "make|make --version"
+  "shellcheck|shellcheck --version"
+  "rsync|rsync --version"
+  "ps|ps --version"
+  "tmux|tmux -V"
+  "htop|htop --version"
+  "kubectl|kubectl version --client"
+  "aws|aws --version"
+  "ca bundle|test -s /etc/ssl/certs/ca-certificates.crt"
+)
+
+# Runs every TOOL_CHECKS entry inside a single container (runs are slow under
+# QEMU) and fails on the first missing or broken tool.
+smoke_test_tools() {
+  local image="$1"
+  local platform="$2"
+
+  # shellcheck disable=SC2016 # expanded inside the container, not here
+  docker run --rm --network none --platform "$platform" "$image" bash -c '
+    platform="$1"
+    shift
+    for check in "$@"; do
+      name="${check%%|*}"
+      command="${check#*|}"
+      if ! bash -c "$command" >/dev/null 2>&1; then
+        echo "Missing or broken tool on $platform: $name" >&2
+        exit 1
+      fi
+    done
+  ' _ "$platform" "${TOOL_CHECKS[@]}"
 }
 
 cmd_smoke_test() {
@@ -188,6 +255,27 @@ cmd_smoke_test() {
   for platform in $PLATFORMS; do
     echo "Smoke-testing $IMAGE_NAME:$tag-$(platform_arch "$platform") on $platform"
     smoke_test_image "$IMAGE_NAME:$tag-$(platform_arch "$platform")" "$platform"
+  done
+}
+
+cmd_scan() {
+  if ! changed_since_previous; then
+    echo "shell/linux/ unchanged since previous release tag — skipping scan"
+    exit 0
+  fi
+
+  local tag
+  tag=$(resolve_tag)
+
+  local platform image
+  for platform in $PLATFORMS; do
+    image="$IMAGE_NAME:$tag-$(platform_arch "$platform")"
+    echo "Scanning $image on $platform"
+    if ! docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+      "$TRIVY_IMAGE" image --platform "$platform" --exit-code 0 --no-progress \
+      "$image"; then
+      echo "Trivy scan failed for $image on $platform — continuing (report-only)" >&2
+    fi
   done
 }
 
@@ -292,6 +380,9 @@ main() {
     smoke-test)
       cmd_smoke_test
       ;;
+    scan)
+      cmd_scan
+      ;;
     publish)
       cmd_publish
       ;;
@@ -299,7 +390,7 @@ main() {
       cmd_update_description
       ;;
     *)
-      echo "Usage: $0 {setup-builder|build|smoke-test|publish|update-description}" >&2
+      echo "Usage: $0 {setup-builder|build|smoke-test|scan|publish|update-description}" >&2
       exit 1
       ;;
   esac
