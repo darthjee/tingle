@@ -1,8 +1,31 @@
-# GNU toolbox image for the `tingle linux` command.
+# Toolbox image for the `tingle linux` command.
 #
-# Provides a baseline of GNU coreutils, findutils, grep, sed, gawk, tar and
-# diffutils, running as a non-root user (uid 1000) so files touched through
-# a volume mount are owned correctly on the host.
+# Contents:
+#   - GNU baseline: coreutils, findutils, grep, sed, gawk, tar, diffutils
+#   - git and friends: git, ca-certificates, openssh-client, less
+#   - data and network: jq, curl, wget, dig (dnsutils), ping (iputils-ping),
+#     nc (netcat-openbsd), ip (iproute2)
+#   - editing and search: vim, rg (ripgrep), fd (fd-find), bat,
+#     bash-completion, tree, file
+#   - archives and dev: unzip, zip, xz, bc, make, shellcheck, rsync
+#   - terminal and processes: ps (procps), tmux, htop
+#   - from upstream: kubectl and the AWS CLI v2 (aws, aws_completer)
+#
+# Reproducibility:
+#   - the base image is pinned by its multi-platform index digest;
+#   - every apt package is pinned to its exact version at UBUNTU_SNAPSHOT
+#     (served by snapshot.ubuntu.com);
+#   - kubectl (KUBECTL_VERSION) and the AWS CLI (AWS_CLI_VERSION) are
+#     downloaded in the `fetch` stage and verified by SHA-256 and PGP
+#     signature (key in shell/linux/aws-cli.asc), so gpg and the installer
+#     never reach the final image.
+#   See docs/agents/tingle-linux-image.md for the bump procedure.
+#
+# Build context is the repo root:
+#   docker buildx build -f shell/linux/Dockerfile .
+#
+# Runs as a non-root user (uid 1000) so files touched through a volume mount
+# are owned correctly on the host.
 #
 # No CMD/ENTRYPOINT is set — every subcommand supplies its own command via
 # `docker run <image> <cmd> <args...>`.
