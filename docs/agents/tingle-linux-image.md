@@ -122,7 +122,9 @@
        `Cmd == ["bash"]`, and `echo 'echo ok' | docker run --rm -i <image>`
        prints exactly `ok` (no TTY needed in CI);
      - foreign uid (`--user 501:20`): `id -un` is `tingle-host`, `$HOME` is
-       `/home/tingle`, `$HOME` and `$HOME/.ssh` are writable,
+       `/home/tingle`, `$HOME`, `$HOME/.ssh`, `$HOME/.kube` and
+       `$HOME/.config` are writable (the last two are the parents of the
+       `shell` host-integration mounts),
        `ssh -G localhost` succeeds, and `/etc/passwd` is still root-owned,
        not writable and has the same sha256 as in a default-uid run;
      - default uid: `id -un` is `tingle` and `LD_PRELOAD` is empty, so
@@ -171,7 +173,10 @@
   it. The `--` is required, so a `--` among the command's own arguments
   (for example `tingle linux sed -- ...`) is never mistaken for the
   separator. Every run gets `--user "$(id -u):$(id -g)"` and
-  `--security-opt no-new-privileges`.
+  `--security-opt no-new-privileges`. `tingle linux shell` uses this
+  extra-args slot for its host integration (see
+  [`shell` host integration](#shell-host-integration)); `tingle linux sed`
+  stays a bare `docker_run stdin -- sed ...` with no extra args.
 
 ## Entrypoint, identity and hardening
 
@@ -208,11 +213,17 @@
   then write root-owned files into mounted host directories. `nss_wrapper`
   keeps `/etc/passwd` and `/etc/group` read-only and unmodified; only the
   per-container copies in the temporary directory change.
-- **Writable `HOME` and `~/.ssh`**: `/home/tingle` and `/home/tingle/.ssh`
-  are mode 1777 (world-writable with the sticky bit), so any uid can write
-  there. `~/.ssh` is created in the image because otherwise, when a bind
-  mount targets a file inside it, Docker creates it as root, and neither
-  the entrypoint nor `ssh` (for `known_hosts`) could write there. `ssh`
+- **Writable `HOME`, `~/.ssh`, `~/.kube` and `~/.config`**:
+  `/home/tingle`, `/home/tingle/.ssh`, `/home/tingle/.kube` and
+  `/home/tingle/.config` are mode 1777 (world-writable with the sticky
+  bit), so any uid can write there. The three subdirectories are created in
+  the image because they are the parents of the `shell` host-integration
+  bind mounts (`~/.ssh/known_hosts` and `~/.ssh/host_config`,
+  `~/.kube/config`, `~/.config/git`). When a bind mount targets a path
+  whose parent doesn't exist, Docker creates that parent as root, and
+  then neither the entrypoint nor the tools could write there (the
+  generated `~/.ssh/config`, `ssh`'s `known_hosts` updates, kubectl's
+  `~/.kube/config.lock` and caches, other tools' `~/.config/*`). `ssh`
   still accepts the generated config, because it only checks the config
   file itself, which the running uid writes as 0644.
 - **No privilege escalation**: the Dockerfile strips every setuid and
@@ -232,6 +243,111 @@
 
   so Linux `ssh` ignores macOS-only options such as `UseKeychain`, which it
   would otherwise reject. An existing `~/.ssh/config` is never overwritten.
+  Ownership (checked for #235 on Docker Desktop for macOS): the mounted
+  `host_config` shows the host uid as its owner, which is the uid `ssh`
+  runs as, and `ssh` accepts it at mode 644 and 664, so including it in
+  place works. Not checked on native Linux Docker, where it is expected
+  to behave the same (the bind mount keeps the host uid, which is also the
+  container uid).
+
+## `shell` host integration
+
+`tingle linux shell [--isolated]` (issue #235) brings the host's git, ssh,
+kube and aws configuration into the container, so the toolbox works against
+the user's real repos, clusters and accounts. The handler
+(`_handle_shell` / `_shell_args` in `shell/linux/executor.sh`) builds a
+list of extra `docker run` args and passes them through `docker_run`'s
+extra-args contract: `docker_run tty <args...> -- bash`. Each item is added
+only when it applies (the host file or directory exists, the variable is
+non-empty, ...) and is silently skipped otherwise.
+
+| Area | Host source | Container | Mode / notes |
+| --- | --- | --- | --- |
+| git | `~/.gitconfig` (file) | `/home/tingle/.gitconfig` | read-only |
+| git | `~/.config/git/` (directory) | `/home/tingle/.config/git/` | read-only |
+| git | always | `-e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=credential.helper -e GIT_CONFIG_VALUE_0=` | resets the credential helper (see below) |
+| ssh | agent socket (see the rule below) | `/run/host-services/ssh-auth.sock`, or the same path as `$SSH_AUTH_SOCK` | `SSH_AUTH_SOCK` set to the container path |
+| ssh | `~/.ssh/known_hosts` (file) | `/home/tingle/.ssh/known_hosts` | read-only |
+| ssh | `~/.ssh/config` (file) | `/home/tingle/.ssh/host_config` | read-only, included by the entrypoint (see [`~/.ssh/host_config` contract](#entrypoint-identity-and-hardening)) |
+| kube | first existing file in `${KUBECONFIG:-~/.kube/config}` | `/home/tingle/.kube/config` | read-write, `KUBECONFIG=/home/tingle/.kube/config` |
+| aws | `~/.aws/` (directory) | `/home/tingle/.aws/` | read-write (SSO and CLI caches) |
+| aws | non-empty `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_PROFILE`, `AWS_REGION`, `AWS_DEFAULT_REGION` | same names | passed as `-e NAME` without a value, so values never appear on the `docker run` command line |
+| network | native Docker on a Linux host only | `--network host` | clusters and services on the host's `127.0.0.1` are reachable |
+
+- **Never mounted**: private keys and the `~/.ssh` directory itself. Only
+  `known_hosts` and `config` are mounted, and authentication goes through
+  the agent.
+- **Kubeconfig**: `$KUBECONFIG` is split on `:` by hand (no word
+  splitting, so paths with spaces or glob characters are safe), and only
+  the first entry that is an existing file is mounted, as a single file.
+  Kubeconfig merging across several files is not supported.
+- **SSH agent rule**:
+  - Docker Desktop (detected by `docker info --format
+    '{{.OperatingSystem}}'` containing `Docker Desktop`, on any host OS):
+    mount `/run/host-services/ssh-auth.sock` at the same path, set
+    `SSH_AUTH_SOCK` to it, and add `--group-add 0`. The socket only exists
+    inside the Docker Desktop VM, so it isn't checked on the host. A failing
+    `docker info` counts as "not Docker Desktop".
+  - Native Docker on a Linux host (`uname -s` is `Linux` and not Docker
+    Desktop), when `$SSH_AUTH_SOCK` is a socket (`-S`): mount it at the
+    same path and set `SSH_AUTH_SOCK` to it.
+  - Otherwise (for example macOS without Docker Desktop, or no agent): no
+    agent is passed.
+- **`--group-add 0` (Docker Desktop only)**: inside the container, Docker
+  Desktop's socket is `root:root` with mode 660, so the non-root host uid
+  got `Permission denied`. The supplementary root group gives it access.
+  This is acceptable because the only root-group-writable paths in the
+  image are already mode 1777 (`~/.ssh`, `~/.kube`, `~/.config`, `/tmp`,
+  `/var/tmp`, `/run/lock`), there are no setuid/setgid files,
+  `no-new-privileges` still applies, and new files keep the primary gid.
+- **Credential-helper reset**: the host `~/.gitconfig` often sets
+  `credential.helper` (for example `osxkeychain` on macOS), which doesn't
+  exist in the image. `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_0`/
+  `GIT_CONFIG_VALUE_0` set `credential.helper` to an empty value, which
+  clears the helper list, so git doesn't try to run it.
+- **`--network host`**: only on native Docker on a Linux host, where the
+  container then shares the host network (local clusters on `127.0.0.1`,
+  VPN routes). It is never used under Docker Desktop, where host
+  networking refers to the VM.
+- **Opt-out**: `tingle linux shell --isolated`, or `TINGLE_LINUX_ISOLATED=1`
+  (exactly `1`; any other value, or unset, means not isolated), skips all
+  of the above, including the `docker info` detection, and runs a bare
+  `docker_run tty -- bash`. `--isolated` is the only option `shell`
+  accepts. Any other argument prints
+  `tingle linux shell: unknown option '<arg>'` to stderr and exits 1.
+  Completion offers `--isolated` after `tingle linux shell` (unless it is
+  already typed), from `shell/linux/completion.sh`, without starting
+  Docker.
+- **Banner**: before `docker run`, `shell` (never `sed`) prints one line to
+  stderr:
+  `tingle linux <VERSION> — <tool list> (full list: docs/guides/linux.md)`,
+  with ` (isolated)` appended when isolated. `<VERSION>` is read from
+  `shell/linux/VERSION` (`0.0.3` since #235). The tool list is the
+  `LINUX_TOOLS` constant in `shell/linux/executor.sh`
+  (`git, ssh, jq, curl, wget, vim, rg, fd, bat, tmux, make, kubectl, aws, ...`),
+  kept in sync with the Dockerfile by hand (see
+  [Bumping versions](#bumping-versions)).
+- **Implementation-time checks (#235)**:
+  - kubectl with a single-file kubeconfig bind mount (Docker Desktop for
+    macOS): `kubectl config use-context` and `set-context` write the file
+    in place (same inode), and the change persists to the host. So only
+    the file is mounted, not `~/.kube`.
+  - ssh `host_config` ownership (Docker Desktop for macOS): see the
+    [`~/.ssh/host_config` contract](#entrypoint-identity-and-hardening).
+  - Docker Desktop agent socket for a non-root uid: `Permission denied`
+    without a group, which led to `--group-add 0`. With it, connecting to
+    the socket works. Listing real keys (`ssh-add -l` with keys loaded)
+    was not verified.
+- **Known limitations**:
+  - Native Linux Docker is not verified end to end: `--network host` and
+    the `$SSH_AUTH_SOCK` mount are only covered by stubbed tests.
+  - `aws sts get-caller-identity` through the mounted `~/.aws` and the
+    forwarded variables is not verified.
+  - Only the first existing kubeconfig file is mounted (no merging).
+  - The read-write `~/.kube/config` and `~/.aws/` mounts mean changes made
+    in the container (context switches, SSO logins, caches) change the
+    host files. Use `--isolated` to avoid that.
+  - The banner's tool list is hardcoded and can drift from the Dockerfile.
 
 ## Bumping versions
 
@@ -253,6 +369,7 @@ Nothing bumps the pins automatically. To refresh the image by hand:
    CLI install guide and update the fingerprint in the Dockerfile comment,
    in the `VALIDSIG` check and in this doc.
 4. Update the tool lists in this doc and in the Dockerfile header (and the
-   `TOOL_CHECKS` array in `scripts/release_image.sh` if a tool is added or
-   removed).
+   `TOOL_CHECKS` array in `scripts/release_image.sh` and, for a main tool,
+   the `LINUX_TOOLS` banner constant in `shell/linux/executor.sh`, if a tool
+   is added or removed).
 5. Bump `shell/linux/VERSION` and release as usual.

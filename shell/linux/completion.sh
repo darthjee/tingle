@@ -9,7 +9,9 @@
 #   - the subcommand list, when no word has been committed yet;
 #   - the `__tingle_files__` sentinel after `sed`, so the completion hub
 #     falls back to native file/folder completion;
-#   - nothing otherwise (e.g. after `shell`).
+#   - `--isolated` after `shell` (its only option), unless it has already
+#     been committed;
+#   - nothing otherwise.
 # Always exits 0 and never starts Docker.
 #
 # Usage:
@@ -34,6 +36,13 @@ if [ "${#committed[@]}" -eq 0 ]; then
 fi
 
 case "${committed[0]}" in
+    shell)
+        isolated_given=false
+        for word in "${committed[@]:1}"; do
+            [ "$word" = "--isolated" ] && isolated_given=true
+        done
+        [ "$isolated_given" = true ] || echo "--isolated"
+        ;;
     sed)
         echo "$FILES_SENTINEL"
         ;;

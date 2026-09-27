@@ -16,6 +16,16 @@ There is no single main source folder; scripts are grouped by language:
 Bash/Shell scripts. Best fit for simple file/OS-level operations and gluing
 together other CLI tools.
 
+`shell/linux/` holds `tingle linux`, which runs GNU/Linux tools in the
+`darthjee/tingle` image through `docker_run <mode> [docker-args...] --
+<command> [args...]` (`shell/linux/docker_run.sh`). Handlers pass any extra
+`docker run` args before `--`: `tingle linux shell` uses that slot for its
+host integration (git, ssh, kube and aws config, the SSH agent, and
+`--network host` on native Linux Docker, all skipped with `--isolated` or
+`TINGLE_LINUX_ISOLATED=1`), while `tingle linux sed` stays a bare
+`docker_run stdin -- sed ...`. See
+[tingle-linux-image.md](tingle-linux-image.md#shell-host-integration).
+
 ### `python/`
 
 Python scripts. Best fit for tasks needing richer data manipulation, parsing,
