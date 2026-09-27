@@ -1,1 +1,1 @@
-GNU toolbox image (coreutils, sed, grep, gawk, ...) behind the tingle linux command
+GNU/Linux toolbox (GNU utils, git, jq, kubectl, aws CLI, ...) behind the tingle linux command

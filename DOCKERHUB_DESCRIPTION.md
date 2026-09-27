@@ -1,28 +1,46 @@
 # tingle
 
-The GNU toolbox image behind the `tingle linux` command of
+The GNU/Linux toolbox image behind the `tingle linux` command of
 [tingle](https://github.com/darthjee/tingle). It gives `tingle linux`
 subcommands (`shell`, `sed`, ...) consistent GNU behavior, independent of
-the BSD userland shipped with macOS.
+the BSD userland shipped with macOS, and makes `tingle linux shell` a ready
+Linux workstation (git, jq, kubectl, aws CLI, ...).
 
 Supported platforms: `linux/amd64`, `linux/arm64`.
 
 ## What it contains
 
-Built on `ubuntu:24.04` with a baseline GNU toolbox:
+Built on `ubuntu:24.04`, with these tools:
 
-- `coreutils`
-- `findutils`
-- `grep`
-- `sed`
-- `gawk`
-- `tar`
-- `diffutils`
+- **GNU baseline**: coreutils, findutils, `grep`, GNU `sed`, `gawk`, `tar`,
+  diffutils (`diff`, `cmp`)
+- **git & ssh**: `git`, `ssh` / `scp` / `ssh-add` / `ssh-keygen`
+  (openssh-client)
+- **data & network**: `jq`, `curl`, `wget`, `dig` (dnsutils), `ping`
+  (iputils-ping), `nc` (netcat-openbsd), `ip` (iproute2)
+- **search & viewing**: `rg` (ripgrep), `fd` (fd-find), `bat`, `less`,
+  `tree`, `file`, `vim`
+- **dev & archives**: `make`, `shellcheck`, `bc`, `rsync`, `zip`, `unzip`,
+  `xz` (xz-utils)
+- **terminal**: `bash` with bash-completion, `tmux`, `htop`, `ps` (procps)
+- **Kubernetes & AWS**: `kubectl`, `aws` (AWS CLI v2)
+
+See
+[What's inside the shell](https://github.com/darthjee/tingle/blob/main/docs/guides/linux.md#whats-inside-the-shell)
+for what each tool is for.
 
 The image runs as the non-root user `tingle` (uid 1000), so files touched
 through a volume mount stay owned by your user on the host.
 
-There is no `CMD` or `ENTRYPOINT`: every run supplies its own command.
+Every command runs through the entrypoint
+`/usr/local/bin/tingle-entrypoint`, which gives an unknown uid (such as the
+host uid `tingle linux` passes with `--user`) a usable identity. With no
+command, the image runs `bash`.
+
+`tingle linux shell` also brings in your host git, ssh, kube and aws
+config (opt out with `--isolated`). See the
+[`tingle linux` guide](https://github.com/darthjee/tingle/blob/main/docs/guides/linux.md)
+for details and security notes.
 
 ## Usage
 
