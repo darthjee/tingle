@@ -1,5 +1,10 @@
 # `tingle-linux` Docker image
 
+This is the implementation view of the image. For the user-facing view
+(prerequisites, what's inside the shell, host integration and `--isolated`),
+see the user guide [`docs/guides/linux.md`](../guides/linux.md), in
+particular [What's inside the shell](../guides/linux.md#whats-inside-the-shell).
+
 - **Image**: `darthjee/tingle` on Docker Hub.
 - **Tag strategy**: the published Docker tag is exactly the plain semver
   git tag — pushing git tag `1.0.0` publishes `darthjee/tingle:1.0.0`
@@ -91,7 +96,9 @@
 - **Version pin**: `shell/linux/VERSION` — a single line containing exactly
   the currently-published tag (e.g. `1.0.0`), the one source of truth for
   "what tag is currently published." Both CI and `shell/linux/docker_run.sh`
-  read this file instead of hardcoding a tag.
+  read this file instead of hardcoding a tag. It is bumped together with
+  the other release version references by `scripts/bump-version.sh`, never
+  by hand on its own (see [Bumping versions](#bumping-versions)).
 - **Release script**: `scripts/release_image.sh` performs the
   build-needed check (skips rebuild/republish when `shell/linux/` hasn't
   changed since the previous release tag), build, smoke test, scan,
@@ -322,7 +329,8 @@ non-empty, ...) and is silently skipped otherwise.
   stderr:
   `tingle linux <VERSION> — <tool list> (full list: docs/guides/linux.md)`,
   with ` (isolated)` appended when isolated. `<VERSION>` is read from
-  `shell/linux/VERSION` (`0.0.3` since #235). The tool list is the
+  `shell/linux/VERSION` (`0.1.0` since #236, the first released version
+  with the toolbox and the host integration). The tool list is the
   `LINUX_TOOLS` constant in `shell/linux/executor.sh`
   (`git, ssh, jq, curl, wget, vim, rg, fd, bat, tmux, make, kubectl, aws, ...`),
   kept in sync with the Dockerfile by hand (see
@@ -368,8 +376,26 @@ Nothing bumps the pins automatically. To refresh the image by hand:
    signing key, replace `shell/linux/aws-cli.asc` with the key from the AWS
    CLI install guide and update the fingerprint in the Dockerfile comment,
    in the `VALIDSIG` check and in this doc.
-4. Update the tool lists in this doc and in the Dockerfile header (and the
-   `TOOL_CHECKS` array in `scripts/release_image.sh` and, for a main tool,
-   the `LINUX_TOOLS` banner constant in `shell/linux/executor.sh`, if a tool
-   is added or removed).
-5. Bump `shell/linux/VERSION` and release as usual.
+4. If a tool is added or removed, update every tool list by hand (nothing
+   checks that they agree):
+   - the Dockerfile header;
+   - the toolbox groups in this doc;
+   - the `TOOL_CHECKS` array in `scripts/release_image.sh`;
+   - for a main tool, the `LINUX_TOOLS` banner constant in
+     `shell/linux/executor.sh`;
+   - the user guide's
+     [What's inside the shell](../guides/linux.md#whats-inside-the-shell)
+     section;
+   - `DOCKERHUB_DESCRIPTION.md` (and `DOCKERHUB_SHORT_DESCRIPTION.txt` if
+     it names the tool).
+5. Bump the release version with `scripts/bump-version.sh X.Y.Z` and
+   release as usual (push git tag `X.Y.Z`).
+
+The release version lives in three places that must stay in sync: the
+README "Current Version" / "Next Release" lines, the `TINGLE_VERSION`
+default in `install/bootstrap.sh`, and `shell/linux/VERSION`.
+`scripts/bump-version.sh` updates all three, so don't hand-edit `VERSION`
+alone. #235 did that (`0.0.3`), which left the three out of sync and
+`0.0.3` never tagged; #236 resynced them at `0.1.0`. A git tag `X.Y.Z`
+triggers both the image release (`build-and-publish-linux-image`,
+`update-description`) and the CLI release zip (`build-and-publish-release`).
