@@ -29,8 +29,8 @@
 # platform, with --network none) — plus the identity and hardening checks in
 # smoke_test_identity(): the image's ENTRYPOINT/CMD and default bash, a
 # foreign uid (--user 501:20) resolving as tingle-host with a writable
-# HOME=/home/tingle and ~/.ssh and a working `ssh -G`, no nss_wrapper for the
-# default uid, an unchanged read-only /etc/passwd, byte-exact sed stdin/stdout,
+# HOME=/home/tingle, ~/.ssh, ~/.kube and ~/.config and a working `ssh -G`,
+# no nss_wrapper for the default uid, an unchanged read-only /etc/passwd, byte-exact sed stdin/stdout,
 # non-zero exit codes passed through, and no setuid/setgid files. publish
 # pushes a single multi-platform darthjee/tingle:<tag> through the same
 # builder (reusing its cache) and fails unless `docker buildx imagetools
@@ -290,7 +290,8 @@ smoke_test_identity() {
     sha256sum /etc/passwd | cut -d " " -f 1
   ' _ "$platform")
 
-  # Foreign uid: nss_wrapper identity, writable HOME and ~/.ssh, working ssh,
+  # Foreign uid: nss_wrapper identity, writable HOME, ~/.ssh, ~/.kube and
+  # ~/.config (the host-integration mount parents), working ssh,
   # and a root-owned, read-only, unchanged /etc/passwd.
   # shellcheck disable=SC2016 # expanded inside the container, not here
   "${run[@]}" --user "$FOREIGN_USER" "$image" bash -c '
@@ -299,7 +300,7 @@ smoke_test_identity() {
     fail() { echo "$1 on $platform (--user '"$FOREIGN_USER"')" >&2; exit 1; }
     [ "$(id -un 2>/dev/null)" = "tingle-host" ] || fail "Foreign uid does not resolve as tingle-host"
     [ "$HOME" = "/home/tingle" ] || fail "HOME is $HOME, not /home/tingle"
-    for dir in "$HOME" "$HOME/.ssh"; do
+    for dir in "$HOME" "$HOME/.ssh" "$HOME/.kube" "$HOME/.config"; do
       probe="$dir/.smoke-test-$$"
       { touch "$probe" && rm "$probe"; } 2>/dev/null || fail "$dir is not writable"
     done

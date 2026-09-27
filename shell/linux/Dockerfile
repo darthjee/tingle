@@ -44,8 +44,9 @@
 #   - every setuid/setgid bit is stripped, so there is no su/sudo-style path
 #     back to root;
 #   - docker_run.sh always adds `--security-opt no-new-privileges`.
-#   /home/tingle and /home/tingle/.ssh are mode 1777 (sticky) so any uid
-#   can use them as HOME.
+#   /home/tingle, /home/tingle/.ssh, /home/tingle/.kube and
+#   /home/tingle/.config are mode 1777 (sticky) so any uid can use them as
+#   HOME.
 
 # Multi-platform index digest of ubuntu:24.04 (resolves on linux/amd64 and
 # linux/arm64). Both stages build on it.
@@ -211,12 +212,15 @@ RUN ln -s /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws \
 COPY --chmod=0755 shell/linux/entrypoint.sh /usr/local/bin/tingle-entrypoint
 
 # Kept last among the root steps so the setuid/setgid strip covers every
-# file installed above. /home/tingle/.ssh is created up front so a bind
-# mount of ~/.ssh/host_config doesn't make Docker create it root-owned.
+# file installed above. /home/tingle/.ssh, /home/tingle/.kube and
+# /home/tingle/.config are created up front (mode 1777) so bind mounts of
+# ~/.ssh/host_config, ~/.kube/config and ~/.config/git don't make Docker
+# create them root-owned, and any uid can still write inside them (e.g.
+# kubectl's ~/.kube/config.lock).
 RUN userdel --remove ubuntu 2>/dev/null; \
     useradd --create-home --uid 1000 tingle \
-    && mkdir -p /home/tingle/.ssh \
-    && chmod 1777 /home/tingle /home/tingle/.ssh \
+    && mkdir -p /home/tingle/.ssh /home/tingle/.kube /home/tingle/.config \
+    && chmod 1777 /home/tingle /home/tingle/.ssh /home/tingle/.kube /home/tingle/.config \
     && find / -xdev -perm /6000 -type f -exec chmod a-s {} +
 USER tingle
 
