@@ -108,11 +108,20 @@ particular [What's inside the shell](../guides/linux.md#whats-inside-the-shell).
   The CircleCI job `build-and-publish-linux-image` runs on a pinned
   `ubuntu-2404` machine image and calls five subcommands in order, in one
   job so the buildx cache is shared:
-  1. `setup-builder` (idempotent) registers QEMU/binfmt for every
-     non-native platform through a pinned `tonistiigi/binfmt` image. It
-     skips this when the builder already lists every platform, as on Docker
-     Desktop. It then creates and selects the `docker-container` buildx
-     builder `tingle-builder`.
+  1. `setup-builder` (idempotent) creates the `docker-container` buildx
+     builder `tingle-builder` if it is missing and starts it
+     (`docker buildx inspect --bootstrap`). If it already lists every
+     platform in `$PLATFORMS` (Docker Desktop, re-runs), it registers and
+     restarts nothing. Otherwise it registers QEMU/binfmt for the missing
+     architectures through the pinned `tonistiigi/binfmt` image, then stops
+     the builder (`docker buildx stop`) so BuildKit detects platforms again
+     when it restarts. If platforms are still missing, it removes and
+     recreates the builder once as a fallback (the only path that loses its
+     cache), and fails with exit 1 if a platform is still missing after
+     that. The builder is never selected with `docker buildx use`; `build`
+     and `publish` pass `--builder tingle-builder`. The `test` workflow's
+     `setup-builder` job runs this step on every PR on the same
+     `ubuntu-2404` machine image, so failures show up before a release.
   2. `build` builds each platform with `--load` and tags it locally as
      `darthjee/tingle:<tag>-<arch>` (e.g. `1.0.0-amd64`, `1.0.0-arm64`).
      These tags stay in the local daemon and are never pushed.

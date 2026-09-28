@@ -18,10 +18,15 @@
 # Platforms: $PLATFORMS (space-separated, default "linux/amd64 linux/arm64")
 # selects the platforms to build, smoke-test and publish.
 #
-# setup-builder is idempotent: it creates (if missing) and bootstraps the
-# docker-container buildx builder "tingle-builder", and registers QEMU via
-# the pinned tonistiigi/binfmt image only for platforms the builder does not
-# already support (on Docker Desktop no privileged container is run).
+# setup-builder is idempotent: it creates (if missing) and starts the
+# docker-container buildx builder "tingle-builder" and checks its platforms.
+# If every platform is already supported it registers and restarts nothing
+# (on Docker Desktop no privileged container is run). Otherwise it registers
+# QEMU via the pinned tonistiigi/binfmt image only for the missing platforms,
+# then stops the builder so BuildKit detects platforms again when it starts;
+# if they are still missing, it removes and recreates the builder once as a
+# fallback (the only path that loses the builder's cache). Stopping the
+# builder interrupts any build using it at that moment.
 #
 # build loads one local image per platform, tagged darthjee/tingle:<tag>-<arch>
 # (never pushed); smoke-test runs every check against each of them — GNU sed,
@@ -134,9 +139,13 @@ missing_platform_archs() {
   echo "$missing"
 }
 
+create_builder() {
+  docker buildx create --name "$BUILDER_NAME" --driver docker-container
+}
+
 cmd_setup_builder() {
   if ! docker buildx inspect "$BUILDER_NAME" >/dev/null 2>&1; then
-    docker buildx create --name "$BUILDER_NAME" --driver docker-container
+    create_builder
   fi
 
   local missing
@@ -146,7 +155,19 @@ cmd_setup_builder() {
     echo "Registering QEMU emulation for: $missing"
     docker run --privileged --rm "$BINFMT_IMAGE" --install "$missing"
 
+    # BuildKit only detects emulated platforms when its worker starts, so a
+    # builder that was already running must be restarted to see them.
+    echo "Restarting builder $BUILDER_NAME to detect new platforms"
+    docker buildx stop "$BUILDER_NAME"
     missing=$(missing_platform_archs)
+
+    if [ -n "$missing" ]; then
+      echo "Recreating builder $BUILDER_NAME to detect new platforms"
+      docker buildx rm "$BUILDER_NAME"
+      create_builder
+      missing=$(missing_platform_archs)
+    fi
+
     if [ -n "$missing" ]; then
       echo "Builder $BUILDER_NAME still does not support: $missing" >&2
       exit 1
