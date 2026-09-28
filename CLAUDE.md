@@ -22,8 +22,9 @@ scope.
 ## Documentation
 
 Agent-facing project documentation lives under
-[`docs/agents/`](docs/agents/). End-user guides for each `tingle` command
+[`docs/agents/`](docs/agents/), with temporary feature specs indexed by
+[`docs/agents/specs.md`](docs/agents/specs.md). End-user guides for each `tingle` command
 live under [`docs/guides/`](docs/guides/README.md). See
 [AGENTS.md](AGENTS.md#documentation) for the index.
 
-Last updated: 2026-09-25
+Last updated: 2026-09-28
