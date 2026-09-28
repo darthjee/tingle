@@ -46,7 +46,7 @@ because #253 maps them to config keys.
 | `--error N` | int | no | `500` | `error` (int) |
 | `--critical N` | int | no | `1000` | `critical` (int) |
 | `--top N` | int | no | `0` (all) | `top` (int) |
-| `--exclude a,b` | comma-separated str | no | `""` (adds to `DEFAULT_EXCLUDES`) | `exclude` (list of str) |
+| `--exclude a,b` | comma-separated str | no | none (adds to `DEFAULT_EXCLUDES`) | `exclude` (list of str) |
 | `--no-default-excludes` | `store_true` | no | off | `no_default_excludes` (bool, default `false`) |
 | `--no-gitignore` | `store_true` | no | off | `gitignore` (bool, default `true`, the inverse of the flag) |
 | `--ignore GLOB` | str | yes (`append`) | `[]` | `ignore` (list of str) |
