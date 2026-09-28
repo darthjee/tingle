@@ -1,6 +1,6 @@
 # Project Instructions
 
-Last updated: 2026-09-24
+Last updated: 2026-09-28
 
 You are an assistant helping maintain Tingle, a personal collection of small,
 independent utility scripts.
@@ -64,7 +64,7 @@ full descriptions. Delegate work to the agent that owns the area:
 - `python` — Python scripts under `python/`.
 - `shell` — Bash/Shell scripts under `shell/`.
 - `product-owner` — content under `docs/agents/` (architecture, flow, folder
-  structure, contributing, issues, plans).
+  structure, contributing, issues, plans, specs).
 - `guide` — content under `docs/guides/` (end-user guides, one per `tingle`
   command, and the guides index).
 
@@ -81,6 +81,7 @@ Agent-facing project documentation lives under
 | [Flow](docs/agents/flow.md) | Main runtime flow of the application. |
 | [Plans](docs/agents/plans/) | Implementation plans for ongoing or upcoming features. |
 | [Issues](docs/agents/issues/) | Detailed specs for open issues. |
+| [Specs](docs/agents/specs.md) | Temporary feature specs for split issues, indexed by specs.md. |
 | [Contributing](docs/agents/contributing.md) | Commit guidelines, PR standards, code organization, and refactoring rules. |
 | [User Guides](docs/guides/README.md) | End-user guides, one per `tingle` command. |
 
@@ -103,3 +104,18 @@ docs/agents/plans/<issue_id>_<topic>/<related_files>.md
 ```
 
 Example: `docs/agents/plans/12_add-auth/plan.md` for issue #12.
+
+### Specs (`docs/agents/specs/`)
+
+Specs are temporary, feature-level design documents shared by the sub-issues
+of a split issue. Each topic gets its own folder with a shared-contracts
+`README.md` and one file per feature:
+
+```
+docs/agents/specs/<topic>/README.md
+docs/agents/specs/<topic>/<feature>.md
+```
+
+Example: `docs/agents/specs/check_file_size/README.md` for issue #247. A
+topic's folder is removed once its split issue is done; the permanent index
+[`docs/agents/specs.md`](docs/agents/specs.md) lists the current specs.

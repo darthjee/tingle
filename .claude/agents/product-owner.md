@@ -18,6 +18,8 @@ You own `docs/agents/`:
 - `todo.md` — outstanding setup items.
 - `plans/` — implementation plans for ongoing or upcoming features.
 - `issues/` — detailed specs for open issues.
+- `specs.md` — permanent index of the current feature specs.
+- `specs/` — temporary feature specs for split issues (`specs/<topic>/README.md` plus one file per feature).
 
 Do NOT touch `shell/`, `python/`, `node/`, or `bin/` implementation, or
 root-level files (`README.md`, `AGENTS.md`, `CLAUDE.md`) — those belong to
