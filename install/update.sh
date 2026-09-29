@@ -24,6 +24,7 @@
 UPDATE_TARGET=""
 UPDATE_LOCK=""
 UPDATE_WORK=""
+UPDATE_PHASE=""
 
 update_die() {
     echo "installer.sh: $*" >&2
@@ -40,6 +41,9 @@ update_warn() {
 update_on_exit() {
     local status=$?
     trap '' INT TERM
+    if [ "$UPDATE_PHASE" = "stage" ]; then
+        update_unstage
+    fi
     if [ -n "$UPDATE_LOCK" ]; then
         rm -rf "$UPDATE_LOCK"
     fi
@@ -47,9 +51,43 @@ update_on_exit() {
         rm -rf "$UPDATE_WORK"
     fi
     if [ "${TINGLE_UPDATE_CLEANUP:-}" = "1" ]; then
-        rm -rf "$SOURCE_ROOT"
+        case "$SOURCE_ROOT" in
+            ''|/|"$HOME"|"$UPDATE_TARGET")
+                update_warn "not removing the source tree '$SOURCE_ROOT'" ;;
+            *) rm -rf "$SOURCE_ROOT" ;;
+        esac
     fi
     exit "$status"
+}
+
+# update_staged_name <path>
+# Prints the staged temp file for manifest <path>: <dir>/.<name>.tingle-new
+# in the target, next to the file it will replace.
+update_staged_name() {
+    local path="$1"
+    case "$path" in
+        */*) printf '%s\n' "$UPDATE_TARGET/${path%/*}/.${path##*/}.tingle-new" ;;
+        *) printf '%s\n' "$UPDATE_TARGET/.$path.tingle-new" ;;
+    esac
+}
+
+# update_unstage
+# Removes every staged file, then the directories staging created (deepest
+# first, only while empty), leaving the install as it was.
+update_unstage() {
+    local staged
+    if [ -f "$UPDATE_WORK/staged" ]; then
+        while IFS= read -r staged; do
+            rm -f -- "$staged"
+        done < "$UPDATE_WORK/staged"
+    fi
+    if [ -f "$UPDATE_WORK/created_dirs" ]; then
+        awk '{ line[NR] = $0 } END { for (i = NR; i > 0; i--) print line[i] }' \
+            "$UPDATE_WORK/created_dirs" \
+            | while IFS= read -r staged; do
+                rmdir -- "$staged" 2>/dev/null || true
+            done
+    fi
 }
 
 # update_check_target
@@ -188,6 +226,132 @@ update_check_edited() {
         "TINGLE_UPDATE_FORCE=1 (tingle update --force) to overwrite them"
 }
 
+# update_make_dirs <dir>
+# mkdir -p <dir> inside the target, recording each directory it creates in
+# $UPDATE_WORK/created_dirs so a failed stage can remove them again.
+update_make_dirs() {
+    local dir="$1" missing="" d="$1"
+    while [ -n "$d" ] && [ ! -d "$d" ]; do
+        missing="$d"$'\n'"$missing"
+        d="${d%/*}"
+    done
+    if [ -z "$missing" ]; then
+        return 0
+    fi
+    mkdir -p -- "$dir" || return 1
+    printf '%s' "$missing" >> "$UPDATE_WORK/created_dirs"
+}
+
+# update_stage_one <path>
+# Copies <source>/<path> (permissions kept) to its staged name in the target,
+# overwriting any leftover from an earlier killed run.
+update_stage_one() {
+    local path="$1" staged
+    staged="$(update_staged_name "$path")"
+    if [ ! -f "$SOURCE_ROOT/$path" ]; then
+        update_die "'$SOURCE_ROOT/$path' is listed in MANIFEST but missing" \
+            "from the release tree; the install was left untouched"
+    fi
+    if ! update_make_dirs "${staged%/*}"; then
+        update_die "could not create '${staged%/*}'; the install was left" \
+            "untouched"
+    fi
+    printf '%s\n' "$staged" >> "$UPDATE_WORK/staged"
+    rm -f -- "$staged"
+    if ! cp -p -- "$SOURCE_ROOT/$path" "$staged"; then
+        update_die "could not stage '$path' into '$UPDATE_TARGET'; the" \
+            "install was left untouched"
+    fi
+}
+
+# update_stage
+# Phase 2: stages every safe path of the new MANIFEST, plus MANIFEST itself.
+update_stage() {
+    local path
+    UPDATE_PHASE="stage"
+    : > "$UPDATE_WORK/staged"
+    : > "$UPDATE_WORK/created_dirs"
+    while IFS= read -r path || [ -n "$path" ]; do
+        if ! path_is_safe "$path"; then
+            update_warn "skipping unsafe manifest path '$path'"
+            continue
+        fi
+        update_stage_one "$path"
+    done < "$UPDATE_WORK/new_paths"
+    update_stage_one "MANIFEST"
+}
+
+# update_swap
+# Phase 3: renames each staged file over its target (S2: never cp in
+# place), with INT/TERM ignored for the duration.
+update_swap() {
+    local staged dir base
+    trap '' INT TERM
+    UPDATE_PHASE="swap"
+    while IFS= read -r staged; do
+        dir="${staged%/*}"
+        base="${staged##*/}"
+        base="${base#.}"
+        base="${base%.tingle-new}"
+        if ! mv -f -- "$staged" "$dir/$base"; then
+            update_die "could not replace '$dir/$base'; re-run the update" \
+                "to finish it"
+        fi
+    done < "$UPDATE_WORK/staged"
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+}
+
+# update_prune
+# Phase 4: deletes the files of the old manifest that the new one no longer
+# lists, then the directories they leave empty. Files in neither manifest
+# (user-added) are never touched.
+update_prune() {
+    local line path file d
+    UPDATE_PHASE="prune"
+    if [ ! -s "$UPDATE_WORK/old_entries" ]; then
+        update_warn "'$UPDATE_TARGET/tingle.json' has an empty manifest; stale" \
+            "files from the previous version may be left behind"
+        return 0
+    fi
+    while IFS= read -r line || [ -n "$line" ]; do
+        path="${line#*  }"
+        if ! path_is_safe "$path"; then
+            update_warn "skipping unsafe manifest path '$path'"
+            continue
+        fi
+        if grep -F -x -q -- "$path" "$UPDATE_WORK/new_paths"; then
+            continue
+        fi
+        file="$UPDATE_TARGET/$path"
+        rm -f -- "$(update_staged_name "$path")"
+        if [ -d "$file" ] && [ ! -L "$file" ]; then
+            update_warn "not removing '$file': it is now a directory"
+            continue
+        fi
+        if [ -e "$file" ] || [ -L "$file" ]; then
+            rm -f -- "$file" || update_warn "could not remove stale file '$file'"
+        fi
+        d="$path"
+        while case "$d" in */*) true ;; *) false ;; esac; do
+            d="${d%/*}"
+            rmdir -- "$UPDATE_TARGET/$d" 2>/dev/null || break
+        done
+    done < "$UPDATE_WORK/old_entries"
+}
+
+# update_commit
+# Phase 5: writes the new tingle.json last (temp file + rename), so until
+# now the old one still describes the old version.
+update_commit() {
+    UPDATE_PHASE="commit"
+    if ! write_tingle_json "$UPDATE_TARGET" \
+        "$(cat "$UPDATE_WORK/new_manifest.json")"; then
+        update_die "could not write '$UPDATE_TARGET/tingle.json'; re-run the" \
+            "update to finish it"
+    fi
+}
+
 update_main() {
     UPDATE_TARGET="$(normalize_target "$1")"
     trap update_on_exit EXIT
@@ -207,6 +371,9 @@ update_main() {
     update_check_incoming_manifest
     update_check_edited
 
-    echo "installer.sh: update mode is not implemented past preflight yet" >&2
-    return 1
+
+    update_stage
+    update_swap
+    update_prune
+    update_commit
 }

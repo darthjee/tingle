@@ -100,14 +100,14 @@ path_is_safe() {
 write_tingle_json() {
     local target="$1" manifest_json="$2"
     local tmp="$target/.tingle.json.tingle-new"
-    cat > "$tmp" <<EOF
+    cat > "$tmp" <<EOF || return 1
 {
   "version": "$VERSION",
   "repo": "$REPO",
   "manifest": $manifest_json
 }
 EOF
-    mv -f "$tmp" "$target/tingle.json"
+    mv -f "$tmp" "$target/tingle.json" || return 1
 }
 
 for tool in curl unzip bash; do
