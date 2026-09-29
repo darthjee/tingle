@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
 from check_file_size.file_collector import FileCollector
+from check_file_size.git_ignore import GitIgnore, GitIgnored
 
 
 def test_collect_single_file_not_binary_returns_it(tmp_path):
@@ -237,3 +239,98 @@ def test_collect_single_file_inside_excluded_dir_is_returned(tmp_path):
     collector = FileCollector(["node_modules"], None)
 
     assert collector.collect(file_path) == [file_path]
+
+
+@pytest.fixture
+def fake_git(monkeypatch):
+    """Mock GitIgnore.ignored_paths; returns the list of roots it was called with."""
+    state = {"calls": [], "result": None}
+
+    def ignored_paths(root):
+        state["calls"].append(root)
+        return state["result"]
+
+    monkeypatch.setattr(GitIgnore, "ignored_paths", staticmethod(ignored_paths))
+    return state
+
+
+def test_collect_gitignore_drops_ignored_files_and_directories(tmp_path, fake_git):
+    _make_tree(tmp_path, "main.py", "debug.log", "dist/app.js", "dist/x/y.js")
+    root = tmp_path.resolve()
+    fake_git["result"] = GitIgnored({root / "debug.log"}, [root / "dist"])
+
+    results = FileCollector([], None).collect(tmp_path)
+
+    assert _rel(tmp_path, results) == {"main.py"}
+    assert fake_git["calls"] == [root]
+
+
+def test_collect_gitignore_disabled_keeps_files_and_skips_git(tmp_path, fake_git):
+    _make_tree(tmp_path, "main.py", "debug.log", "dist/app.js")
+    root = tmp_path.resolve()
+    fake_git["result"] = GitIgnored({root / "debug.log"}, [root / "dist"])
+
+    results = FileCollector([], None, gitignore=False).collect(tmp_path)
+
+    assert _rel(tmp_path, results) == {"main.py", "debug.log", "dist/app.js"}
+    assert fake_git["calls"] == []
+
+
+def test_collect_gitignore_none_drops_nothing(tmp_path, fake_git):
+    _make_tree(tmp_path, "main.py", "debug.log")
+
+    results = FileCollector([], None).collect(tmp_path)
+
+    assert _rel(tmp_path, results) == {"main.py", "debug.log"}
+    assert len(fake_git["calls"]) == 1
+
+
+def test_collect_gitignore_single_file_uses_parent(tmp_path, fake_git):
+    _make_tree(tmp_path, "debug.log", "main.py")
+    root = tmp_path.resolve()
+    fake_git["result"] = GitIgnored({root / "debug.log"}, [])
+
+    assert FileCollector([], None).collect(tmp_path / "debug.log") == []
+    assert FileCollector([], None).collect(tmp_path / "main.py") == [tmp_path / "main.py"]
+    assert fake_git["calls"] == [root, root]
+
+
+def test_collect_gitignore_single_file_disabled(tmp_path, fake_git):
+    _make_tree(tmp_path, "debug.log")
+    fake_git["result"] = GitIgnored({tmp_path.resolve() / "debug.log"}, [])
+
+    collector = FileCollector([], None, gitignore=False)
+
+    assert collector.collect(tmp_path / "debug.log") == [tmp_path / "debug.log"]
+    assert fake_git["calls"] == []
+
+
+def test_collect_gitignore_called_once_per_collect(tmp_path, fake_git):
+    _make_tree(tmp_path, "a.py", "b.py", "sub/c.py", "sub/d.py")
+
+    collector = FileCollector([], None)
+    collector.collect(tmp_path)
+    collector.collect(tmp_path)
+
+    assert len(fake_git["calls"]) == 2
+
+
+def test_collect_gitignore_runs_after_excludes_and_before_globs(tmp_path, fake_git):
+    _make_tree(tmp_path, "keep.py", "gen.py", "vendor/lib.py")
+    root = tmp_path.resolve()
+    fake_git["result"] = GitIgnored({root / "gen.py"}, [])
+
+    collector = FileCollector(["vendor"], None, include=["*.py"])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"keep.py"}
+
+
+def test_collect_gitignore_relative_target(tmp_path, fake_git, monkeypatch):
+    _make_tree(tmp_path, "main.py", "debug.log")
+    fake_git["result"] = GitIgnored({tmp_path.resolve() / "debug.log"}, [])
+    monkeypatch.chdir(tmp_path)
+
+    results = FileCollector([], None).collect(Path("."))
+
+    assert {p.as_posix() for p in results} == {"main.py"}
+    assert fake_git["calls"] == [tmp_path.resolve()]
