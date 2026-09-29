@@ -21,8 +21,10 @@ class FileCollector:
     ):
         """Store the resolved filters.
 
-        `excludes` and `extensions` are case-insensitive (`extensions=None`: no
-        filter). `ignore` / `include` are glob lists matched against the path
+        `excludes` are whole path-component names matched, case-insensitively,
+        against the path relative to the target (never applied when the target
+        is a single file). `extensions` are case-insensitive (`extensions=None`:
+        no filter). `ignore` / `include` are glob lists matched against the path
         relative to the target (`None`: no globs).
         """
         self._exclude_set = {e.lower() for e in excludes}
@@ -42,9 +44,10 @@ class FileCollector:
         for path in target.rglob("*"):
             if not path.is_file():
                 continue
-            if self._is_excluded(path):
+            rel = path.relative_to(target)
+            if self._is_excluded(rel):
                 continue
-            if self._accepts(path, path.relative_to(target).as_posix()):
+            if self._accepts(path, rel.as_posix()):
                 files.append(path)
 
         return files
@@ -59,9 +62,9 @@ class FileCollector:
             return False
         return not SkipChecks.is_binary_file(path)
 
-    def _is_excluded(self, path: Path) -> bool:
-        """Check if any path component matches an exclusion entry."""
+    def _is_excluded(self, rel: Path) -> bool:
+        """Check if any component of `rel` (relative to the target) is excluded."""
         return any(
             part.lower() in self._exclude_set
-            for part in path.parts
+            for part in rel.parts
         )
