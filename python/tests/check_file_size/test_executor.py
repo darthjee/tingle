@@ -168,7 +168,8 @@ def test_run_fail_on_still_fails_when_offender_hidden_by_top(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "shown.py" in out
     assert "hidden.py" not in out
-    assert "1 file(s)" in out
+    # --top only cuts the displayed rows; the summary counts every file.
+    assert "2 file(s)" in out
 
 
 def test_run_without_fail_on_never_exits_non_zero(tmp_path, capsys):
@@ -515,3 +516,166 @@ class TestRunInGitRepository:
         out = capsys.readouterr().out
         assert "main.py" in out
         assert "debug.log" not in out
+
+
+# --min-level ---------------------------------------------------------------
+
+_THRESHOLDS = ["--warn", "25", "--error", "100", "--critical", "200"]
+
+
+def _leveled_project(tmp_path):
+    """Create a project with one file per level: ok(10), warn(30), error(150), critical(250)."""
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "ok.py").write_text("1\n" * 10)
+    (target / "warn.py").write_text("1\n" * 30)
+    (target / "error.py").write_text("1\n" * 150)
+    (target / "critical.py").write_text("1\n" * 250)
+    return target
+
+
+def test_run_min_level_warn_hides_ok_rows(tmp_path, capsys):
+    target = _leveled_project(tmp_path)
+
+    CheckFileSize().run([str(target), *_THRESHOLDS, "--min-level", "warn"])
+
+    out = capsys.readouterr().out
+    assert "ok.py" not in out
+    assert "warn.py" in out
+    assert "error.py" in out
+    assert "critical.py" in out
+    assert "4 file(s)" in out
+    assert "1 OK" in out
+
+
+def test_run_min_level_is_applied_before_top(tmp_path, capsys):
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "big_ok.py").write_text("1\n" * 20)
+    (target / "small_warn.py").write_text("1\n" * 5)
+
+    CheckFileSize().run(
+        [str(target), "--warn", "3", "--error", "100", "--critical", "200",
+         "--min-level", "warn", "--top", "1"]
+    )
+
+    out = capsys.readouterr().out
+    assert "big_ok.py" in out
+    assert "small_warn.py" not in out
+
+
+def test_run_min_level_error_with_top_shows_largest_error_or_higher(tmp_path, capsys):
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "large_warn.py").write_text("1\n" * 90)
+    (target / "error_a.py").write_text("1\n" * 120)
+    (target / "error_b.py").write_text("1\n" * 110)
+
+    CheckFileSize().run(
+        [str(target), "--warn", "25", "--error", "100", "--critical", "500",
+         "--min-level", "error", "--top", "1"]
+    )
+
+    out = capsys.readouterr().out
+    assert "error_a.py" in out
+    assert "error_b.py" not in out
+    assert "large_warn.py" not in out
+    assert "3 file(s)" in out
+
+
+def test_run_top_does_not_change_summary(tmp_path, capsys):
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "a.py").write_text("1\n" * 10)
+    (target / "b.py").write_text("1\n" * 20)
+
+    CheckFileSize().run([str(target), "--top", "1"])
+
+    out = capsys.readouterr().out
+    assert "2 file(s)" in out
+    assert "2 OK" in out
+    assert "Total: 30 lines" in out
+
+
+def test_run_min_level_does_not_affect_fail_on_gate(tmp_path, capsys):
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "warn.py").write_text("1\n" * 30)
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run(
+            [str(target), *_THRESHOLDS, "--min-level", "critical", "--fail-on", "warn"]
+        )
+
+    assert exc_info.value.code == 2
+    out = capsys.readouterr().out
+    assert "No files at or above CRITICAL." in out
+    assert "1 WARN" in out
+
+
+def test_run_min_level_with_no_matching_rows_prints_note_and_exits_zero(tmp_path, capsys):
+    target = tmp_path / "project"
+    target.mkdir()
+    (target / "ok.py").write_text("1\n" * 10)
+
+    CheckFileSize().run([str(target), *_THRESHOLDS, "--min-level", "warn"])
+
+    out = capsys.readouterr().out
+    assert "No files at or above WARN." in out
+    assert "Status" not in out
+    assert "ok.py" not in out
+    assert "1 file(s)" in out
+    assert "Total: 10 lines" in out
+
+
+def test_run_min_level_invalid_value_exits_one(tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(tmp_path), "--min-level", "foo"])
+
+    assert exc_info.value.code == 1
+    assert "invalid choice" in capsys.readouterr().err
+
+
+def test_run_min_level_ok_matches_default_output(tmp_path, capsys):
+    target = _leveled_project(tmp_path)
+
+    CheckFileSize().run([str(target), *_THRESHOLDS])
+    default_out = capsys.readouterr().out
+
+    CheckFileSize().run([str(target), *_THRESHOLDS, "--min-level", "ok"])
+    ok_out = capsys.readouterr().out
+
+    assert ok_out == default_out
+
+
+def test_run_no_files_found_takes_priority_over_min_level_note(tmp_path, capsys):
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(empty_dir), "--min-level", "critical"])
+
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "No files found for analysis." in out
+    assert "No files at or above" not in out
+
+
+@pytest.mark.parametrize(
+    "min_level, top, expected",
+    [
+        ("ok", 0, [250, 150, 30, 10]),
+        ("warn", 0, [250, 150, 30]),
+        ("error", 0, [250, 150]),
+        ("critical", 0, [250]),
+        ("warn", 2, [250, 150]),
+        ("error", 10, [250, 150]),
+    ],
+)
+def test_select_shown(min_level, top, expected):
+    analyzer = FileAnalyzer(warn=25, error=100, critical=200)
+    results = [("c", 250), ("e", 150), ("w", 30), ("o", 10)]
+
+    shown = CheckFileSize._select_shown(analyzer, results, min_level, top)
+
+    assert [lines for _path, lines in shown] == expected

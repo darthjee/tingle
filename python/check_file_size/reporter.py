@@ -17,37 +17,62 @@ class Reporter:
         self._target = target
         self._palette = palette if palette is not None else Palette()
 
-    def report(self, results: list[tuple[Path, int]]) -> None:
-        """Print the table and summary for the given (path, lines) results."""
-        analyzer = self._analyzer
+    def report(
+        self,
+        results: list[tuple[Path, int]],
+        shown: list[tuple[Path, int]] | None = None,
+        min_level: str = "ok",
+    ) -> None:
+        """Print the table for `shown` and the summary for every entry in `results`.
+
+        `shown` defaults to `results`. When it is empty (and `results` is not),
+        the table header is replaced by a `No files at or above <LEVEL>.` note.
+        """
+        if shown is None:
+            shown = results
+
+        if shown or not results:
+            self._print_table(shown)
+        else:
+            print(f"No files at or above {min_level.upper()}.")
+
+        self._print_summary(results)
+
+    def _display_path(self, path: Path) -> str:
+        """Return `path` relative to the target's parent (or its name for a file)."""
         target = self._target
+        try:
+            return str(path.relative_to(target.parent)) if target.is_dir() else path.name
+        except ValueError:
+            return str(path)
+
+    def _print_table(self, rows: list[tuple[Path, int]]) -> None:
+        """Print the table header and one row per (path, lines) entry."""
+        analyzer = self._analyzer
         c = self._palette
 
-        # Table header
         print(f"{'Status':<16} {'Lines':>10}  {'File'}")
         print(f"{'─' * 16} {'─' * 10}  {'─' * 50}")
 
-        counts = {"ok": 0, "warn": 0, "error": 0, "critical": 0}
-        total_lines = 0
-
-        for path, lines in results:
+        for path, lines in rows:
             label, level = analyzer.classify(lines)
-            try:
-                display_path = str(
-                    path.relative_to(target.parent)
-                ) if target.is_dir() else path.name
-            except ValueError:
-                display_path = str(path)
-
             print(
                 f"{c.level_color(level)}{label:<16}{c.RESET} "
-                f"{analyzer.format_number(lines):>10}  {display_path}"
+                f"{analyzer.format_number(lines):>10}  {self._display_path(path)}"
             )
 
-            total_lines += lines
-            counts[level] += 1
+    def _print_summary(self, results: list[tuple[Path, int]]) -> None:
+        """Print the separator, per-level counts and total lines for `results`."""
+        analyzer = self._analyzer
+        c = self._palette
 
-        # Summary
+        counts = {level: 0 for level in FileAnalyzer.LEVELS}
+        total_lines = 0
+        for _path, lines in results:
+            _label, level = analyzer.classify(lines)
+            counts[level] += 1
+            total_lines += lines
+
         print()
         print(f"{c.GRAY}{'─' * 78}{c.RESET}")
         print(

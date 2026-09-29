@@ -34,6 +34,7 @@ tingle check_file_size <path> [options]
 | `--error N` | `500` | Files with at least `N` lines are marked ERROR. |
 | `--critical N` | `1000` | Files with at least `N` lines are marked CRITICAL. |
 | `--top N` | `0` | Show only the `N` largest files. `0` shows all files. |
+| `--min-level LEVEL` | `ok` | Show only files at `LEVEL` or higher. `LEVEL` is `ok`, `warn`, `error` or `critical`. Display only: the summary and `--fail-on` still count every file. |
 | `--exclude LIST` | none | Comma-separated directory names to skip, added to the defaults. |
 | `--no-default-excludes` | off | Do not skip the default directories (see below). |
 | `--no-gitignore` | off | Do not skip files ignored by git (see below). |
@@ -228,6 +229,58 @@ prints `No files found for analysis.` and exits `0`.
 | `tingle check_file_size . --include 'src/**' --ext .py` | Analyses only `.py` files under `src/`. |
 | `tingle check_file_size . --include 'src/**' --ignore 'src/vendor/'` | Analyses files under `src/`, except those under `src/vendor/`. |
 
+### `--min-level`
+
+Hides the table rows below a given level, so you can focus on the files that
+need attention. `LEVEL` is one of `ok`, `warn`, `error` or `critical`
+(lowercase). A row is shown when its file is classified at that level **or
+higher**, using the order OK < WARN < ERROR < CRITICAL (the same order as
+[`--fail-on`](#--fail-on)):
+
+| `--min-level` | Rows shown |
+| --- | --- |
+| `ok` (default) | Every file |
+| `warn` | WARN, ERROR and CRITICAL files |
+| `error` | ERROR and CRITICAL files |
+| `critical` | CRITICAL files only |
+
+`--min-level ok` is the same as not passing the option.
+
+A few details:
+
+- It only changes **which rows are shown**. The `Summary:` line, the
+  `Total:` line and the `--fail-on` gate still count every analysed file.
+- It is applied **before** `--top`: `--top N` shows the `N` largest files
+  left after `--min-level`. If fewer than `N` files are left, all of them are
+  shown.
+- The level is based on the thresholds in use, so `--warn`, `--error` and
+  `--critical` change which files pass.
+- When no file is at or above the level, the table header is not printed.
+  A short note is shown instead, followed by the usual summary, and the
+  command exits `0` (unless the `--fail-on` gate fails):
+
+  ```
+  $ tingle check_file_size ./my-app --min-level warn
+  Analyzing: /home/me/projects/my-app
+  Thresholds: warn=300 | error=500 | critical=1000
+
+  No files at or above WARN.
+
+  ──────────────────────────────────────────────────────────────────────────────
+  Summary: 12 file(s) | 12 OK | 0 WARN | 0 ERROR | 0 CRITICAL
+  Total: 1.234 lines
+  ```
+
+  If there are no files to analyse at all, the command prints
+  `No files found for analysis.` instead, as usual.
+
+| Command | Rows shown |
+| --- | --- |
+| `tingle check_file_size .` | All rows. |
+| `tingle check_file_size . --min-level warn` | WARN, ERROR and CRITICAL rows. |
+| `tingle check_file_size . --min-level error --top 5` | The 5 largest ERROR or CRITICAL rows. |
+| `tingle check_file_size . --min-level critical --fail-on error` | Only CRITICAL rows. Exits `2` if any file is ERROR or higher, shown or not. |
+
 ### `--fail-on`
 
 Turns the command into a size gate, for example in CI. `LEVEL` is one of
@@ -247,8 +300,8 @@ off and a completed analysis always exits `0`.
 
 A few details:
 
-- `--top` does not hide files from the gate. Every analysed file counts,
-  including those not shown in the table.
+- `--top` and `--min-level` do not hide files from the gate. Every analysed
+  file counts, including those not shown in the table.
 - If there are no files to analyse (`No files found for analysis.`), the
   command exits `0`.
 - The level refers to the thresholds in use, so `--warn`, `--error` and
@@ -320,8 +373,9 @@ Total: 2.278 lines
 ### Table
 
 - One row per file, with the **Status**, **Lines** and **File** columns.
-- Rows are sorted by line count, largest first. `--top N` is applied after
-  sorting, so you get the `N` largest files.
+- Rows are sorted by line count, largest first. `--min-level` hides the rows
+  below the given level, then `--top N` keeps the `N` largest of the rows
+  left.
 - Line counts use `.` as the thousands separator: `1.234` means one
   thousand two hundred and thirty-four lines.
 - For a directory target, paths are shown relative to the target's parent
@@ -344,12 +398,15 @@ WARN.
 
 ### Summary
 
-- `Summary:` shows the number of files listed and how many fall into each
+- `Summary:` shows the number of files analysed and how many fall into each
   classification.
 - `Total:` is the sum of their line counts.
 
-With `--top`, both lines only count the rows shown, not every file that was
-scanned.
+Both lines always count every analysed file, even when `--top` or
+`--min-level` hide some rows from the table.
+
+> Before `--min-level` was added, `--top` also cut the summary and total
+> down to the rows shown. Now they always cover every analysed file.
 
 ### Colours
 
@@ -385,6 +442,18 @@ Show only the 20 largest files:
 
 ```
 tingle check_file_size ./src --top 20
+```
+
+Show only the files at WARN or higher:
+
+```
+tingle check_file_size ./src --min-level warn
+```
+
+Show the 5 largest ERROR or CRITICAL files:
+
+```
+tingle check_file_size ./src --min-level error --top 5
 ```
 
 Also skip `fixtures` directories, on top of the default exclude list:
@@ -441,13 +510,20 @@ your project, for example:
 tingle check_file_size ./src --ext .py --error 400 --fail-on error
 ```
 
+To keep CI logs short, list only the files that fail the gate. The gate still
+checks every file:
+
+```
+tingle check_file_size ./src --min-level error --fail-on error
+```
+
 ## Exit status and errors
 
 | Situation | Output | Exit status |
 | --- | --- | --- |
 | No arguments | Prints the option help | `0` |
 | `<path>` does not exist | `Error: path not found: <absolute path>` on **standard error** | `1` |
-| Unknown option or invalid value (e.g. `--top abc`, `--fail-on foo`) | A usage error on standard error | `1` |
+| Unknown option or invalid value (e.g. `--top abc`, `--fail-on foo`, `--min-level foo`) | A usage error on standard error | `1` |
 | No files left to analyse | The header, then `No files found for analysis.` | `0` |
 | Analysis completed, no `--fail-on` | The report | `0` |
 | Analysis completed, `--fail-on` gate passed | The report | `0` |
