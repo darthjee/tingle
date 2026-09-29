@@ -257,7 +257,7 @@ The ids below are the ones used in #263. Sub-issues and PRs cite them.
 | E9 | Zip doesn't unzip or has no `install/installer.sh`: abort. | #266 |
 | E9b | `.sha256` missing or mismatched: abort, delete the download. | #266 |
 | E10 | Pre-releases: "latest" is the latest stable; a pre-release can be pinned. | #266 |
-| E11 | Install folder not writable: fail early, name the folder. | #265 |
+| E11 | Install folder not writable: fail early, name the folder. | #265 (#266 also checks it before downloading) |
 | E12 | Stale files and the directories they leave empty are removed; directories with user files are kept. | #265 |
 | E13 | Unsafe manifest paths (absolute or containing `..`): skipped with a warning. | #265 |
 | E14 | The install updated is always the folder of the running `bin/tingle`, named in the output. | #266 |
