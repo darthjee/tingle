@@ -227,3 +227,59 @@ else
     fi
     validate_version "$TARGET" || exit 1
 fi
+
+# --- 3. Up to date and --check (E4) -----------------------------------------
+
+# "unknown" (a standalone install) is always out of date.
+if [ "$INSTALLED" != "unknown" ] && [ "$INSTALLED" = "$TARGET" ]; then
+    echo "tingle is already up to date ($TARGET)"
+    exit 0
+fi
+
+echo "$INSTALLED → $TARGET"
+
+if [ "$CHECK" -eq 1 ]; then
+    if tingle_json_tracks_hashes "$TINGLE_JSON"; then
+        edited=""
+        while IFS= read -r entry; do
+            hash="${entry%%  *}"
+            path="${entry#*  }"
+            case "$path" in
+                ""|/*|..|../*|*/..|*/../*) continue ;;
+            esac
+            file="$TINGLE_FOLDER/$path"
+            if [ ! -f "$file" ] || [ -L "$file" ]; then
+                continue
+            fi
+            current="$(tingle_sha256 "$file")" || continue
+            if [ "$current" != "$hash" ]; then
+                edited="$edited  $path"$'\n'
+            fi
+        done < <(tingle_json_entries "$TINGLE_JSON")
+        if [ -n "$edited" ]; then
+            echo "Locally edited shipped files (use --force to overwrite them):"
+            printf '%s' "$edited"
+        fi
+    fi
+    exit 0
+fi
+
+# --- 4. Confirmation --------------------------------------------------------
+
+if [ -z "${TINGLE_ASSUME_YES:-}" ]; then
+    if ! printf '%s' "Proceed? [y/N] " > /dev/tty 2>/dev/null; then
+        echo "tingle update: no /dev/tty available to confirm; re-run with" \
+            "TINGLE_ASSUME_YES=1 to skip the prompt" >&2
+        exit 1
+    fi
+
+    reply=""
+    read -r reply < /dev/tty || true
+    case "$reply" in
+        y|Y|yes|YES) ;;
+        *)
+            echo "Aborted."
+            exit 1
+            ;;
+    esac
+fi
