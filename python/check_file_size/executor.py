@@ -17,7 +17,8 @@ Examples
     ./check_file_size.py ./src
     ./check_file_size.py ./src --warn 300 --error 500 --critical 1000
     ./check_file_size.py ./src --top 20
-    ./check_file_size.py ./src --exclude node_modules,dist,build
+    ./check_file_size.py ./src --exclude fixtures
+    ./check_file_size.py ./src --no-default-excludes --exclude fixtures
     ./check_file_size.py ./src --ext .py --ext .js
     ./check_file_size.py . --ignore '*.test.js' --ignore 'docs/**'
     ./check_file_size.py . --include 'src/**' --ext .py
@@ -73,11 +74,16 @@ FLAGS: list[dict] = [
     {
         "name": "--exclude",
         "type": str,
-        "default": ",".join(Constants.DEFAULT_EXCLUDES),
+        "default": None,
         "help": (
-            "Directories to ignore (comma-separated). "
-            f"Default: {','.join(Constants.DEFAULT_EXCLUDES)}"
+            "Extra directory names to skip (comma-separated), added to the "
+            f"defaults: {','.join(Constants.DEFAULT_EXCLUDES)}"
         ),
+    },
+    {
+        "name": "--no-default-excludes",
+        "action": "store_true",
+        "help": "Do not skip the default directories; only --exclude names apply",
     },
     {
         "name": "--ignore",
@@ -145,6 +151,16 @@ class CheckFileSize:
         """Split a comma-separated exclude list, dropping blank entries."""
         return [e.strip() for e in raw.split(",") if e.strip()]
 
+    @classmethod
+    def _resolve_excludes(cls, args: dict) -> list[str]:
+        """Merge the default excludes with `--exclude` names, deduplicated.
+
+        The defaults are dropped when `--no-default-excludes` is given.
+        """
+        base = [] if args["no_default_excludes"] else list(Constants.DEFAULT_EXCLUDES)
+        extra = cls._parse_excludes(args["exclude"] or "")
+        return list(dict.fromkeys(base + extra))
+
     @staticmethod
     def _print_header(out: Palette, target: Path, args: dict) -> None:
         """Print the analysis header (target and thresholds)."""
@@ -186,7 +202,7 @@ class CheckFileSize:
         self._print_header(out, target, args)
 
         collector = FileCollector(
-            self._parse_excludes(args["exclude"]),
+            self._resolve_excludes(args),
             args["ext"],
             ignore=args["ignore"] or [],
             include=args["include"] or [],
