@@ -170,6 +170,7 @@ The last step is:
 
 ```bash
 TINGLE_UPDATE_TARGET="<folder>" \
+TINGLE_UPDATE_CLEANUP=1 \
 TINGLE_REPO="<repo from tingle.json>" \
 TINGLE_VERSION="<target version>" \
 exec "<tmp>/install/installer.sh"
@@ -182,7 +183,8 @@ with `TINGLE_UPDATE_FORCE=1` also set when `--force` was given.
   `exec shell/update/main.sh` → `exec executor.sh` already uses `exec`, so
   after the handoff no process is reading any script inside the install
   folder.
-- The installer cleans up the temp dir (S3,
+- `TINGLE_UPDATE_CLEANUP=1` is always set, so the installer cleans up the
+  temp dir when it finishes or fails (S3,
   [installer-update-mode.md](installer-update-mode.md)).
 - An older `tingle update` only works against releases whose `installer.sh`
   has update mode. This is fine, because update mode ships in the same release
