@@ -33,7 +33,8 @@ tingle check_file_size <path> [options]
 | `--error N` | `500` | Files with at least `N` lines are marked ERROR. |
 | `--critical N` | `1000` | Files with at least `N` lines are marked CRITICAL. |
 | `--top N` | `0` | Show only the `N` largest files. `0` shows all files. |
-| `--exclude LIST` | see below | Comma-separated directory names to skip. |
+| `--exclude LIST` | none | Comma-separated directory names to skip, added to the defaults. |
+| `--no-default-excludes` | off | Do not skip the default directories (see below). |
 | `--ext EXT` | no filter | Only analyse files with this extension. Can be repeated. |
 | `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches this glob. Can be repeated. |
 | `--include GLOB` | none | Only analyse files whose path relative to `<path>` matches this glob. Can be repeated. |
@@ -47,24 +48,53 @@ The default list is:
 node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,.cache,coverage,.nuxt,out,target
 ```
 
-A file is skipped if **any** part of its path matches one of these names.
-Matching is case-insensitive (`Build` matches `build`).
-
-> **Passing `--exclude` replaces the default list. It does not add to it.**
-> `--exclude fixtures` skips *only* `fixtures`, so `node_modules`, `.git`
-> and the rest are scanned again.
-
-To keep the defaults and skip one more directory, repeat the default list
-and add your entry at the end:
+These directories are always skipped unless you pass
+[`--no-default-excludes`](#--no-default-excludes). Passing `--exclude`
+**adds** names to this list:
 
 ```
-tingle check_file_size ./src --exclude node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,.cache,coverage,.nuxt,out,target,fixtures
+tingle check_file_size . --exclude fixtures
 ```
 
-The match covers the whole absolute path, including the directories *above*
-`<path>`. For example, if your project lives in `~/work/build/my-app`,
-every file matches `build` and you get `No files found for analysis.`. In
-that case, pass an `--exclude` list that leaves out the conflicting name.
+skips `fixtures` as well as `node_modules`, `dist`, `build` and the rest.
+
+A file is skipped when **any** part of its path **relative to `<path>`**
+matches one of the names. Matching is case-insensitive (`Build` matches
+`build`) and covers a whole path component: `build` does not match
+`builder`. The directories *above* `<path>` are never checked, so a project
+living in `~/work/build/my-app` is scanned normally.
+
+The names are plain directory names, not globs. To skip files by pattern,
+use [`--ignore`](#--ignore-and---include).
+
+| Invocation | Excluded names |
+| --- | --- |
+| `tingle check_file_size .` | The defaults |
+| `tingle check_file_size . --exclude fixtures` | The defaults + `fixtures` |
+| `tingle check_file_size . --no-default-excludes` | None (`.git/` is walked too) |
+| `tingle check_file_size . --no-default-excludes --exclude fixtures` | Only `fixtures` |
+
+`--exclude` is not repeatable: if you pass it more than once, only the last
+one counts. Put all the names in a single comma-separated list.
+
+> `--exclude` now **adds** to the default excludes instead of replacing them.
+> `--exclude fixtures` now also skips `node_modules`, `dist`, `build`, etc.
+> For the old behaviour, use `--no-default-excludes --exclude fixtures`.
+
+### `--no-default-excludes`
+
+Drops the default list, so directories such as `.git/` and `node_modules/`
+are walked too. On its own, it skips no directory at all:
+
+```
+tingle check_file_size . --no-default-excludes
+```
+
+Combine it with `--exclude` to choose exactly which names to skip:
+
+```
+tingle check_file_size . --no-default-excludes --exclude node_modules,fixtures
+```
 
 ### `--ext`
 
@@ -132,7 +162,8 @@ treatment: `*` matches `.env`.
 - `--ignore` wins over `--include`: a file that matches both is skipped.
 - `--include` and `--ext` must **both** match. For example,
   `--include 'src/**' --ext .py` analyses only `.py` files under `src/`.
-- `--exclude` directories are still skipped, whatever the globs say.
+- Excluded directories (the defaults plus any `--exclude` names) are still
+  skipped, whatever the globs say.
 
 A glob that matches nothing is not an error, and an empty pattern
 (`--ignore ''`) is ignored. If the filters leave no files, the command
@@ -176,7 +207,8 @@ A few details:
 
 ### Single-file targets
 
-When `<path>` is a single file, `--exclude` is ignored. The other filters
+When `<path>` is a single file, the exclude list (the defaults, `--exclude`
+and `--no-default-excludes`) is ignored. The other filters
 still apply:
 
 - `--ignore` and `--include` globs are matched against the file's **name**
@@ -190,7 +222,7 @@ exits `0`.
 
 ## Skipped files
 
-Besides the directories matched by `--exclude` and the files filtered out by
+Besides the excluded directories (the defaults plus any `--exclude` names) and the files filtered out by
 `--ext`, `--ignore` and `--include`, binary files are skipped
 automatically. A file counts as binary when:
 
@@ -204,8 +236,8 @@ automatically. A file counts as binary when:
 - its first 1024 bytes contain a NUL byte or are not valid UTF-8; or
 - it cannot be read (for example, because of permissions).
 
-Hidden directories that are not in the exclude list (for example
-`.pytest_cache`) are scanned like any other directory.
+Hidden directories that are not excluded (for example `.pytest_cache`) are
+scanned like any other directory.
 
 ## Reading the output
 
@@ -303,11 +335,17 @@ Show only the 20 largest files:
 tingle check_file_size ./src --top 20
 ```
 
-Skip only `node_modules`, `dist` and `build`. This replaces the default
-exclude list:
+Also skip `fixtures` directories, on top of the default exclude list:
 
 ```
-tingle check_file_size ./src --exclude node_modules,dist,build
+tingle check_file_size ./src --exclude fixtures
+```
+
+Skip only `fixtures`, scanning `node_modules`, `.git` and the other default
+directories too:
+
+```
+tingle check_file_size ./src --no-default-excludes --exclude fixtures
 ```
 
 Analyse only Python and JavaScript files:
