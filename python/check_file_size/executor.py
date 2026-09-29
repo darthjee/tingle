@@ -21,6 +21,8 @@ Examples
     ./check_file_size.py ./src
     ./check_file_size.py ./src --warn 300 --error 500 --critical 1000
     ./check_file_size.py ./src --top 20
+    ./check_file_size.py ./src --min-level warn
+    ./check_file_size.py ./src --min-level error --top 5
     ./check_file_size.py ./src --exclude fixtures
     ./check_file_size.py ./src --no-default-excludes --exclude fixtures
     ./check_file_size.py . --no-gitignore
@@ -75,6 +77,13 @@ FLAGS: list[dict] = [
         "type": int,
         "default": 0,
         "help": "Show only top N largest files (0 = all)",
+    },
+    {
+        "name": "--min-level",
+        "type": str,
+        "choices": list(FileAnalyzer.LEVELS),
+        "default": None,
+        "help": "Show only files at this level or higher (default: ok)",
     },
     {
         "name": "--exclude",
@@ -206,6 +215,7 @@ class CheckFileSize:
             sys.exit(0)
 
         args = self._parse(arg_parser, args)
+        min_level = args["min_level"] or "ok"
         target = self._resolve_target(args["path"])
 
         out = Palette(sys.stdout)
