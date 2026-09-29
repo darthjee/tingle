@@ -33,4 +33,6 @@ folder.
 
 ## Current specs
 
-No specs in progress.
+| Topic | Specs | Parent issue | Sub-issues |
+|-------|-------|--------------|------------|
+| `update_command` | [README](specs/update_command/README.md) | #263 | #269, #264, #265, #266, #267, #270 |
