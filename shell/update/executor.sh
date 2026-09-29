@@ -267,7 +267,8 @@ fi
 # --- 4. Confirmation --------------------------------------------------------
 
 if [ -z "${TINGLE_ASSUME_YES:-}" ]; then
-    if ! printf '%s' "Proceed? [y/N] " > /dev/tty 2>/dev/null; then
+    # The group makes 2>/dev/null also hide the error from opening /dev/tty.
+    if ! { printf '%s' "Proceed? [y/N] " > /dev/tty; } 2>/dev/null; then
         echo "tingle update: no /dev/tty available to confirm; re-run with" \
             "TINGLE_ASSUME_YES=1 to skip the prompt" >&2
         exit 1
