@@ -173,3 +173,9 @@ def test_empty_pattern_does_not_affect_others():
 
 def test_trailing_backslash_is_literal():
     assert GlobMatcher(["a\\"]).matches("a\\")
+
+
+def test_bool_reflects_compiled_patterns():
+    assert GlobMatcher(["*.py"])
+    assert not GlobMatcher([])
+    assert not GlobMatcher(["", "/"])

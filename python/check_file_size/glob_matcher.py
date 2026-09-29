@@ -19,6 +19,10 @@ class GlobMatcher:
             if pattern and pattern.strip("/")
         ]
 
+    def __bool__(self) -> bool:
+        """Return `True` when at least one (non-empty) pattern was compiled."""
+        return bool(self._regexes)
+
     def matches(self, rel_path: str) -> bool:
         """Return `True` when any pattern fully matches `rel_path` (`False` with no patterns)."""
         return any(regex.fullmatch(rel_path) for regex in self._regexes)
