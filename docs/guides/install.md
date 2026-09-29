@@ -113,6 +113,12 @@ In both cases, the rest of `~/.bashrc` is never touched.
 3. Type `tingle`, then a space, then press **Tab**. Bash should suggest the
    available command names.
 
+## Updating
+
+To upgrade a web install to a newer release later, run `tingle update`. See
+the [`update` guide](update.md) for details. A cloned repository is updated
+with `git pull` instead.
+
 ## Uninstalling
 
 To remove the tingle block from `~/.bashrc`, run `tingle uninstall`. See the
