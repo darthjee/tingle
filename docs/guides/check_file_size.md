@@ -35,6 +35,8 @@ tingle check_file_size <path> [options]
 | `--top N` | `0` | Show only the `N` largest files. `0` shows all files. |
 | `--exclude LIST` | see below | Comma-separated directory names to skip. |
 | `--ext EXT` | no filter | Only analyse files with this extension. Can be repeated. |
+| `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches this glob. Can be repeated. |
+| `--include GLOB` | none | Only analyse files whose path relative to `<path>` matches this glob. Can be repeated. |
 | `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
 
 ### `--exclude`
@@ -77,6 +79,75 @@ Include the leading dot (`.py`, not `py`). The comparison is
 case-insensitive and uses the file's last extension, so `archive.tar.gz`
 counts as `.gz`.
 
+### `--ignore` and `--include`
+
+These options filter files by a glob pattern, similar to a `.gitignore`
+line:
+
+- `--ignore GLOB` skips every file that matches the glob.
+- `--include GLOB` analyses **only** the files that match the glob. Without
+  any `--include`, every file is included.
+
+Both can be repeated. A file is skipped if it matches **any** `--ignore`
+glob, and kept if it matches **any** `--include` glob.
+
+The glob is matched against the file's path **relative to `<path>`**,
+always written with `/` (for example `src/app/main.py` when `<path>` is the
+project root). The whole path must match, not just part of it. Matching is
+case-insensitive, like `--exclude` and `--ext`, so `*.test.js` also matches
+`b.TEST.js`.
+
+> **Quote your globs.** Write `--ignore '*.md'`, not `--ignore *.md`.
+> Without quotes, your shell expands the pattern into file names before
+> `tingle` sees it.
+
+#### Glob syntax
+
+| Pattern | Matches |
+| --- | --- |
+| `*` | Any run of characters (possibly none), but never `/`. |
+| `?` | Exactly one character other than `/`. |
+| `[abc]`, `[a-z]` | One character from the set or range. |
+| `[!abc]` | One character *not* in the set. A set never matches `/`. |
+| `**` | As a whole path segment (`**/x`, `a/**`, `a/**/b`): zero or more directories. A lone `**` matches everything. Inside a segment (`a**b`) it acts like `*`. |
+| `\c` | The literal character `c` (for example `\*` matches a real `*`). |
+
+An unclosed `[` is treated as a literal `[`. Dot-files get no special
+treatment: `*` matches `.env`.
+
+#### Where a pattern matches
+
+- **No `/` in the pattern**: it matches in any directory. `*.test.js` is
+  the same as `**/*.test.js`, so it matches `a.test.js` and
+  `src/deep/b.test.js`.
+- **A `/` in the pattern**: it is anchored at `<path>`. `src/*.py` matches
+  `src/a.py` but not `lib/src/a.py` or `src/sub/a.py`. A leading `/` only
+  marks the anchor: `/src/*.py` is the same as `src/*.py`.
+- **A trailing `/`**: it matches everything under that directory.
+  `fixtures/` is the same as `**/fixtures/**` (any `fixtures` directory),
+  and `src/gen/` is the same as `src/gen/**`.
+
+#### Combining filters
+
+- `--ignore` wins over `--include`: a file that matches both is skipped.
+- `--include` and `--ext` must **both** match. For example,
+  `--include 'src/**' --ext .py` analyses only `.py` files under `src/`.
+- `--exclude` directories are still skipped, whatever the globs say.
+
+A glob that matches nothing is not an error, and an empty pattern
+(`--ignore ''`) is ignored. If the filters leave no files, the command
+prints `No files found for analysis.` and exits `0`.
+
+#### Examples
+
+| Command | Effect |
+| --- | --- |
+| `tingle check_file_size . --ignore '*.test.js'` | Skips `a.test.js` and `src/b.TEST.js`. |
+| `tingle check_file_size . --ignore 'docs/**' --ignore '*.md'` | Skips everything under `docs/` and every Markdown file. |
+| `tingle check_file_size . --include 'src/**'` | Analyses only files under `src/`. |
+| `tingle check_file_size . --include 'src/**' --ext .py` | Analyses only `.py` files under `src/`. |
+| `tingle check_file_size . --include 'src/**' --ignore 'src/vendor/'` | Analyses files under `src/`, except those under `src/vendor/`. |
+
 ### `--fail-on`
 
 Turns the command into a size gate, for example in CI. `LEVEL` is one of
@@ -105,12 +176,22 @@ A few details:
 
 ### Single-file targets
 
-When `<path>` is a single file, `--ext` and `--exclude` are ignored. The
-file is analysed unless it is detected as binary.
+When `<path>` is a single file, `--exclude` is ignored. The other filters
+still apply:
+
+- `--ignore` and `--include` globs are matched against the file's **name**
+  (for example `main.py`);
+- `--ext` is checked against the file's extension.
+
+The file is analysed if it passes these filters and is not detected as
+binary. For example, `tingle check_file_size ./main.py --ignore 'main.*'`
+leaves nothing to analyse, so it prints `No files found for analysis.` and
+exits `0`.
 
 ## Skipped files
 
-Besides the directories matched by `--exclude`, binary files are skipped
+Besides the directories matched by `--exclude` and the files filtered out by
+`--ext`, `--ignore` and `--include`, binary files are skipped
 automatically. A file counts as binary when:
 
 - its extension is a known binary type: images (`.png`, `.jpg`, `.svg`,
@@ -233,6 +314,19 @@ Analyse only Python and JavaScript files:
 
 ```
 tingle check_file_size ./src --ext .py --ext .js
+```
+
+Skip test files and everything under `docs/`:
+
+```
+tingle check_file_size . --ignore '*.test.js' --ignore 'docs/**'
+```
+
+Analyse only the code under `src/`, leaving out the vendored copy in
+`src/vendor/`:
+
+```
+tingle check_file_size . --include 'src/**' --ignore 'src/vendor/'
 ```
 
 ### Using in CI
