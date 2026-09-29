@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+
 import pytest
 
 from check_file_size.constants import Constants
@@ -319,7 +322,7 @@ def test_run_passes_glob_lists_to_collector(tmp_path, monkeypatch):
 
     CheckFileSize().run([str(tmp_path), "--ignore", "a", "--ignore", "b", "--include", "*.py"])
 
-    assert seen == {"ignore": ["a", "b"], "include": ["*.py"]}
+    assert seen == {"ignore": ["a", "b"], "include": ["*.py"], "gitignore": True}
 
 
 def test_run_passes_empty_glob_lists_when_flags_absent(tmp_path, monkeypatch):
@@ -335,7 +338,7 @@ def test_run_passes_empty_glob_lists_when_flags_absent(tmp_path, monkeypatch):
 
     CheckFileSize().run([str(tmp_path)])
 
-    assert seen == {"ignore": [], "include": []}
+    assert seen == {"ignore": [], "include": [], "gitignore": True}
 
 
 def test_run_everything_filtered_out_prints_no_files_and_exits_zero(tmp_path, capsys):
@@ -423,3 +426,92 @@ def test_help_says_exclude_adds_to_defaults(capsys):
     out = " ".join(capsys.readouterr().out.split())
     assert "added to the defaults" in out
     assert "--no-default-excludes" in out
+
+
+def _spy_collector_kwargs(monkeypatch):
+    seen = {}
+    real_init = FileCollector.__init__
+
+    def spy_init(self, *args, **kwargs):
+        seen.update(kwargs)
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(FileCollector, "__init__", spy_init)
+    return seen
+
+
+def test_run_no_gitignore_reaches_collector_as_false(tmp_path, capsys, monkeypatch):
+    (tmp_path / "a.py").write_text("x\n")
+    seen = _spy_collector_kwargs(monkeypatch)
+
+    CheckFileSize().run([str(tmp_path), "--no-gitignore"])
+
+    assert seen["gitignore"] is False
+
+
+def test_run_gitignore_is_on_by_default(tmp_path, capsys, monkeypatch):
+    (tmp_path / "a.py").write_text("x\n")
+    seen = _spy_collector_kwargs(monkeypatch)
+
+    CheckFileSize().run([str(tmp_path)])
+
+    assert seen["gitignore"] is True
+
+
+def test_help_mentions_no_gitignore(capsys):
+    with pytest.raises(SystemExit):
+        CheckFileSize().run(["--help"])
+
+    out = " ".join(capsys.readouterr().out.split())
+    assert "--no-gitignore" in out
+    assert "Do not skip files ignored by git" in out
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+class TestRunInGitRepository:
+    """End-to-end runs inside a temporary git repository."""
+
+    @pytest.fixture
+    def repo(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+        monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, capture_output=True)
+        (repo / ".gitignore").write_text("*.log\n")
+        (repo / "main.py").write_text("print('hi')\n")
+        (repo / "debug.log").write_text("noise\n")
+        (repo / "keep.log").write_text("tracked\n")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "-f", "keep.log"], check=True, capture_output=True
+        )
+        return repo
+
+    def test_ignored_untracked_file_is_skipped_by_default(self, repo, capsys):
+        CheckFileSize().run([str(repo)])
+
+        out = capsys.readouterr().out
+        assert "main.py" in out
+        assert "keep.log" in out
+        assert "debug.log" not in out
+
+    def test_no_gitignore_analyses_ignored_file(self, repo, capsys):
+        CheckFileSize().run([str(repo), "--no-gitignore"])
+
+        assert "debug.log" in capsys.readouterr().out
+
+    def test_ignored_single_file_target_finds_nothing(self, repo, capsys):
+        with pytest.raises(SystemExit) as exc:
+            CheckFileSize().run([str(repo / "debug.log")])
+
+        assert exc.value.code == 0
+        assert "No files found" in capsys.readouterr().out
+
+    def test_relative_path_target(self, repo, capsys, monkeypatch):
+        monkeypatch.chdir(repo)
+
+        CheckFileSize().run(["."])
+
+        out = capsys.readouterr().out
+        assert "main.py" in out
+        assert "debug.log" not in out

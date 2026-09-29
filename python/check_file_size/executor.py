@@ -9,6 +9,10 @@ With `--fail-on warn|error|critical` it acts as a CI gate: exit status is 0
 on success, 1 on errors (path not found, bad option) and 2 when any analysed
 file reaches the given level.
 
+When `<path>` is inside a git work tree, untracked files ignored by git
+(`.gitignore`, `.git/info/exclude`, global excludes) are skipped by default;
+tracked files are always analysed. `--no-gitignore` turns this off.
+
 Usage:
     ./check_file_size.py <path> [options]
 
@@ -19,6 +23,7 @@ Examples
     ./check_file_size.py ./src --top 20
     ./check_file_size.py ./src --exclude fixtures
     ./check_file_size.py ./src --no-default-excludes --exclude fixtures
+    ./check_file_size.py . --no-gitignore
     ./check_file_size.py ./src --ext .py --ext .js
     ./check_file_size.py . --ignore '*.test.js' --ignore 'docs/**'
     ./check_file_size.py . --include 'src/**' --ext .py
@@ -84,6 +89,11 @@ FLAGS: list[dict] = [
         "name": "--no-default-excludes",
         "action": "store_true",
         "help": "Do not skip the default directories; only --exclude names apply",
+    },
+    {
+        "name": "--no-gitignore",
+        "action": "store_true",
+        "help": "Do not skip files ignored by git (.gitignore, .git/info/exclude, global excludes)",
     },
     {
         "name": "--ignore",
@@ -206,6 +216,7 @@ class CheckFileSize:
             args["ext"],
             ignore=args["ignore"] or [],
             include=args["include"] or [],
+            gitignore=not args["no_gitignore"],
         )
         files = collector.collect(target)
 

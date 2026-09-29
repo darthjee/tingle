@@ -22,7 +22,8 @@ tingle check_file_size <path> [options]
 `<path>` can be:
 
 - **a directory**: every file below it is scanned, recursively, except for
-  excluded directories and binary files (see [Skipped files](#skipped-files));
+  excluded directories, files ignored by git and binary files (see
+  [Skipped files](#skipped-files));
 - **a single file**: only that file is analysed.
 
 ## Options
@@ -35,6 +36,7 @@ tingle check_file_size <path> [options]
 | `--top N` | `0` | Show only the `N` largest files. `0` shows all files. |
 | `--exclude LIST` | none | Comma-separated directory names to skip, added to the defaults. |
 | `--no-default-excludes` | off | Do not skip the default directories (see below). |
+| `--no-gitignore` | off | Do not skip files ignored by git (see below). |
 | `--ext EXT` | no filter | Only analyse files with this extension. Can be repeated. |
 | `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches this glob. Can be repeated. |
 | `--include GLOB` | none | Only analyse files whose path relative to `<path>` matches this glob. Can be repeated. |
@@ -95,6 +97,53 @@ Combine it with `--exclude` to choose exactly which names to skip:
 ```
 tingle check_file_size . --no-default-excludes --exclude node_modules,fixtures
 ```
+
+### .gitignore and `--no-gitignore`
+
+By default, when `<path>` is inside a git repository, files that git ignores
+are skipped, so the report only covers the files that belong to the project.
+Git's own rules are used:
+
+- `.gitignore` files, including nested ones in subdirectories;
+- the repository's `.git/info/exclude` file;
+- your global excludes file (`core.excludesFile`).
+
+Only **untracked** files are skipped. A tracked file is always analysed,
+even if it matches an ignore pattern (for example a file added with
+`git add -f`), just as git keeps tracking it.
+
+For example, with `*.log` in `.gitignore`, an untracked `debug.log` and a
+force-added `keep.log`:
+
+```
+tingle check_file_size .
+```
+
+skips `debug.log` and analyses `keep.log`. An ignored directory, such as
+`tmp/` listed in `.gitignore`, skips every file under it.
+
+To turn this step off and analyse ignored files too, pass `--no-gitignore`:
+
+```
+tingle check_file_size . --no-gitignore
+```
+
+A few details:
+
+- If `git` is not installed, `<path>` is not inside a git repository, or the
+  git call fails for any reason, nothing is skipped by git. No warning is
+  shown and the exit status is unchanged.
+- When `<path>` is a subdirectory of a repository, rules from `.gitignore`
+  files in the parent directories still apply.
+- When `<path>` is a single file, it is skipped if git ignores it (see
+  [Single-file targets](#single-file-targets)).
+- Only the repository that contains `<path>` is consulted. The ignore rules
+  of nested repositories and submodules are not used.
+- `.git/` itself stays covered by the default excludes.
+- This step runs after the directory excludes (the defaults and
+  `--exclude`) and before `--ignore`, `--include` and `--ext`. The full
+  order is: default excludes, `--exclude`, `.gitignore`, `--ignore`,
+  `--include` / `--ext`, then the binary check.
 
 ### `--ext`
 
@@ -211,6 +260,7 @@ When `<path>` is a single file, the exclude list (the defaults, `--exclude`
 and `--no-default-excludes`) is ignored. The other filters
 still apply:
 
+- the file is skipped if git ignores it, unless you pass `--no-gitignore`;
 - `--ignore` and `--include` globs are matched against the file's **name**
   (for example `main.py`);
 - `--ext` is checked against the file's extension.
@@ -222,9 +272,11 @@ exits `0`.
 
 ## Skipped files
 
-Besides the excluded directories (the defaults plus any `--exclude` names) and the files filtered out by
-`--ext`, `--ignore` and `--include`, binary files are skipped
-automatically. A file counts as binary when:
+Besides the excluded directories (the defaults plus any `--exclude` names),
+the untracked files ignored by git (see
+[.gitignore and `--no-gitignore`](#gitignore-and---no-gitignore)) and the
+files filtered out by `--ext`, `--ignore` and `--include`, binary files are
+skipped automatically. A file counts as binary when:
 
 - its extension is a known binary type: images (`.png`, `.jpg`, `.svg`,
   ...), video and audio (`.mp4`, `.mp3`, ...), office documents and PDFs
@@ -346,6 +398,12 @@ directories too:
 
 ```
 tingle check_file_size ./src --no-default-excludes --exclude fixtures
+```
+
+Also analyse files that git ignores (build output, local data, ...):
+
+```
+tingle check_file_size . --no-gitignore
 ```
 
 Analyse only Python and JavaScript files:
