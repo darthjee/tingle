@@ -24,8 +24,9 @@ This sub-issue **owns** this contract.
 
 | Variable | Meaning |
 |----------|---------|
-| `TINGLE_UPDATE_TARGET=<install folder>` | Switches on update mode. It skips the target-folder prompt and the "`tingle.json` already exists" refusal. |
+| `TINGLE_UPDATE_TARGET=<install folder>` | Switches on update mode. It skips the target-folder prompt and the "`tingle.json` already exists" refusal. It goes through the same normalization as the prompted target: a leading `~` is expanded and a relative path is made absolute. |
 | `TINGLE_UPDATE_FORCE=1` | Overwrites locally edited shipped files (E1). |
+| `TINGLE_UPDATE_CLEANUP=1` | Removes the source tree (the dir the installer runs from) when update mode finishes or fails (S3). `tingle update` sets it. Unset, for example when a user runs the installer by hand from a folder they unpacked, the source tree is left alone. |
 | `TINGLE_REPO` | Repo recorded in the new `tingle.json`, as today. |
 | `TINGLE_VERSION` | Version recorded in the new `tingle.json`, as today. |
 
@@ -64,7 +65,10 @@ these phases in order.
 3. **`tingle.json` validity (E3):** read the old `tingle.json`. If it can't
    be parsed, or `version`, `repo` or `manifest` is missing, exit non-zero and
    change nothing.
-4. **Edited-file check (E1):** hash every file listed in the old manifest and
+4. **Incoming `MANIFEST`:** if `<source>/MANIFEST` is missing, malformed or
+   empty, refuse and change nothing, so a broken release tree can never prune
+   the whole install.
+5. **Edited-file check (E1):** hash every file listed in the old manifest and
    compare it with the recorded hash.
    - A file counts as **unedited** when it matches the old recorded hash
      **or** the incoming release's hash for the same path (from the new
@@ -88,6 +92,10 @@ Every exit from preflight releases the lock it took.
 - Write every file listed in the new manifest as a temp file **next to its
   target**, in the same directory: `<dir>/.<name>.tingle-new`. Missing
   directories are created.
+- Each staged file keeps the source file's permissions (executable bits), so
+  executable scripts stay executable after the swap.
+- `MANIFEST` itself (not listed in it) is staged and swapped too, so
+  `<target>/MANIFEST` always matches the new `tingle.json`.
 - On any failure or signal (a full disk, permissions, Ctrl-C), a trap removes
   the staged files and the lock, and the install is left **untouched**.
 - A leftover `.<name>.tingle-new` from an earlier killed run is overwritten.
@@ -109,7 +117,8 @@ Every exit from preflight releases the lock it took.
 - **Unsafe paths (E13):** a manifest path that is absolute or contains `..`
   is skipped with a warning, so a tampered `tingle.json` can't delete files
   outside the install folder. The same rule applies to every path the
-  installer writes or checks.
+  installer hashes (edited-file check), stages, swaps or prunes, in both the
+  old and the new manifest.
 
 ### 3.5 Commit
 
@@ -122,8 +131,9 @@ Every exit from preflight releases the lock it took.
 
 - Run `<target>/bin/tingle install` **as a child process, not with `exec`**,
   so the traps still fire (S3).
-- Release the lock and remove the temp dir the installer runs from (the
-  source).
+- Release the lock. Only when `TINGLE_UPDATE_CLEANUP=1`, also remove the temp
+  dir the installer runs from (the source). Without it, the source tree is
+  left alone.
 - The final message names the target, the new version, and says that
   already-open shells need a restart or `source ~/.bashrc` for the new
   completion.
@@ -139,8 +149,11 @@ Every exit from preflight releases the lock it took.
   copy. It also swaps each file all at once.
 - **S3. The installer owns cleaning up the temp dir.** `tingle update` ends
   with `exec` (S1, #266) and sets no trap of its own, because `exec` drops
-  traps. In update mode, `installer.sh` sets a `trap` that removes the temp
-  dir it runs from. Deleting a running script's folder is safe on Unix. This
+  traps. In update mode, `installer.sh` sets a `trap` that, when
+  `TINGLE_UPDATE_CLEANUP=1` (set by `tingle update`), removes the temp dir it
+  runs from, whether the update finishes or fails. When the variable is unset
+  (the installer run by hand), the source tree is never removed. Deleting a
+  running script's folder is safe on Unix. This
   is why it runs `bin/tingle install` as a child process: with `exec`, the
   trap would never fire. The first-install path keeps its current `exec`.
 
@@ -186,11 +199,16 @@ the `tingle update` command, against trees built with
   overwrites it.
 - A path-only (pre-0.4.0) `tingle.json` warns and continues. An empty
   manifest warns about stale files.
-- A corrupt `tingle.json` and an unwritable folder leave the install
-  untouched.
+- A corrupt `tingle.json`, an unwritable folder, and a missing, malformed or
+  empty incoming `MANIFEST` leave the install untouched.
 - A tampered manifest path (absolute or with `..`) is skipped with a warning.
 - Killed during staging: untouched. Killed after staging: re-running finishes
   it.
+- `<target>/MANIFEST` matches the new release, and executable files stay
+  executable.
+- The source tree is removed with `TINGLE_UPDATE_CLEANUP=1` and kept without
+  it.
+- A relative or `~`-prefixed `TINGLE_UPDATE_TARGET` updates the right folder.
 - A second concurrent run is refused, and a stale lock is cleared.
 - Without `TINGLE_UPDATE_TARGET`, a first install behaves as before.
 - `shellcheck` passes.
@@ -199,6 +217,6 @@ the `tingle update` command, against trees built with
 
 Before #270 deletes this spec, the header comment of `install/installer.sh`
 must cover: update mode and its trigger, the env vars
-(`TINGLE_UPDATE_TARGET`, `TINGLE_UPDATE_FORCE`, `TINGLE_REPO`,
-`TINGLE_VERSION`), the lock, the six phases, S2 and S3, and the recovery
+(`TINGLE_UPDATE_TARGET`, `TINGLE_UPDATE_FORCE`, `TINGLE_UPDATE_CLEANUP`,
+`TINGLE_REPO`, `TINGLE_VERSION`), the lock, the six phases, S2 and S3, and the recovery
 behaviour.

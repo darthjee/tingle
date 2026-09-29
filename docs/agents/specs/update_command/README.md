@@ -145,8 +145,9 @@ and to the `.sha256` check of the release zip.
 
 | Variable | Meaning |
 |----------|---------|
-| `TINGLE_UPDATE_TARGET` | Install folder to update. Setting it switches `install/installer.sh` into update mode. Without it, the first-install path behaves exactly as before. |
+| `TINGLE_UPDATE_TARGET` | Install folder to update. Setting it switches `install/installer.sh` into update mode. A leading `~` is expanded and a relative path is made absolute. Without it, the first-install path behaves exactly as before. |
 | `TINGLE_UPDATE_FORCE` | `1` overwrites locally edited shipped files (E1). |
+| `TINGLE_UPDATE_CLEANUP` | `1` makes update mode remove the source tree (the temp dir it runs from) when it finishes or fails (S3). `tingle update` sets it; when unset (the installer run by hand), the source tree is left alone. |
 | `TINGLE_REPO` | Repo recorded in the new `tingle.json`, as today. |
 | `TINGLE_VERSION` | Version recorded in the new `tingle.json`, as today. |
 
@@ -265,4 +266,5 @@ The ids below are the ones used in #263. Sub-issues and PRs cite them.
 
 The self-replacement safety rules are split the same way: S1 (hand off with
 `exec`) belongs to #266, and S2 (rename, never `cp` in place) and S3 (the
-installer cleans up the temp dir) belong to #265.
+installer cleans up the temp dir when `TINGLE_UPDATE_CLEANUP=1`, which
+`tingle update` always sets) belong to #265.
