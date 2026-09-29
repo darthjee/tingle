@@ -88,3 +88,68 @@ for tool in curl unzip jq; do
         exit 1
     fi
 done
+
+usage() {
+    echo "usage: tingle update [--check] [--force] [<version>]" >&2
+}
+
+CHECK=0
+FORCE=0
+PIN_ARG=""
+HAVE_PIN_ARG=0
+for arg in "$@"; do
+    case "$arg" in
+        --check) CHECK=1 ;;
+        --force) FORCE=1 ;;
+        -*)
+            echo "tingle update: unknown option '$arg'" >&2
+            usage
+            exit 1
+            ;;
+        *)
+            if [ "$HAVE_PIN_ARG" -eq 1 ]; then
+                echo "tingle update: unexpected argument '$arg'" >&2
+                usage
+                exit 1
+            fi
+            PIN_ARG="$arg"
+            HAVE_PIN_ARG=1
+            ;;
+    esac
+done
+
+if [ "$HAVE_PIN_ARG" -eq 1 ]; then
+    PIN="$PIN_ARG"
+else
+    PIN="${TINGLE_VERSION:-}"
+fi
+
+# --- 1. Detect the install (E3, E14, E11) -----------------------------------
+
+TINGLE_JSON="$TINGLE_FOLDER/tingle.json"
+
+echo "Updating tingle in $TINGLE_FOLDER"
+
+if [ -e "$TINGLE_JSON" ]; then
+    if ! tingle_json_check "$TINGLE_JSON"; then
+        echo "tingle update: $TINGLE_JSON is corrupt (it can't be parsed, or" \
+            "'version', 'repo' or 'manifest' is missing); nothing was changed" >&2
+        exit 1
+    fi
+    INSTALLED="$(jq -r '.version | tostring' "$TINGLE_JSON")"
+    REPO="$(jq -r '.repo | tostring' "$TINGLE_JSON")"
+elif [ -e "$TINGLE_FOLDER/.git" ]; then
+    echo "tingle update: $TINGLE_FOLDER is a git checkout; update it with" \
+        "'git pull' instead" >&2
+    exit 1
+else
+    echo "tingle update: can't tell how tingle was installed in" \
+        "$TINGLE_FOLDER (no tingle.json and not a git checkout); nothing" \
+        "was changed" >&2
+    exit 1
+fi
+
+if [ ! -w "$TINGLE_FOLDER" ]; then
+    echo "tingle update: the install folder $TINGLE_FOLDER is not writable" >&2
+    exit 1
+fi
