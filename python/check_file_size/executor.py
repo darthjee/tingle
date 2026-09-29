@@ -13,6 +13,16 @@ When `<path>` is inside a git work tree, untracked files ignored by git
 (`.gitignore`, `.git/info/exclude`, global excludes) are skipped by default;
 tracked files are always analysed. `--no-gitignore` turns this off.
 
+Personal defaults are read from the `check_file_size` section of
+`~/.tingle/code_check/config.json` (keys: warn, error, critical, top, exclude,
+ignore, include, ext, no_default_excludes, gitignore, fail_on, min_level).
+Single values given on the CLI win over the config; list values (exclude,
+ignore, include, ext) are concatenated, config first. An invalid config exits
+with status 1. `--no-config` skips the file entirely.
+
+Example config:
+    {"check_file_size": {"warn": 250, "ignore": ["*.lock"], "fail_on": "error"}}
+
 Usage:
     ./check_file_size.py <path> [options]
 
@@ -30,6 +40,7 @@ Examples
     ./check_file_size.py . --ignore '*.test.js' --ignore 'docs/**'
     ./check_file_size.py . --include 'src/**' --ext .py
     ./check_file_size.py ./src --fail-on error
+    ./check_file_size.py ./src --no-config
 
 """
 
@@ -40,6 +51,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from check_file_size.config import ConfigError, default_path, load_section, validate
 from check_file_size.constants import Constants
 from check_file_size.file_analyzer import FileAnalyzer
 from check_file_size.file_collector import FileCollector
@@ -57,26 +69,26 @@ FLAGS: list[dict] = [
     {
         "name": "--warn",
         "type": int,
-        "default": Constants.DEFAULT_WARN,
+        "default": None,
         "help": f"Yellow threshold in lines (default: {Constants.DEFAULT_WARN})",
     },
     {
         "name": "--error",
         "type": int,
-        "default": Constants.DEFAULT_ERROR,
+        "default": None,
         "help": f"Red threshold in lines (default: {Constants.DEFAULT_ERROR})",
     },
     {
         "name": "--critical",
         "type": int,
-        "default": Constants.DEFAULT_CRITICAL,
+        "default": None,
         "help": f"Critical threshold in lines (default: {Constants.DEFAULT_CRITICAL})",
     },
     {
         "name": "--top",
         "type": int,
-        "default": 0,
-        "help": "Show only top N largest files (0 = all)",
+        "default": None,
+        "help": "Show only top N largest files (default: 0 = all)",
     },
     {
         "name": "--min-level",
@@ -135,7 +147,28 @@ FLAGS: list[dict] = [
         "default": None,
         "help": "Exit with status 2 if any file reaches this level or higher",
     },
+    {
+        "name": "--no-config",
+        "action": "store_true",
+        "help": "Do not read ~/.tingle/code_check/config.json",
+    },
 ]
+
+# Section of the config file holding this command's options.
+CONFIG_SECTION = "check_file_size"
+
+# Built-in defaults for single-value options, applied after the config merge.
+SINGLE_DEFAULTS: dict = {
+    "warn": Constants.DEFAULT_WARN,
+    "error": Constants.DEFAULT_ERROR,
+    "critical": Constants.DEFAULT_CRITICAL,
+    "top": 0,
+    "fail_on": None,
+    "min_level": "ok",
+}
+
+# Options whose config list and CLI list are concatenated.
+LIST_KEYS = ("ignore", "include", "ext")
 
 
 class CheckFileSize:
@@ -156,38 +189,90 @@ class CheckFileSize:
             raise
 
     @staticmethod
-    def _resolve_target(path: str) -> Path:
+    def _fail(message: str) -> None:
+        """Print `Error: <message>` in red on stderr and exit with status 1."""
+        err = Palette(sys.stderr)
+        print(f"{err.RED}Error: {message}{err.RESET}", file=sys.stderr)
+        sys.exit(1)
+
+    @classmethod
+    def _resolve_target(cls, path: str) -> Path:
         """Resolve `path`, exiting with status 1 when it does not exist."""
         target = Path(path).resolve()
         if not target.exists():
-            err = Palette(sys.stderr)
-            print(f"{err.RED}Error: path not found: {target}{err.RESET}", file=sys.stderr)
-            sys.exit(1)
+            cls._fail(f"path not found: {target}")
         return target
+
+    @classmethod
+    def _load_config(cls, no_config: bool) -> tuple[dict, Path | None]:
+        """Load and validate the config section.
+
+        Returns `(section, path)`; `path` is None when nothing was loaded
+        (`--no-config`, missing file or missing section). A `ConfigError`
+        exits with status 1.
+        """
+        if no_config:
+            return {}, None
+        path = default_path()
+        try:
+            section = load_section(CONFIG_SECTION, path)
+            if section is None:
+                return {}, None
+            return validate(section, path), path
+        except ConfigError as exc:
+            cls._fail(str(exc))
+            raise  # unreachable: _fail exits
 
     @staticmethod
     def _parse_excludes(raw: str) -> list[str]:
         """Split a comma-separated exclude list, dropping blank entries."""
         return [e.strip() for e in raw.split(",") if e.strip()]
 
-    @classmethod
-    def _resolve_excludes(cls, args: dict) -> list[str]:
-        """Merge the default excludes with `--exclude` names, deduplicated.
+    @staticmethod
+    def _resolve_excludes(extra: list[str], no_default_excludes: bool) -> list[str]:
+        """Merge the default excludes with the `extra` names, deduplicated.
 
-        The defaults are dropped when `--no-default-excludes` is given.
+        The defaults are dropped when `no_default_excludes` is set.
         """
-        base = [] if args["no_default_excludes"] else list(Constants.DEFAULT_EXCLUDES)
-        extra = cls._parse_excludes(args["exclude"] or "")
+        base = [] if no_default_excludes else list(Constants.DEFAULT_EXCLUDES)
         return list(dict.fromkeys(base + extra))
 
+    @classmethod
+    def _merge(cls, cli: dict, config: dict) -> dict:
+        """Resolve every option from the CLI args and the validated config section.
+
+        Single values: built-in default < config < CLI. Lists: config then CLI,
+        concatenated and deduplicated. `--no-default-excludes` and
+        `--no-gitignore` only turn behaviour off and win over the config.
+        """
+        merged = {"path": cli["path"]}
+        for key, default in SINGLE_DEFAULTS.items():
+            if cli[key] is not None:
+                merged[key] = cli[key]
+            else:
+                merged[key] = config.get(key, default)
+        for key in LIST_KEYS:
+            merged[key] = list(dict.fromkeys(config.get(key, []) + (cli[key] or [])))
+        excludes = config.get("exclude", []) + cls._parse_excludes(cli["exclude"] or "")
+        merged["exclude"] = list(dict.fromkeys(excludes))
+        merged["no_default_excludes"] = cli["no_default_excludes"] or config.get(
+            "no_default_excludes", False
+        )
+        merged["gitignore"] = not cli["no_gitignore"] and config.get("gitignore", True)
+        return merged
+
     @staticmethod
-    def _print_header(out: Palette, target: Path, args: dict) -> None:
-        """Print the analysis header (target and thresholds)."""
+    def _print_header(
+        out: Palette, target: Path, args: dict, config: Path | None = None
+    ) -> None:
+        """Print the analysis header (target, thresholds and loaded config file)."""
         print(f"{out.CYAN}{out.BOLD}Analyzing:{out.RESET} {target}")
         print(
             f"{out.DIM}Thresholds: warn={args['warn']} | error={args['error']} | "
             f"critical={args['critical']}{out.RESET}"
         )
+        if config is not None:
+            print(f"{out.DIM}Config: {config}{out.RESET}")
         print()
 
     @staticmethod
@@ -222,19 +307,21 @@ class CheckFileSize:
             arg_parser.build().print_help()
             sys.exit(0)
 
-        args = self._parse(arg_parser, args)
-        min_level = args["min_level"] or "ok"
+        cli = self._parse(arg_parser, args)
+        config, config_file = self._load_config(cli["no_config"])
+        args = self._merge(cli, config)
+        min_level = args["min_level"]
         target = self._resolve_target(args["path"])
 
         out = Palette(sys.stdout)
-        self._print_header(out, target, args)
+        self._print_header(out, target, args, config_file)
 
         collector = FileCollector(
-            self._resolve_excludes(args),
+            self._resolve_excludes(args["exclude"], args["no_default_excludes"]),
             args["ext"],
-            ignore=args["ignore"] or [],
-            include=args["include"] or [],
-            gitignore=not args["no_gitignore"],
+            ignore=args["ignore"],
+            include=args["include"],
+            gitignore=args["gitignore"],
         )
         files = collector.collect(target)
 

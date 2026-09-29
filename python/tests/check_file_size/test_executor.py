@@ -222,15 +222,15 @@ def test_parse_excludes_empty_string_returns_empty_list():
     ],
 )
 def test_resolve_excludes(exclude, no_defaults, expected):
-    args = {"exclude": exclude, "no_default_excludes": no_defaults}
+    extra = CheckFileSize._parse_excludes(exclude or "")
 
-    assert CheckFileSize._resolve_excludes(args) == expected
+    assert CheckFileSize._resolve_excludes(extra, no_defaults) == expected
 
 
 def test_resolve_excludes_does_not_mutate_defaults():
     before = list(Constants.DEFAULT_EXCLUDES)
 
-    CheckFileSize._resolve_excludes({"exclude": "x", "no_default_excludes": False})
+    CheckFileSize._resolve_excludes(["x"], False)
 
     assert before == Constants.DEFAULT_EXCLUDES
 

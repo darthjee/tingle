@@ -42,6 +42,10 @@ tingle check_file_size <path> [options]
 | `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches this glob. Can be repeated. |
 | `--include GLOB` | none | Only analyse files whose path relative to `<path>` matches this glob. Can be repeated. |
 | `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
+| `--no-config` | off | Do not read `~/.tingle/code_check/config.json` (see [Configuration file](#configuration-file)). |
+
+The defaults above are the built-in ones. Your
+[configuration file](#configuration-file) can change them.
 
 ### `--exclude`
 
@@ -323,6 +327,127 @@ binary. For example, `tingle check_file_size ./main.py --ignore 'main.*'`
 leaves nothing to analyse, so it prints `No files found for analysis.` and
 exits `0`.
 
+## Configuration file
+
+If you always pass the same options, store them once in a configuration
+file instead:
+
+```
+~/.tingle/code_check/config.json
+```
+
+The file is looked up in your home directory (`$HOME`). Its location cannot
+be changed, and there is no per-project configuration file. The file is
+optional: if it does not exist, the built-in defaults are used and nothing
+is printed about it.
+
+The file holds a JSON object. The options for this command go under the
+`check_file_size` key:
+
+```json
+{
+  "check_file_size": {
+    "warn": 200,
+    "exclude": ["fixtures"],
+    "ignore": ["*.test.js", "*.lock"],
+    "fail_on": "error"
+  }
+}
+```
+
+Other top-level keys are ignored: they are reserved for a future `code_check`
+tool that will share this file. If the file exists but has no
+`check_file_size` key, the built-in defaults are used, as if the file did
+not exist.
+
+### Keys
+
+Every key is optional and matches a command-line option:
+
+| Key | Type | Option |
+| --- | --- | --- |
+| `warn` | integer >= 0 | `--warn` |
+| `error` | integer >= 0 | `--error` |
+| `critical` | integer >= 0 | `--critical` |
+| `top` | integer >= 0 | `--top` |
+| `exclude` | list of strings | `--exclude` (comma-separated on the command line) |
+| `ignore` | list of strings | `--ignore` |
+| `include` | list of strings | `--include` |
+| `ext` | list of strings | `--ext` |
+| `no_default_excludes` | `true` or `false` (default `false`) | `--no-default-excludes` |
+| `gitignore` | `true` or `false` (default `true`) | `--no-gitignore` (inverted: `"gitignore": false` is the same as `--no-gitignore`) |
+| `fail_on` | `"warn"`, `"error"`, `"critical"` or `null` | `--fail-on` (`null` means no gate) |
+| `min_level` | `"ok"`, `"warn"`, `"error"` or `"critical"` | `--min-level` |
+
+Notes:
+
+- Integers must be real JSON numbers: `"top": true` or `"top": "20"` are
+  errors.
+- In lists, write each item as its own string: `"exclude": ["fixtures",
+  "tmp"]`, not `"fixtures,tmp"`. An empty list is valid and adds nothing.
+- The path to analyse is not a config key: you always give it on the
+  command line. A `path` key is reported as an unknown key.
+
+### How the config and the command line combine
+
+- **Single values** (`warn`, `error`, `critical`, `top`, `fail_on`,
+  `min_level`): the command line wins over the config, which wins over the
+  built-in default.
+- **Lists** (`exclude`, `ignore`, `include`, `ext`): the config values come
+  first, then the command-line values are **added**. Duplicates are dropped.
+- **`no_default_excludes` and `gitignore`**: the config can set either
+  value. `--no-default-excludes` and `--no-gitignore` can only turn the
+  behaviour off, and they win over the config.
+
+With the example config above:
+
+| Command | Result |
+| --- | --- |
+| `tingle check_file_size .` | `warn=200`, the default excludes plus `fixtures`, skips `*.test.js` and `*.lock`, fails on ERROR. |
+| `tingle check_file_size . --warn 400` | `warn=400`: the command line wins. |
+| `tingle check_file_size . --ignore '*.spec.js'` | Skips `*.test.js`, `*.lock` **and** `*.spec.js`: both lists apply. |
+| `tingle check_file_size . --fail-on critical` | Fails on CRITICAL only. |
+
+When a `check_file_size` section was loaded, even an empty one, the header
+shows the file in use (see [Header](#header)).
+
+### Running without the config: `--no-config`
+
+Some config values cannot be undone from the command line. For example,
+there is no option to turn the gate off when the config sets `fail_on`, or
+to turn `.gitignore` back on when it sets `"gitignore": false`. Pass
+`--no-config` to ignore the file completely:
+
+```
+tingle check_file_size . --no-config
+```
+
+With `--no-config`, the file is not read or checked at all (even an invalid
+one), and only the built-in defaults and the options you pass are used.
+
+### Config errors
+
+The file is checked every time it is read, even when you pass every option
+on the command line. If something is wrong, the command prints one error line
+on standard error and exits with status `1`, before printing any report:
+
+```
+Error: /home/me/.tingle/code_check/config.json: <reason>
+```
+
+Typical reasons:
+
+- the file is not valid JSON, or cannot be read;
+- the top level, or the `check_file_size` section, is not a JSON object;
+- an unknown key, such as a typo: `unknown key 'wran'`;
+- a wrong type or value, for example `'top' must be an integer >= 0` or
+  `'fail_on' must be one of warn, error, critical or null`.
+
+Fix the file, or run with `--no-config` in the meantime.
+
+The config is never read when you run `tingle check_file_size` with no
+arguments: the help is printed as usual.
+
 ## Skipped files
 
 Besides the excluded directories (the defaults plus any `--exclude` names),
@@ -368,7 +493,18 @@ Total: 2.278 lines
 ### Header
 
 - `Analyzing:` shows the target as an absolute path.
-- `Thresholds:` shows the `warn`, `error` and `critical` values in use.
+- `Thresholds:` shows the `warn`, `error` and `critical` values in use,
+  after applying the config file and the command-line options.
+- `Config:` (dimmed) shows the path of the
+  [configuration file](#configuration-file), right after the `Thresholds:`
+  line. It only appears when the file has a `check_file_size` section (even
+  an empty one), and never with `--no-config`:
+
+  ```
+  Analyzing: /home/me/projects/my-app
+  Thresholds: warn=200 | error=500 | critical=1000
+  Config: /home/me/.tingle/code_check/config.json
+  ```
 
 ### Table
 
@@ -517,6 +653,14 @@ checks every file:
 tingle check_file_size ./src --min-level error --fail-on error
 ```
 
+If your personal [configuration file](#configuration-file) sets options,
+they apply on any machine where that file exists. Pass `--no-config` to make a CI step depend only on its
+own options:
+
+```
+tingle check_file_size ./src --no-config --fail-on error
+```
+
 ## Exit status and errors
 
 | Situation | Output | Exit status |
@@ -524,6 +668,7 @@ tingle check_file_size ./src --min-level error --fail-on error
 | No arguments | Prints the option help | `0` |
 | `<path>` does not exist | `Error: path not found: <absolute path>` on **standard error** | `1` |
 | Unknown option or invalid value (e.g. `--top abc`, `--fail-on foo`, `--min-level foo`) | A usage error on standard error | `1` |
+| Invalid config file (bad JSON, unknown key, wrong type, ...) | `Error: <config path>: <reason>` on **standard error** (see [Config errors](#config-errors)) | `1` |
 | No files left to analyse | The header, then `No files found for analysis.` | `0` |
 | Analysis completed, no `--fail-on` | The report | `0` |
 | Analysis completed, `--fail-on` gate passed | The report | `0` |
@@ -534,7 +679,7 @@ In short:
 | Code | Meaning |
 | --- | --- |
 | `0` | Success, or the size gate passed / was not requested |
-| `1` | Runtime or usage error (path not found, unknown option, invalid value) |
+| `1` | Runtime or usage error (path not found, unknown option, invalid value, invalid config file) |
 | `2` | The size gate failed (`--fail-on`) |
 
 Status `2` means only "the size gate failed", so a CI job can tell large
