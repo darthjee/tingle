@@ -116,6 +116,6 @@ docs/agents/specs/<topic>/README.md
 docs/agents/specs/<topic>/<feature>.md
 ```
 
-Example: `docs/agents/specs/check_file_size/README.md` for issue #247. A
+Example: `docs/agents/specs/add-auth/README.md` for issue #12. A
 topic's folder is removed once its split issue is done; the permanent index
 [`docs/agents/specs.md`](docs/agents/specs.md) lists the current specs.
