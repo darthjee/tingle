@@ -54,6 +54,7 @@ because #253 maps them to config keys.
 | `--ext .x` | str | yes (`append`) | none (no filter) | `ext` (list of str) |
 | `--fail-on LEVEL` | `warn\|error\|critical` | no | none (no gate) | `fail_on` (str or `null`) |
 | `--min-level LEVEL` | `ok\|warn\|error\|critical` | no | `ok` | `min_level` (str) |
+| `--no-config` | `store_true` | no | off | none (the config file is not read or validated) |
 
 Flags keep being declared in the `FLAGS` list in
 `python/check_file_size/executor.py` and parsed by `common/arg_parser.py`.
@@ -74,6 +75,8 @@ Choice-valued flags use argparse `choices`, so a bad value is a usage error
 - To detect "not given on the CLI", single-value flags must default to `None`
   in `FLAGS`, and the built-in default is filled in after merging. The help
   text still shows the built-in default.
+- `--no-config` skips the config file entirely (not read, not validated), so
+  the order becomes built-in defaults < CLI. See [config.md](config.md).
 
 ## 5. Filter pipeline in `FileCollector`
 
