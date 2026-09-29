@@ -352,6 +352,23 @@ update_commit() {
     fi
 }
 
+# update_wire
+# Phase 6: runs <target>/bin/tingle install as a child process (not exec,
+# so the EXIT trap still fires: S3), releases the lock and reports.
+update_wire() {
+    UPDATE_PHASE="wire"
+    if ! "$UPDATE_TARGET/bin/tingle" install; then
+        update_die "tingle $VERSION was installed in '$UPDATE_TARGET', but" \
+            "wiring ~/.bashrc failed; re-run '$UPDATE_TARGET/bin/tingle" \
+            "install' by hand"
+    fi
+    rm -rf "$UPDATE_LOCK"
+    UPDATE_LOCK=""
+    echo "tingle in '$UPDATE_TARGET' was updated to $VERSION."
+    echo "Already-open shells need a restart (or 'source ~/.bashrc') to pick" \
+        "up the new completion."
+}
+
 update_main() {
     UPDATE_TARGET="$(normalize_target "$1")"
     trap update_on_exit EXIT
@@ -376,4 +393,5 @@ update_main() {
     update_swap
     update_prune
     update_commit
+    update_wire
 }
