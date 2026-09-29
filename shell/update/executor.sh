@@ -79,7 +79,7 @@ set -euo pipefail
 
 TINGLE_FOLDER="$(cd "$(dirname "$0")/../.." && pwd)"
 
-# shellcheck source=SCRIPTDIR/../../install/manifest.sh
+# shellcheck source=SCRIPTDIR/../../install/manifest.sh disable=SC1091
 . "$TINGLE_FOLDER/install/manifest.sh"
 
 for tool in curl unzip jq; do
