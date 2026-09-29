@@ -26,12 +26,11 @@ folder.
 - The folder name is the command or topic (e.g. `check_file_size`).
 - The `README.md` links the parent GitHub issue, and each feature spec links
   its sub-issue.
-- A new split adds an entry to the table below, and its cleanup sub-issue
-  removes the entry.
+- A new split adds an entry to [Current specs](#current-specs) (a table with
+  Topic, Specs, Parent issue and Sub-issues columns), and its cleanup
+  sub-issue removes the entry.
 - Specs are normative: write "must" / "is", not "could" / "might".
 
 ## Current specs
 
-| Topic | Specs | Parent issue | Sub-issues |
-|-------|-------|--------------|------------|
-| `check_file_size` | [`specs/check_file_size/README.md`](specs/check_file_size/README.md) | #247 | #249–#254 |
+No specs in progress.
