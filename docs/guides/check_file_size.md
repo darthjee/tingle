@@ -84,6 +84,11 @@ use [`--ignore`](#--ignore-and---include).
 `--exclude` is not repeatable: if you pass it more than once, only the last
 one counts. Put all the names in a single comma-separated list.
 
+Spaces around each name are trimmed and empty entries are dropped, so
+`--exclude ' fixtures, ,tmp'` adds `fixtures` and `tmp`, and `--exclude ''`
+adds nothing. A name that is already a default (`--exclude dist`) has no
+extra effect and is not an error.
+
 > `--exclude` now **adds** to the default excludes instead of replacing them.
 > `--exclude fixtures` now also skips `node_modules`, `dist`, `build`, etc.
 > For the old behaviour, use `--no-default-excludes --exclude fixtures`.
@@ -102,6 +107,10 @@ Combine it with `--exclude` to choose exactly which names to skip:
 ```
 tingle check_file_size . --no-default-excludes --exclude node_modules,fixtures
 ```
+
+`.gitignore` support does not skip `.git/`, because git never lists it as
+ignored. If you drop the defaults but still want to leave `.git/` out, add
+it back with `--exclude .git`.
 
 ### .gitignore and `--no-gitignore`
 
@@ -531,6 +540,10 @@ With the default thresholds:
 
 Each threshold is inclusive: a file with exactly 500 lines is ERROR, not
 WARN.
+
+The order of the thresholds is not checked, on the command line or in the
+config file. Keep `warn` < `error` < `critical`, or the labels will not make
+sense.
 
 ### Summary
 
