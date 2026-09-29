@@ -82,13 +82,6 @@ TINGLE_FOLDER="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=SCRIPTDIR/../../install/manifest.sh disable=SC1091
 . "$TINGLE_FOLDER/install/manifest.sh"
 
-for tool in curl unzip jq; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "tingle update: required tool '$tool' not found on PATH" >&2
-        exit 1
-    fi
-done
-
 usage() {
     echo "usage: tingle update [--check] [--force] [<version>]" >&2
 }
@@ -146,11 +139,14 @@ validate_version() {
     fi
 }
 
-# A pin is validated before anything else, and before any network call (E6,
-# E2).
-if [ -n "$PIN" ]; then
-    validate_version "$PIN" || exit 1
-fi
+# --- Git checkout update path -----------------------------------------------
+
+# Updates a git checkout of tingle. Never returns: it exits or execs.
+git_update() {
+    echo "tingle update: $TINGLE_FOLDER is a git checkout; update it with" \
+        "'git pull' instead" >&2
+    exit 1
+}
 
 # --- 1. Detect the install (E3, E14, E11) -----------------------------------
 
@@ -158,24 +154,38 @@ TINGLE_JSON="$TINGLE_FOLDER/tingle.json"
 
 echo "Updating tingle in $TINGLE_FOLDER"
 
-if [ -e "$TINGLE_JSON" ]; then
-    if ! tingle_json_check "$TINGLE_JSON"; then
-        echo "tingle update: $TINGLE_JSON is corrupt (it can't be parsed, or" \
-            "'version', 'repo' or 'manifest' is missing); nothing was changed" >&2
-        exit 1
+# tingle.json wins when both it and .git exist.
+if [ ! -e "$TINGLE_JSON" ]; then
+    if [ -e "$TINGLE_FOLDER/.git" ]; then
+        git_update
     fi
-    INSTALLED="$(jq -r '.version | tostring' "$TINGLE_JSON")"
-    REPO="$(jq -r '.repo | tostring' "$TINGLE_JSON")"
-elif [ -e "$TINGLE_FOLDER/.git" ]; then
-    echo "tingle update: $TINGLE_FOLDER is a git checkout; update it with" \
-        "'git pull' instead" >&2
-    exit 1
-else
     echo "tingle update: can't tell how tingle was installed in" \
         "$TINGLE_FOLDER (no tingle.json and not a git checkout); nothing" \
         "was changed" >&2
     exit 1
 fi
+
+# --- Web install path -------------------------------------------------------
+
+for tool in curl unzip jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "tingle update: required tool '$tool' not found on PATH" >&2
+        exit 1
+    fi
+done
+
+# A pin is validated before any network call (E6, E2).
+if [ -n "$PIN" ]; then
+    validate_version "$PIN" || exit 1
+fi
+
+if ! tingle_json_check "$TINGLE_JSON"; then
+    echo "tingle update: $TINGLE_JSON is corrupt (it can't be parsed, or" \
+        "'version', 'repo' or 'manifest' is missing); nothing was changed" >&2
+    exit 1
+fi
+INSTALLED="$(jq -r '.version | tostring' "$TINGLE_JSON")"
+REPO="$(jq -r '.repo | tostring' "$TINGLE_JSON")"
 
 if [ ! -w "$TINGLE_FOLDER" ]; then
     echo "tingle update: the install folder $TINGLE_FOLDER is not writable" >&2
