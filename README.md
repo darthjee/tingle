@@ -83,6 +83,7 @@ tingle/
 | `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
 | [`install`](docs/guides/install.md) | Shell | Adds `tingle` to `PATH` and installs bash completion, by idempotently appending a marker block to `~/.bashrc` (rewritten in place if the tingle folder moved). Bash only. |
 | [`uninstall`](docs/guides/uninstall.md) | Shell | Removes the `tingle` marker block from `~/.bashrc`, leaving the tingle folder in place. |
+| `update` | Shell | Updates a web install (one with `tingle.json`) to the latest stable release or a pinned version (`tingle update [--check] [--force] [<version>]`), keeping files the user added. Git checkouts are pointed at `git pull`. |
 | [`linux`](docs/guides/linux.md) | Shell | Runs real GNU/Linux command-line tools (`shell`, `sed`) inside a Docker container, mounting the current working directory in at the same path. |
 
 ## Commands
