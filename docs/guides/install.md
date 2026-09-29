@@ -115,9 +115,9 @@ In both cases, the rest of `~/.bashrc` is never touched.
 
 ## Updating
 
-To upgrade a web install to a newer release later, run `tingle update`. See
-the [`update` guide](update.md) for details. A cloned repository is updated
-with `git pull` instead.
+To upgrade tingle later, run `tingle update`. It updates a web install to a
+newer release, and a cloned repository with `git pull --ff-only`. See the
+[`update` guide](update.md) for details.
 
 ## Uninstalling
 
