@@ -283,3 +283,93 @@ if [ -z "${TINGLE_ASSUME_YES:-}" ]; then
             ;;
     esac
 fi
+
+# --- 5. Download and verify (E7, E8, E9, E9b) -------------------------------
+
+# S1: no trap here. Every failure from now on goes through fail, which
+# removes the temp dir itself before exiting.
+WORK="$(mktemp -d)"
+
+fail() {
+    rm -rf "$WORK"
+    echo "tingle update: $*" >&2
+    exit 1
+}
+
+# fetch <url> <dest>: downloads <url> into <dest> and prints the HTTP status
+# ("200" on success). A curl failure prints "000", or "404" for a file:// URL
+# (a missing local file); file:// reports no status, so success is a 200.
+fetch() {
+    local url="$1" dest="$2" code
+    if code="$(curl -L -sS -o "$dest" -w '%{http_code}' "$url")"; then
+        if [ "$code" = "000" ]; then
+            code=200
+        fi
+    else
+        case "$url" in
+            file://*) code=404 ;;
+            *) code=000 ;;
+        esac
+    fi
+    printf '%s\n' "$code"
+}
+
+ZIP_NAME="tingle-$TARGET.zip"
+ZIP_URL="$BASE_URL/$TARGET/$ZIP_NAME"
+ZIP="$WORK/$ZIP_NAME"
+
+status="$(fetch "$ZIP_URL" "$ZIP")"
+case "$status" in
+    200) ;;
+    404)
+        rm -rf "$WORK"
+        echo "release $TARGET not found in $REPO" >&2
+        exit 1
+        ;;
+    403|429)
+        fail "the GitHub rate limit was hit (HTTP $status) while downloading" \
+            "$ZIP_URL; try again later"
+        ;;
+    000)
+        fail "could not download $ZIP_URL (network failure); nothing was changed"
+        ;;
+    *)
+        fail "unexpected response (HTTP $status) while downloading $ZIP_URL;" \
+            "nothing was changed"
+        ;;
+esac
+
+status="$(fetch "$ZIP_URL.sha256" "$ZIP.sha256")"
+if [ "$status" != "200" ]; then
+    fail "could not download the checksum $ZIP_URL.sha256 (HTTP $status);" \
+        "nothing was changed"
+fi
+
+expected="$(awk 'NR == 1 { print $1; exit }' "$ZIP.sha256")"
+actual="$(tingle_sha256 "$ZIP")" || actual=""
+if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    fail "checksum mismatch for $ZIP_NAME (expected '$expected', got" \
+        "'$actual'); the download was deleted and nothing was changed"
+fi
+
+if ! unzip -q "$ZIP" -d "$WORK"; then
+    fail "$ZIP_NAME could not be unzipped; nothing was changed"
+fi
+
+if [ ! -f "$WORK/install/installer.sh" ] || [ ! -x "$WORK/install/installer.sh" ]; then
+    fail "$ZIP_NAME has no executable install/installer.sh; nothing was changed"
+fi
+
+# --- 6. Hand off (S1) -------------------------------------------------------
+
+# The installer's EXIT trap removes $WORK (TINGLE_UPDATE_CLEANUP=1). Nothing
+# may run after this exec.
+# Only --force may reach the installer as TINGLE_UPDATE_FORCE=1.
+if [ "$FORCE" -eq 1 ]; then
+    export TINGLE_UPDATE_FORCE=1
+else
+    unset TINGLE_UPDATE_FORCE
+fi
+TINGLE_UPDATE_TARGET="$TINGLE_FOLDER" TINGLE_UPDATE_CLEANUP=1 \
+TINGLE_REPO="$REPO" TINGLE_VERSION="$TARGET" \
+exec "$WORK/install/installer.sh"
