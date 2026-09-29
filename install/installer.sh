@@ -123,12 +123,7 @@ if [ -n "${TINGLE_UPDATE_TARGET+set}" ]; then
             "the install folder to update" >&2
         exit 1
     fi
-    if ! command -v jq >/dev/null 2>&1; then
-        echo "installer.sh: update mode requires 'jq', which was not found" \
-            "on PATH" >&2
-        exit 1
-    fi
-    update_main "$(normalize_target "$TINGLE_UPDATE_TARGET")"
+    update_main "$TINGLE_UPDATE_TARGET"
     exit 0
 fi
 
