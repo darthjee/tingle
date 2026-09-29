@@ -10,11 +10,14 @@
 # Tag resolution: $CIRCLE_TAG when set (CI), else a positional <tag> argument
 # (local dev). Plain semver X.Y.Z (X.Y.Z-<suffix> allowed), no "v" prefix.
 #
-# Zip content: the INCLUDES allowlist (bin commands completions shell python
-# node README.md LICENSE) tracked by git, minus python/tests/,
+# Zip content: the INCLUDES allowlist (bin commands completions install shell
+# python node README.md LICENSE) tracked by git, minus python/tests/,
 # python/Dockerfile, python/pyproject.toml, python/requirements-dev.txt, and
-# any .gitkeep. A sorted MANIFEST (excluding itself) is embedded at the zip
-# root.
+# any .gitkeep. A MANIFEST is embedded at the zip root, in sha256sum format:
+# one "<64-hex>  <path>" line per packaged file (lowercase SHA-256, two
+# spaces, repo-relative plain path), sorted by path with LC_ALL=C, not
+# listing MANIFEST itself. Consumers split a line on the first two spaces
+# only (see install/manifest.sh).
 #
 # publish creates or updates (idempotent) the GitHub Release for the tag and
 # uploads both assets, replacing any existing asset of the same name.
@@ -29,7 +32,7 @@ set -euo pipefail
 
 REPO_API="https://api.github.com/repos/darthjee/tingle"
 REPO_UPLOADS="https://uploads.github.com/repos/darthjee/tingle"
-INCLUDES="bin commands completions shell python node README.md LICENSE"
+INCLUDES="bin commands completions install shell python node README.md LICENSE"
 PRUNE_PATTERN='^python/(tests/|Dockerfile$|pyproject\.toml$|requirements-dev\.txt$)'
 GITKEEP_PATTERN='(^|/)\.gitkeep$'
 SENSITIVE_PATTERN='(^|/)(\.env|\.netrc|\.npmrc|id_[a-z0-9_]+|.*\.pem|.*\.key|.*\.p12|.*\.pfx)$'
@@ -87,7 +90,19 @@ cmd_build() {
 
   tmp_dir=$(mktemp -d)
   manifest="$tmp_dir/MANIFEST"
-  echo "$files" > "$manifest"
+  : > "$manifest"
+  local f hash
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    # shellcheck disable=SC2046,SC2091
+    hash=$($(sha_tool) < "$f" | cut -d' ' -f1)
+    if [ -z "$hash" ]; then
+      echo "release_cli.sh: failed to hash '$f'" >&2
+      rm -rf "$tmp_dir"
+      exit 1
+    fi
+    printf '%s  %s\n' "$hash" "$f" >> "$manifest"
+  done <<< "$files"
 
   echo "$files" | zip -q "$zip_path" -@
   zip -j -q "$zip_path" "$manifest"

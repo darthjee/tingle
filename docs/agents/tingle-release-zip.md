@@ -10,7 +10,7 @@ contract as its authoritative spec.
 - **Zip name**: `tingle-<tag>.zip`, where `<tag>` is the plain semver tag
   (`X.Y.Z`, no `v` prefix — per #49).
 - **`INCLUDES` allowlist** (fail-closed): top-level `bin commands completions
-  shell python node README.md LICENSE`, resolved via `git ls-files` (tracked
+  install shell python node README.md LICENSE`, resolved via `git ls-files` (tracked
   files only), then pruned of:
   - `python/tests/`
   - `python/Dockerfile`
@@ -20,8 +20,22 @@ contract as its authoritative spec.
 
   A new runnable language dir must be added to this allowlist explicitly, or
   releases silently omit it.
-- **`MANIFEST`**: embedded at the zip root. Sorted (`LC_ALL=C`) list of every
-  packaged repo-relative path, one per line; it does not list itself.
+- **`MANIFEST`**: embedded at the zip root, in `sha256sum` format — one line
+  `<64-hex>  <path>` (lowercase hex, two spaces, repo-relative plain path) per
+  packaged file, sorted with `LC_ALL=C` by path; it does not list itself.
+  Consumers split each line on the **first two spaces only**: the hash is the
+  text before them and the path is everything after them, including any
+  further spaces.
+- **`tingle.json`**: written by `install/installer.sh` into the install
+  folder:
+  `{"version": "X.Y.Z", "repo": "owner/repo", "manifest": [{"path": "...", "sha256": "<64-hex>"}]}`.
+  `version`, `repo` and `manifest` are required; `manifest` is `[]` when the
+  release has no `MANIFEST`. 0.3.x and earlier wrote a path-only
+  `"manifest": ["path", ...]`, which readers still accept as entries without
+  a hash. Whether an install tracks hashes is decided from this format, never
+  from the `version` string. The helpers that hash files, convert `MANIFEST`
+  to JSON and read both `tingle.json` formats live in the sourced library
+  `install/manifest.sh`.
 - **`.sha256` sidecar**: `tingle-<tag>.zip.sha256`, `sha256sum` format — one
   line `<64-hex>  tingle-<tag>.zip` (two spaces) — so `sha256sum -c` /
   `shasum -a 256 -c` works from `dist/`.

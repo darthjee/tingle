@@ -17,6 +17,24 @@
 #   - Writes <target>/tingle.json, embedding the release's MANIFEST.
 #   - Runs "<target>/bin/tingle install" to wire tingle into ~/.bashrc.
 #
+# tingle.json schema:
+#   {
+#     "version": "X.Y.Z",
+#     "repo": "owner/repo",
+#     "manifest": [
+#       {"path": "bin/tingle", "sha256": "<64-hex>"}
+#     ]
+#   }
+# "manifest" is built from the release's MANIFEST ("<64-hex>  <path>" lines)
+# and is [] when there is no MANIFEST (hand-built tree) or it is empty. Paths
+# are JSON-escaped (backslashes and double quotes). 0.3.x and earlier wrote a
+# path-only "manifest": ["path", ...]; readers (install/manifest.sh) still
+# accept it, treating those entries as having no hash.
+#
+# Requires its sibling install/manifest.sh (sourced helper library). The
+# first-install path never calls the tingle.json readers, so jq stays
+# optional here.
+#
 # Env vars (inherited from bootstrap.sh, or defaulted when run standalone):
 #   TINGLE_REPO     - GitHub "owner/repo" recorded in tingle.json.
 #                     Default: darthjee/tingle
@@ -35,6 +53,14 @@ DEFAULT_TARGET="$HOME/.tingle"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [ ! -f "$SCRIPT_DIR/manifest.sh" ]; then
+    echo "installer.sh: helper library '$SCRIPT_DIR/manifest.sh' not found;" \
+        "the release tree looks incomplete" >&2
+    exit 1
+fi
+# shellcheck source=SCRIPTDIR/manifest.sh
+. "$SCRIPT_DIR/manifest.sh"
 
 for tool in curl unzip bash; do
     if ! command -v "$tool" >/dev/null 2>&1; then
@@ -73,17 +99,14 @@ if [ -f "$target/tingle.json" ]; then
     exit 1
 fi
 
+if ! manifest_json="$(tingle_manifest_to_json "$SOURCE_ROOT/MANIFEST")"; then
+    echo "installer.sh: $SOURCE_ROOT/MANIFEST is malformed; nothing was" \
+        "installed" >&2
+    exit 1
+fi
+
 mkdir -p "$target"
 cp -R "$SOURCE_ROOT/." "$target/"
-
-manifest_json="[]"
-if [ -f "$SOURCE_ROOT/MANIFEST" ]; then
-    manifest_json="$(
-        awk 'NF { gsub(/\\/, "\\\\", $0); gsub(/"/, "\\\"", $0); printf "%s\"%s\"", (NR>1 ? ",\n    " : "\n    "), $0 } END { print "\n  " }' \
-            "$SOURCE_ROOT/MANIFEST"
-    )"
-    manifest_json="[$manifest_json]"
-fi
 
 cat > "$target/tingle.json" <<EOF
 {
