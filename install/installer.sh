@@ -54,13 +54,61 @@ DEFAULT_TARGET="$HOME/.tingle"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-if [ ! -f "$SCRIPT_DIR/manifest.sh" ]; then
-    echo "installer.sh: helper library '$SCRIPT_DIR/manifest.sh' not found;" \
-        "the release tree looks incomplete" >&2
-    exit 1
-fi
+for helper in manifest.sh update.sh; do
+    if [ ! -f "$SCRIPT_DIR/$helper" ]; then
+        echo "installer.sh: helper library '$SCRIPT_DIR/$helper' not found;" \
+            "the release tree looks incomplete" >&2
+        exit 1
+    fi
+done
 # shellcheck source=SCRIPTDIR/manifest.sh
 . "$SCRIPT_DIR/manifest.sh"
+# shellcheck source=SCRIPTDIR/update.sh
+. "$SCRIPT_DIR/update.sh"
+
+# normalize_target <path>
+# Prints <path> with a leading ~ expanded, made absolute (a relative path is
+# resolved against the current directory).
+normalize_target() {
+    local path="$1"
+    case "$path" in
+        '~') path="$HOME" ;;
+        '~'/*) path="$HOME/${path#\~/}" ;;
+    esac
+    case "$path" in
+        /*) ;;
+        *) path="$(pwd)/$path" ;;
+    esac
+    printf '%s\n' "$path"
+}
+
+# path_is_safe <manifest path>
+# Succeeds when <path> is a non-empty relative path with no ".." component,
+# i.e. one that cannot point outside the install folder.
+path_is_safe() {
+    local path="$1"
+    case "$path" in
+        ''|/*) return 1 ;;
+        ..|../*|*/..|*/../*) return 1 ;;
+    esac
+    return 0
+}
+
+# write_tingle_json <target> <manifest json>
+# Writes <target>/tingle.json (VERSION, REPO and the given "manifest" array)
+# to a temp file in <target>, then renames it into place.
+write_tingle_json() {
+    local target="$1" manifest_json="$2"
+    local tmp="$target/.tingle.json.tingle-new"
+    cat > "$tmp" <<EOF
+{
+  "version": "$VERSION",
+  "repo": "$REPO",
+  "manifest": $manifest_json
+}
+EOF
+    mv -f "$tmp" "$target/tingle.json"
+}
 
 for tool in curl unzip bash; do
     if ! command -v "$tool" >/dev/null 2>&1; then
@@ -68,6 +116,21 @@ for tool in curl unzip bash; do
         exit 1
     fi
 done
+
+if [ -n "${TINGLE_UPDATE_TARGET+set}" ]; then
+    if [ -z "$TINGLE_UPDATE_TARGET" ]; then
+        echo "installer.sh: TINGLE_UPDATE_TARGET is set but empty; set it to" \
+            "the install folder to update" >&2
+        exit 1
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "installer.sh: update mode requires 'jq', which was not found" \
+            "on PATH" >&2
+        exit 1
+    fi
+    update_main "$(normalize_target "$TINGLE_UPDATE_TARGET")"
+    exit 0
+fi
 
 for tool in jq docker; do
     if ! command -v "$tool" >/dev/null 2>&1; then
@@ -80,17 +143,7 @@ target=""
 if printf '%s' "Install tingle to [$DEFAULT_TARGET]: " > /dev/tty 2>/dev/null; then
     read -r target < /dev/tty || target=""
 fi
-target="${target:-$DEFAULT_TARGET}"
-
-# Expand a leading ~ and normalize relative paths.
-case "$target" in
-    '~') target="$HOME" ;;
-    '~'/*) target="$HOME/${target#\~/}" ;;
-esac
-case "$target" in
-    /*) ;;
-    *) target="$(pwd)/$target" ;;
-esac
+target="$(normalize_target "${target:-$DEFAULT_TARGET}")"
 
 if [ -f "$target/tingle.json" ]; then
     echo "installer.sh: $target/tingle.json already exists; tingle appears" \
@@ -108,12 +161,6 @@ fi
 mkdir -p "$target"
 cp -R "$SOURCE_ROOT/." "$target/"
 
-cat > "$target/tingle.json" <<EOF
-{
-  "version": "$VERSION",
-  "repo": "$REPO",
-  "manifest": $manifest_json
-}
-EOF
+write_tingle_json "$target" "$manifest_json"
 
 exec "$target/bin/tingle" install
