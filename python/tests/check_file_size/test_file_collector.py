@@ -109,3 +109,98 @@ def test_collect_skips_permission_denied_subdirectory(tmp_path):
         denied.chmod(0o755)
 
     assert results == [tmp_path / "visible.py"]
+
+
+def _make_tree(root, *rel_paths):
+    for rel in rel_paths:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x\n")
+
+
+def _rel(root, paths):
+    return {p.relative_to(root).as_posix() for p in paths}
+
+
+def test_collect_ignore_drops_unanchored_matches(tmp_path):
+    _make_tree(tmp_path, "a.test.js", "src/b.TEST.js", "src/c.js")
+
+    collector = FileCollector([], None, ignore=["*.test.js"])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"src/c.js"}
+
+
+def test_collect_ignore_anchored_pattern(tmp_path):
+    _make_tree(tmp_path, "tests/fixtures/a.json", "tests/fixtures/x/b.json",
+               "lib/tests/fixtures/c.json", "tests/test_a.py")
+
+    collector = FileCollector([], None, ignore=["tests/fixtures/**"])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {
+        "lib/tests/fixtures/c.json", "tests/test_a.py",
+    }
+
+
+def test_collect_ignore_is_repeatable(tmp_path):
+    _make_tree(tmp_path, "docs/guide.txt", "README.md", "src/a.py")
+
+    collector = FileCollector([], None, ignore=["docs/**", "*.md"])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"src/a.py"}
+
+
+def test_collect_include_keeps_only_matches(tmp_path):
+    _make_tree(tmp_path, "src/a.py", "src/x/b.js", "lib/c.py", "d.py")
+
+    collector = FileCollector([], None, include=["src/**"])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"src/a.py", "src/x/b.js"}
+
+
+def test_collect_empty_include_list_keeps_everything(tmp_path):
+    _make_tree(tmp_path, "a.py", "b.js")
+
+    collector = FileCollector([], None, include=[""])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"a.py", "b.js"}
+
+
+def test_collect_include_and_ext_are_combined_with_and(tmp_path):
+    _make_tree(tmp_path, "src/a.py", "src/b.js", "lib/c.py")
+
+    collector = FileCollector([], [".py"], include=["src/**"])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"src/a.py"}
+
+
+def test_collect_ignore_wins_over_include(tmp_path):
+    _make_tree(tmp_path, "src/a.py", "src/vendor/b.py", "lib/c.py")
+
+    collector = FileCollector([], None, include=["src/**"], ignore=["src/vendor/"])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"src/a.py"}
+
+
+def test_collect_globs_still_skip_binary_files(tmp_path):
+    _make_tree(tmp_path, "src/a.py")
+    (tmp_path / "src" / "b.png").write_bytes(b"\x00\x01")
+
+    collector = FileCollector([], None, include=["src/**"])
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"src/a.py"}
+
+
+def test_collect_single_file_ignore_matches_on_name(tmp_path):
+    file_path = tmp_path / "main.py"
+    file_path.write_text("x\n")
+
+    assert FileCollector([], None, ignore=["main.*"]).collect(file_path) == []
+    assert FileCollector([], None, ignore=["other.*"]).collect(file_path) == [file_path]
+
+
+def test_collect_single_file_include_matches_on_name(tmp_path):
+    file_path = tmp_path / "main.py"
+    file_path.write_text("x\n")
+
+    assert FileCollector([], None, include=["*.py"]).collect(file_path) == [file_path]
+    assert FileCollector([], None, include=["*.js"]).collect(file_path) == []
