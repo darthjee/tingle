@@ -140,3 +140,52 @@ def test_report_is_coloured_with_a_tty_palette(tmp_path, capsys, monkeypatch):
     out = capsys.readouterr().out
     assert f"{Constants.RED}{Constants.BOLD}🔴 ERROR" in out
     assert f"{Constants.BOLD}Summary:{Constants.RESET}" in out
+
+
+def test_report_summary_uses_full_results_when_fewer_rows_are_shown(tmp_path, capsys):
+    analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
+    big = tmp_path / "big.py"
+    small = tmp_path / "small.py"
+    results = [(big, 1000), (small, 10)]
+
+    Reporter(analyzer, tmp_path).report(results, [(big, 1000)], "critical")
+
+    out = capsys.readouterr().out
+    assert "big.py" in out
+    assert "small.py" not in out
+    assert "2 file(s)" in out
+    assert "1 OK" in out
+    assert "1 CRITICAL" in out
+    assert f"Total: {FileAnalyzer.format_number(1010)} lines" in out
+
+
+def test_report_empty_shown_prints_note_and_no_table_header(tmp_path, capsys):
+    analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
+    results = [(tmp_path / "a.py", 10)]
+
+    Reporter(analyzer, tmp_path).report(results, [], "warn")
+
+    out = capsys.readouterr().out
+    assert out.startswith("No files at or above WARN.\n\n")
+    assert "Status" not in out
+    assert "Lines" not in out
+    assert "a.py" not in out
+    assert "1 file(s)" in out
+    assert "1 OK" in out
+    assert "Total: 10 lines" in out
+
+
+def test_report_shown_none_keeps_current_output(tmp_path, capsys):
+    analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
+    results = [(tmp_path / "a.py", 500), (tmp_path / "b.py", 10)]
+
+    Reporter(analyzer, tmp_path).report(results)
+    default_out = capsys.readouterr().out
+
+    Reporter(analyzer, tmp_path).report(results, results, "ok")
+    explicit_out = capsys.readouterr().out
+
+    assert default_out == explicit_out
+    assert "Status" in default_out
+    assert "a.py" in default_out
+    assert "b.py" in default_out

@@ -94,3 +94,10 @@ def test_reaches_compares_levels_by_severity(lines, level, expected):
     analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
 
     assert analyzer.reaches(lines, level) is expected
+
+
+@pytest.mark.parametrize("lines", [0, 1, 299, 1000, 10**9])
+def test_reaches_ok_is_always_true(lines):
+    analyzer = FileAnalyzer(warn=300, error=500, critical=1000)
+
+    assert analyzer.reaches(lines, "ok") is True
