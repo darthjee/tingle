@@ -128,6 +128,17 @@ Hashing must work on macOS and Linux: `sha256sum` when it exists, otherwise
 `scripts/release_cli.sh`. The same portability applies to the per-file hashes
 and to the `.sha256` check of the release zip.
 
+### Shared helpers and zip content
+
+- The portable hash helper and the two-format `tingle.json` reader live in
+  `install/manifest.sh`. Its function names and outputs are fixed in
+  [manifest-hashes.md](manifest-hashes.md) section 3, and #265 and #266 must
+  use them rather than re-implement them.
+- The release zip must contain `install/` (`installer.sh` and
+  `manifest.sh`), since `tingle update` hands off to
+  `<tmp>/install/installer.sh`. Today `INCLUDES` does not list it; see
+  [manifest-hashes.md](manifest-hashes.md) section 5.
+
 ## 5. Env vars and CLI
 
 ### Installer update mode (owned by #265)
