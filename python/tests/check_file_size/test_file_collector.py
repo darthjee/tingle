@@ -204,3 +204,36 @@ def test_collect_single_file_include_matches_on_name(tmp_path):
 
     assert FileCollector([], None, include=["*.py"]).collect(file_path) == [file_path]
     assert FileCollector([], None, include=["*.js"]).collect(file_path) == []
+
+
+def test_collect_exclude_ignores_components_above_target(tmp_path):
+    target = tmp_path / "build" / "proj"
+    _make_tree(target, "a.py", "src/b.py")
+
+    collector = FileCollector(["build"], None)
+
+    assert _rel(target, collector.collect(target)) == {"a.py", "src/b.py"}
+
+
+def test_collect_exclude_matches_whole_components_only(tmp_path):
+    _make_tree(tmp_path, "build/x.js", "a/build/y.js", "builder/z.js", "a/rebuild.js")
+
+    collector = FileCollector(["build"], None)
+
+    assert _rel(tmp_path, collector.collect(tmp_path)) == {"builder/z.js", "a/rebuild.js"}
+
+
+def test_collect_exclude_is_case_insensitive_both_ways(tmp_path):
+    _make_tree(tmp_path, "Build/x.js", "a/BUILD/y.js", "keep.js")
+
+    assert _rel(tmp_path, FileCollector(["build"], None).collect(tmp_path)) == {"keep.js"}
+    assert _rel(tmp_path, FileCollector(["BuIlD"], None).collect(tmp_path)) == {"keep.js"}
+
+
+def test_collect_single_file_inside_excluded_dir_is_returned(tmp_path):
+    _make_tree(tmp_path, "node_modules/pkg/index.js")
+    file_path = tmp_path / "node_modules" / "pkg" / "index.js"
+
+    collector = FileCollector(["node_modules"], None)
+
+    assert collector.collect(file_path) == [file_path]
