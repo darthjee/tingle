@@ -141,11 +141,85 @@ validate_version() {
 
 # --- Git checkout update path -----------------------------------------------
 
-# Updates a git checkout of tingle. Never returns: it exits or execs.
+# Updates a git checkout of tingle with `git pull --ff-only`, then execs the
+# freshly pulled `bin/tingle install`. Never returns: it exits or execs. Git
+# always runs as `git -C "$TINGLE_FOLDER"`; the script never cd's. There is
+# no confirmation prompt here, and TINGLE_ASSUME_YES is ignored.
 git_update() {
-    echo "tingle update: $TINGLE_FOLDER is a git checkout; update it with" \
-        "'git pull' instead" >&2
-    exit 1
+    local branch upstream behind ahead sha
+
+    if [ -n "$PIN" ]; then
+        echo "tingle update: $TINGLE_FOLDER is a git checkout; version pins" \
+            "are not supported there. Check out a tag yourself instead, e.g." \
+            "'git -C $TINGLE_FOLDER checkout $PIN'" >&2
+        exit 1
+    fi
+
+    if [ "$FORCE" -eq 1 ]; then
+        echo "tingle update: --force is not supported on a git checkout" \
+            "($TINGLE_FOLDER)" >&2
+        exit 1
+    fi
+
+    if ! command -v git >/dev/null 2>&1; then
+        echo "tingle update: required tool 'git' not found on PATH" >&2
+        exit 1
+    fi
+
+    # Tracked files only: untracked files do not make the tree dirty.
+    if ! git -C "$TINGLE_FOLDER" diff --quiet \
+        || ! git -C "$TINGLE_FOLDER" diff --cached --quiet; then
+        echo "tingle update: $TINGLE_FOLDER has uncommitted changes; commit" \
+            "or stash them, then re-run; nothing was changed" >&2
+        exit 1
+    fi
+
+    if ! branch="$(git -C "$TINGLE_FOLDER" symbolic-ref -q --short HEAD)"; then
+        echo "tingle update: $TINGLE_FOLDER is on a detached HEAD; check out" \
+            "a branch, then re-run; nothing was changed" >&2
+        exit 1
+    fi
+
+    if ! upstream="$(git -C "$TINGLE_FOLDER" rev-parse --abbrev-ref \
+        --symbolic-full-name '@{u}' 2>/dev/null)"; then
+        echo "tingle update: branch '$branch' in $TINGLE_FOLDER has no" \
+            "upstream; set one with 'git branch --set-upstream-to', then" \
+            "re-run; nothing was changed" >&2
+        exit 1
+    fi
+
+    # With an upstream set, a bare fetch uses the upstream's remote. Git's own
+    # error goes through to stderr.
+    if ! git -C "$TINGLE_FOLDER" fetch; then
+        echo "tingle update: could not fetch $upstream in $TINGLE_FOLDER;" \
+            "nothing was changed" >&2
+        exit 1
+    fi
+
+    behind="$(git -C "$TINGLE_FOLDER" rev-list --count 'HEAD..@{u}')"
+    ahead="$(git -C "$TINGLE_FOLDER" rev-list --count '@{u}..HEAD')"
+
+    if [ "$behind" -eq 0 ]; then
+        sha="$(git -C "$TINGLE_FOLDER" rev-parse --short HEAD)"
+        echo "tingle is already up to date ($branch, $sha)"
+        exit 0
+    fi
+
+    if [ "$CHECK" -eq 1 ]; then
+        echo "$branch: $behind commit(s) behind, $ahead ahead of $upstream"
+        exit 0
+    fi
+
+    # ff-only never merges, so a failure leaves the working tree untouched.
+    if ! git -C "$TINGLE_FOLDER" pull --ff-only; then
+        echo "tingle update: git pull --ff-only failed in $TINGLE_FOLDER (has" \
+            "the branch diverged from $upstream?); nothing was changed" >&2
+        exit 1
+    fi
+
+    # Nothing may run between the pull and this exec: the pull may have
+    # replaced this very script.
+    exec "$TINGLE_FOLDER/bin/tingle" install
 }
 
 # --- 1. Detect the install (E3, E14, E11) -----------------------------------
