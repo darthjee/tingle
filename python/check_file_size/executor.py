@@ -19,6 +19,8 @@ Examples
     ./check_file_size.py ./src --top 20
     ./check_file_size.py ./src --exclude node_modules,dist,build
     ./check_file_size.py ./src --ext .py --ext .js
+    ./check_file_size.py . --ignore '*.test.js' --ignore 'docs/**'
+    ./check_file_size.py . --include 'src/**' --ext .py
     ./check_file_size.py ./src --fail-on error
 
 """
@@ -75,6 +77,23 @@ FLAGS: list[dict] = [
         "help": (
             "Directories to ignore (comma-separated). "
             f"Default: {','.join(Constants.DEFAULT_EXCLUDES)}"
+        ),
+    },
+    {
+        "name": "--ignore",
+        "type": str,
+        "action": "append",
+        "default": None,
+        "help": "Skip files whose path relative to <path> matches this glob (can be repeated)",
+    },
+    {
+        "name": "--include",
+        "type": str,
+        "action": "append",
+        "default": None,
+        "help": (
+            "Only analyse files whose path relative to <path> matches this glob "
+            "(can be repeated)"
         ),
     },
     {
@@ -166,7 +185,12 @@ class CheckFileSize:
         out = Palette(sys.stdout)
         self._print_header(out, target, args)
 
-        collector = FileCollector(self._parse_excludes(args["exclude"]), args["ext"])
+        collector = FileCollector(
+            self._parse_excludes(args["exclude"]),
+            args["ext"],
+            ignore=args["ignore"] or [],
+            include=args["include"] or [],
+        )
         files = collector.collect(target)
 
         if not files:

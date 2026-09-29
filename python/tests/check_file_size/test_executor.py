@@ -6,6 +6,7 @@ import pytest
 
 from check_file_size.executor import CheckFileSize
 from check_file_size.file_analyzer import FileAnalyzer
+from check_file_size.file_collector import FileCollector
 
 
 def test_run_no_args_prints_help_and_exits_zero(capsys):
@@ -231,3 +232,89 @@ def test_gate_failed_with_no_results_is_false():
     analyzer = FileAnalyzer(300, 500, 1000)
 
     assert CheckFileSize._gate_failed(analyzer, [], "warn") is False
+
+
+def _make_project(root):
+    for rel in ("src/main.py", "src/util.js", "src/extern/lib.py", "docs/guide.txt",
+                "README.md", "app.test.js"):
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x\n")
+
+
+def test_run_ignore_flag_is_repeatable_and_drops_matches(tmp_path, capsys):
+    _make_project(tmp_path)
+
+    CheckFileSize().run([str(tmp_path), "--ignore", "*.test.js", "--ignore", "docs/**"])
+
+    out = capsys.readouterr().out
+    assert "main.py" in out
+    assert "README.md" in out
+    assert "app.test.js" not in out
+    assert "guide.txt" not in out
+
+
+def test_run_include_flag_combines_with_ext(tmp_path, capsys):
+    _make_project(tmp_path)
+
+    CheckFileSize().run([str(tmp_path), "--include", "src/**", "--ext", ".py"])
+
+    out = capsys.readouterr().out
+    assert "main.py" in out
+    assert "lib.py" in out
+    assert "util.js" not in out
+    assert "README.md" not in out
+
+
+def test_run_ignore_wins_over_include(tmp_path, capsys):
+    _make_project(tmp_path)
+
+    CheckFileSize().run([str(tmp_path), "--include", "src/**", "--ignore", "src/extern/"])
+
+    out = capsys.readouterr().out
+    assert "main.py" in out
+    assert "util.js" in out
+    assert "lib.py" not in out
+
+
+def test_run_passes_glob_lists_to_collector(tmp_path, monkeypatch):
+    (tmp_path / "a.py").write_text("x\n")
+    seen = {}
+    real_init = FileCollector.__init__
+
+    def spy_init(self, *args, **kwargs):
+        seen.update(kwargs)
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(FileCollector, "__init__", spy_init)
+
+    CheckFileSize().run([str(tmp_path), "--ignore", "a", "--ignore", "b", "--include", "*.py"])
+
+    assert seen == {"ignore": ["a", "b"], "include": ["*.py"]}
+
+
+def test_run_passes_empty_glob_lists_when_flags_absent(tmp_path, monkeypatch):
+    (tmp_path / "a.py").write_text("x\n")
+    seen = {}
+    real_init = FileCollector.__init__
+
+    def spy_init(self, *args, **kwargs):
+        seen.update(kwargs)
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(FileCollector, "__init__", spy_init)
+
+    CheckFileSize().run([str(tmp_path)])
+
+    assert seen == {"ignore": [], "include": []}
+
+
+def test_run_everything_filtered_out_prints_no_files_and_exits_zero(tmp_path, capsys):
+    file_path = tmp_path / "main.py"
+    file_path.write_text("x\n")
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(file_path), "--ignore", "main.*"])
+
+    assert exc_info.value.code == 0
+    assert "No files found for analysis." in capsys.readouterr().out
