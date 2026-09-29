@@ -124,6 +124,34 @@ else
     PIN="${TINGLE_VERSION:-}"
 fi
 
+# Succeeds when $1 is X.Y.Z or X.Y.Z-<suffix> (E6) and is 0.4.0 or later
+# (E2); otherwise prints why on stderr and fails. Any 0.4.0-<suffix> counts
+# as 0.4.0 for the floor.
+validate_version() {
+    local version="$1" core major minor
+    if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+        echo "tingle update: invalid version '$version' (expected X.Y.Z or" \
+            "X.Y.Z-<suffix>, with no 'v' prefix)" >&2
+        return 1
+    fi
+    core="${version%%-*}"
+    major="${core%%.*}"
+    minor="${core#*.}"
+    minor="${minor%%.*}"
+    # 10# forces base 10, so a leading zero is not read as octal. The patch
+    # number never matters for a X.4.0 floor.
+    if [ "$((10#$major))" -eq 0 ] && [ "$((10#$minor))" -lt 4 ]; then
+        echo "tingle update can only install 0.4.0 or later" >&2
+        return 1
+    fi
+}
+
+# A pin is validated before anything else, and before any network call (E6,
+# E2).
+if [ -n "$PIN" ]; then
+    validate_version "$PIN" || exit 1
+fi
+
 # --- 1. Detect the install (E3, E14, E11) -----------------------------------
 
 TINGLE_JSON="$TINGLE_FOLDER/tingle.json"
@@ -152,4 +180,50 @@ fi
 if [ ! -w "$TINGLE_FOLDER" ]; then
     echo "tingle update: the install folder $TINGLE_FOLDER is not writable" >&2
     exit 1
+fi
+
+# --- 2. Resolve the target (E2, E6, E8, E10) --------------------------------
+
+API_URL="${TINGLE_RELEASE_API_URL:-https://api.github.com/repos/$REPO}"
+BASE_URL="${TINGLE_RELEASE_BASE_URL:-https://github.com/$REPO/releases/download}"
+
+PIN_HINT="pin a version to skip the lookup, e.g. 'tingle update X.Y.Z'"
+
+if [ -n "$PIN" ]; then
+    TARGET="$PIN"
+else
+    # No auth header: tingle never handles a GitHub token. The body and the
+    # HTTP status are captured together (status on the last line) so that no
+    # temp file is needed here.
+    if ! response="$(curl -sS -w '\n%{http_code}' "$API_URL/releases/latest")"; then
+        echo "tingle update: could not reach $API_URL to find the latest" \
+            "release (network failure); $PIN_HINT" >&2
+        exit 1
+    fi
+    status="${response##*$'\n'}"
+    body="${response%$'\n'*}"
+    # file:// (test hooks) reports no HTTP status: a successful curl is a 200.
+    if [ "$status" = "000" ]; then
+        status=200
+    fi
+    case "$status" in
+        200) ;;
+        403|429)
+            echo "tingle update: the GitHub API rate limit was hit (HTTP" \
+                "$status) while looking up the latest release; $PIN_HINT" >&2
+            exit 1
+            ;;
+        *)
+            echo "tingle update: unexpected response (HTTP $status) from" \
+                "$API_URL/releases/latest; $PIN_HINT" >&2
+            exit 1
+            ;;
+    esac
+    TARGET="$(printf '%s\n' "$body" | jq -r '.tag_name // empty' 2>/dev/null)" || TARGET=""
+    if [ -z "$TARGET" ] || [ "$TARGET" = "null" ]; then
+        echo "tingle update: could not read the latest release's tag_name" \
+            "from $API_URL/releases/latest; $PIN_HINT" >&2
+        exit 1
+    fi
+    validate_version "$TARGET" || exit 1
 fi
