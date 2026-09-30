@@ -51,7 +51,11 @@
 #      tingle.json passing tingle_json_check and a writable folder.
 #   2. Resolve the target: the pin (validated before any network call), or
 #      GET <api>/releases/latest (.tag_name), the latest stable release. The
-#      target must be X.Y.Z[-suffix] and 0.4.0 or later.
+#      target must be X.Y.Z[-suffix] and 0.4.0 or later. The lookup is
+#      unauthenticated: GITHUB_TOKEN is not supported, so tingle never
+#      handles a secret. A network failure, a rate limit (HTTP 403/429) or
+#      an unexpected response aborts with a hint to pin a version, which
+#      skips the lookup.
 #   3. Up to date / --check: when the installed version equals the target,
 #      print "tingle is already up to date (<version>)" and exit 0. An
 #      installed version of "unknown" is always out of date. --check prints
@@ -60,8 +64,10 @@
 #      Without a /dev/tty, abort with a hint to set TINGLE_ASSUME_YES.
 #   5. Download and verify: fetch <base>/<version>/tingle-<version>.zip and
 #      its .sha256 into a `mktemp -d` dir, check the hash, unzip, and require
-#      install/installer.sh. A 404 prints
-#      "release <version> not found in <repo>".
+#      install/installer.sh to exist and be executable. A 404 prints
+#      "release <version> not found in <repo>". A .sha256 that can't be
+#      downloaded, or a hash that doesn't match the zip, aborts and deletes
+#      the download (the whole temp dir) with nothing changed.
 #   6. Hand off: exec <tmp>/install/installer.sh with
 #      TINGLE_UPDATE_TARGET=<folder>, TINGLE_UPDATE_CLEANUP=1,
 #      TINGLE_REPO=<repo from tingle.json>, TINGLE_VERSION=<target>, and
@@ -75,18 +81,22 @@
 # installer remove the temp dir when it finishes or fails.
 #
 # Exit codes:
-#   0         - Handed off successfully (the installer's own status follows),
-#               already up to date, or --check.
-#   install's - Git checkout after a successful pull: the exit status of the
-#               exec'd `bin/tingle install`.
-#   non-zero  - Any refusal or failure: unknown install, corrupt tingle.json,
-#               folder not writable, invalid pin, pin below 0.4.0, release
-#               not found, network failure or rate limit, missing or
-#               mismatched checksum, bad zip, declined confirmation, no
-#               /dev/tty without TINGLE_ASSUME_YES. On a git checkout: a pin
-#               or --force, git missing, uncommitted tracked changes,
-#               detached HEAD, no upstream, failed fetch, failed
-#               `git pull --ff-only`.
+#   0           - Already up to date, or --check.
+#   installer's - Web install after the handoff: this script execs the
+#                 installer, so the exit status is the installer's own: 0
+#                 when the update completed, non-zero when it refused or
+#                 failed (among others: locally edited shipped files without
+#                 --force, or the update lock held by another run).
+#   install's   - Git checkout after a successful pull: the exit status of
+#                 the exec'd `bin/tingle install`.
+#   non-zero    - Any refusal or failure before the handoff: unknown
+#                 install, corrupt tingle.json, folder not writable, invalid
+#                 pin, pin below 0.4.0, release not found, network failure
+#                 or rate limit, missing or mismatched checksum, bad zip,
+#                 declined confirmation, no /dev/tty without
+#                 TINGLE_ASSUME_YES. On a git checkout: a pin or --force,
+#                 git missing, uncommitted tracked changes, detached HEAD, no
+#                 upstream, failed fetch, failed `git pull --ff-only`.
 #
 # Test-only hooks (NOT user-facing; do not document them elsewhere). They let
 # a local folder, a file:// URL or `python3 -m http.server` stand in for
