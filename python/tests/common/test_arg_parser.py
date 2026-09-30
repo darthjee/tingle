@@ -10,7 +10,7 @@ from common.arg_parser import ArgParser
 
 
 def _sample_flags() -> list[dict]:
-    """Flag shapes mirroring check_file_size.executor.FLAGS."""
+    """Flag shapes mirroring code_check.file_size.flags.FLAGS."""
     return [
         {
             "name": "path",
@@ -60,7 +60,7 @@ def test_parse_action_append_stays_none_when_never_passed():
 
 
 def test_parse_falls_back_to_sys_argv_when_argv_not_passed(monkeypatch):
-    monkeypatch.setattr("sys.argv", ["check_file_size.py", "./src", "--warn", "10"])
+    monkeypatch.setattr("sys.argv", ["main.py", "./src", "--warn", "10"])
 
     result = ArgParser(_sample_flags()).parse()
 
@@ -79,3 +79,15 @@ def test_build_returns_usable_argument_parser():
 def test_parse_raises_on_missing_required_positional():
     with pytest.raises(SystemExit):
         ArgParser(_sample_flags()).parse([])
+
+
+def test_build_uses_prog_in_help(capsys):
+    ArgParser(_sample_flags(), prog="tingle demo").build().print_help()
+
+    assert capsys.readouterr().out.startswith("usage: tingle demo ")
+
+
+def test_build_without_prog_keeps_argparse_default():
+    parser = ArgParser(_sample_flags()).build()
+
+    assert parser.prog == argparse.ArgumentParser().prog

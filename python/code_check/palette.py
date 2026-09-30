@@ -1,6 +1,7 @@
-"""palette.py — Stream-aware ANSI colour codes for check_file_size.
+"""palette.py — Stream-aware ANSI colour codes for the code_check commands.
 
-A `Palette` exposes the same colour names as `Constants` (`RESET`, `BOLD`,
+`Colors` holds the raw ANSI codes. A `Palette` exposes the same colour names
+(`RESET`, `BOLD`,
 `DIM`, `GREEN`, `YELLOW`, `RED`, `MAGENTA`, `CYAN`, `GRAY`). Each one holds
 the raw ANSI code when the stream is a TTY and `NO_COLOR` is unset or empty,
 and `""` otherwise, so the output keeps its layout without escape codes.
@@ -12,7 +13,24 @@ import os
 import sys
 from typing import TextIO
 
-from .constants import Constants
+
+class Colors:
+    """Raw ANSI colour codes.
+
+    Do not print these directly: use `Palette`, which drops them when the
+    stream is not a TTY or NO_COLOR is set.
+    """
+
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    RED = "\033[31m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    GRAY = "\033[90m"
 
 
 class Palette:
@@ -48,7 +66,7 @@ class Palette:
 
     def _code(self, name: str) -> str:
         """Return the raw ANSI code for `name`, or `""` when colour is disabled."""
-        return getattr(Constants, name) if self.enabled else ""
+        return getattr(Colors, name) if self.enabled else ""
 
     def level_color(self, level: str) -> str:
         """Return the colour used for a classification level key."""

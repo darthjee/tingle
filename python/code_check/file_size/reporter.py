@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from code_check.palette import Palette
+
 from .file_analyzer import FileAnalyzer
-from .palette import Palette
 
 
 class Reporter:

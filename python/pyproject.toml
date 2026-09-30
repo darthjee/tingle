@@ -18,5 +18,5 @@ pythonpath = ["."]
 addopts = "--cov --cov-report=term-missing --cov-report=xml --cov-fail-under=75"
 
 [tool.coverage.run]
-source = ["check_file_size", "common", "kube"]
+source = ["check_file_size", "code_check", "common", "kube"]
 omit = ["tests/*"]

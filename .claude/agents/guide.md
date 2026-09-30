@@ -16,7 +16,10 @@ guides index.
   to its guide.
 - `<command>.md` — one guide per `tingle` command, named after the command
   as registered in `commands/*.json` (e.g. `install.md`, `linux.md`,
-  `kube.md`, `check_file_size.md`).
+  `kube.md`, `code_check.md`).
+- `<command>/<subcommand>.md` — for a command with subcommands, one page per
+  subcommand (e.g. `code_check/file_size.md`), with `<command>.md` as a short
+  overview linking to them.
 
 Do NOT touch `shell/`, `python/`, `node/`, `bin/`, or `commands/`
 implementation, `docs/agents/` (that belongs to `product-owner`), or
@@ -31,3 +34,6 @@ root-level files (`README.md`, `AGENTS.md`, `CLAUDE.md`) — those belong to
   `long_help` in `commands/*.json` and the script's header comment.
 - Add or refresh the command's entry in `docs/guides/README.md` whenever a
   guide is added or renamed.
+- A command with subcommands may have a `<command>.md` overview plus
+  `<command>/<subcommand>.md` pages; list each subcommand page as a nested
+  entry under its command in `docs/guides/README.md`.

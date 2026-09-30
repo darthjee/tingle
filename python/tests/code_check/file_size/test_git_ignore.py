@@ -1,4 +1,4 @@
-"""Unit and integration tests for check_file_size.git_ignore."""
+"""Unit and integration tests for code_check.file_size.git_ignore."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from check_file_size import git_ignore
-from check_file_size.git_ignore import GitIgnore, GitIgnored
+from code_check.file_size import git_ignore
+from code_check.file_size.git_ignore import GitIgnore, GitIgnored
 
 EXPECTED_ARGS = [
     "ls-files",

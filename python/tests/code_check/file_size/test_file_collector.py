@@ -1,4 +1,4 @@
-"""Unit tests for check_file_size.file_collector.FileCollector."""
+"""Unit tests for code_check.file_size.file_collector.FileCollector."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from check_file_size.file_collector import FileCollector
-from check_file_size.git_ignore import GitIgnore, GitIgnored
+from code_check.file_size.file_collector import FileCollector
+from code_check.file_size.git_ignore import GitIgnore, GitIgnored
 
 
 def test_collect_single_file_not_binary_returns_it(tmp_path):

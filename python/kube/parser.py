@@ -3,7 +3,7 @@
 `switch`, `list`, `shell`, and `configure` each take a different argument
 shape, so this wraps `argparse.ArgumentParser` with `add_subparsers()`
 directly rather than the flat flag-list `python/common/arg_parser.py`
-supports (which stays scoped to `check_file_size`).
+supports (which stays scoped to `code_check file_size`).
 
 Usage:
     tingle kube switch <context_alias>

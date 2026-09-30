@@ -1,1 +1,1 @@
-"""check_file_size — Token efficiency triage: file size analysis."""
+"""check_file_size — Alias shim for `tingle code_check file_size`."""
