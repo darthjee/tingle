@@ -78,7 +78,8 @@ tingle/
 
 | Script | Language | Description |
 | --- | --- | --- |
-| [`check_file_size`](docs/guides/check_file_size.md) | Python | Token efficiency triage: lists source files by line count against configurable warn/error/critical thresholds. |
+| [`code_check`](docs/guides/code_check.md) | Python | Code evaluation checks, run as `tingle code_check <subcommand>`. First subcommand: [`file_size`](docs/guides/code_check/file_size.md), token efficiency triage that lists source files by line count against configurable warn/error/critical thresholds. |
+| [`check_file_size`](docs/guides/check_file_size.md) | Python | Moved to `code_check file_size`. Still works unchanged as an alias. |
 | `kube` | Python | Kubernetes (EKS) helper with a scoped alias layer for switching contexts, listing namespaces/pods, and shelling into pods. |
 | `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
 | [`install`](docs/guides/install.md) | Shell | Adds `tingle` to `PATH` and installs bash completion, by idempotently appending a marker block to `~/.bashrc` (rewritten in place if the tingle folder moved). Bash only. |
@@ -101,6 +102,11 @@ Run `tingle`, `tingle help`, or `tingle --help` with no further arguments to
 list all available commands with their short descriptions. Run `tingle
 --help <command>` to see a command's full description. An unknown command
 prints an error along with the same command listing, and exits non-zero.
+
+Some commands group several tools under subcommands, run as `tingle
+<command> <subcommand> [args...]` (e.g. `tingle code_check file_size .`).
+Run such a command with no arguments, or with `--help`, to list its
+subcommands.
 
 Run `tingle install` to wire up `tingle` for interactive shell use: it
 idempotently appends a marker block to `~/.bashrc` that adds `tingle` to
