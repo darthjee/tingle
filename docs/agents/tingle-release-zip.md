@@ -25,14 +25,23 @@ contract as its authoritative spec.
   packaged file, sorted with `LC_ALL=C` by path; it does not list itself.
   Consumers split each line on the **first two spaces only**: the hash is the
   text before them and the path is everything after them, including any
-  further spaces.
+  further spaces. The hash is SHA-256, computed with `sha256sum` (falling
+  back to `shasum -a 256`) over the same file that is zipped. `MANIFEST`
+  holds the plain path, never the `\`-prefixed escaped form `sha256sum`
+  prints for names containing a backslash or a newline. Paths containing a
+  newline are not supported.
 - **`tingle.json`**: written by `install/installer.sh` into the install
   folder:
   `{"version": "X.Y.Z", "repo": "owner/repo", "manifest": [{"path": "...", "sha256": "<64-hex>"}]}`.
-  `version`, `repo` and `manifest` are required; `manifest` is `[]` when the
-  release has no `MANIFEST`. 0.3.x and earlier wrote a path-only
-  `"manifest": ["path", ...]`, which readers still accept as entries without
-  a hash. Whether an install tracks hashes is decided from this format, never
+  Paths are JSON-escaped (backslashes and double quotes). `version`, `repo`
+  and `manifest` are required: a `tingle.json` that can't be parsed, lacks
+  any of them, or whose `manifest` is not an array is corrupt, and
+  `tingle update` refuses it. `manifest` is `[]` when the release has no
+  `MANIFEST` (or an empty one); `"manifest": []` means the install does not
+  track hashes. `version` defaults to `"unknown"` (the `TINGLE_VERSION`
+  default when installing from a checkout), which is always treated as out
+  of date. 0.3.x and earlier wrote a path-only `"manifest": ["path", ...]`,
+  which readers still accept as entries without a hash. Whether an install tracks hashes is decided from this format, never
   from the `version` string. The helpers that hash files, convert `MANIFEST`
   to JSON and read both `tingle.json` formats live in the sourced library
   `install/manifest.sh`.
