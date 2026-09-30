@@ -26,8 +26,15 @@ How it updates depends on how that folder was installed:
   the current branch with `git pull --ff-only` and then re-runs
   `tingle install`. See [Updating a git checkout](#updating-a-git-checkout).
 
+`tingle update` first shipped in 0.4.0. An install on 0.3.x or earlier has no
+`tingle update`, and the one-line installer refuses to run over a folder that
+already has a `tingle.json`, so moving such an install to 0.4.0 is a manual
+step: remove the old tingle folder (keep a copy of any files you added to it)
+and run the one-line installer again.
+
 ## Prerequisites
 
+- A tingle folder on 0.4.0 or later (see [What it does](#what-it-does)).
 - Write access to the tingle folder.
 - For a **git checkout**: `git`, and network access to the branch's upstream
   remote.
@@ -57,8 +64,15 @@ matches it, nothing is changed and tingle prints:
 tingle is already up to date (0.5.0)
 ```
 
+and exits 0.
+
 Otherwise it prints the installed and target versions, for example
 `0.4.0 → 0.5.0`, asks for confirmation, and updates.
+
+If `tingle.json` records the installed version as `unknown` (for example when
+tingle was installed by running the installer from a checkout without setting
+`TINGLE_VERSION`), the install is always treated as out of date, and the
+versions line reads `unknown → 0.5.0`.
 
 On a git checkout, the same command pulls the current branch instead; see
 [Updating a git checkout](#updating-a-git-checkout).
@@ -92,8 +106,9 @@ Pins are refused on a git checkout; check out a tag yourself instead (see
 ### Options
 
 - `--check` — Dry run. On a web install, prints the installed and target
-  versions and, when the install tracks file hashes, the shipped files you
-  edited locally. On a git checkout, fetches the upstream and reports how far
+  versions (`unknown → X` when the installed version is unknown) and, when
+  the install tracks file hashes, the shipped files you edited locally. When
+  the install is already up to date, it prints the up-to-date line instead. On a git checkout, fetches the upstream and reports how far
   behind and ahead the branch is. Either way it exits 0 without changing
   anything in the tingle folder.
 - `--force` — Web installs only. Update even when shipped files were edited
@@ -294,6 +309,25 @@ tingle update
   installer.sh: warning: '/home/you/.tingle/tingle.json' records no file hashes (installed before 0.4.0 or by hand); local edits to shipped files cannot be detected and will be overwritten
   ```
 
+- **An empty file list deletes nothing.** If `tingle.json` lists no shipped
+  files at all (`"manifest": []`), tingle can't tell which old files are
+  stale, so it removes none of them and warns:
+
+  ```
+  installer.sh: warning: '/home/you/.tingle/tingle.json' has an empty manifest; stale files from the previous version may be left behind
+  ```
+
+  The new release's files are still installed. Any file the old release
+  shipped and the new one dropped stays behind; delete it by hand if you want.
+- **Unsafe paths are skipped.** A file path in `tingle.json` or in the
+  release's `MANIFEST` that is absolute (starts with `/`) or contains `..` is
+  never hashed, replaced or deleted, so a tampered file list can't touch
+  anything outside the tingle folder. Each one is reported:
+
+  ```
+  installer.sh: warning: skipping unsafe manifest path '../outside'
+  ```
+
 - **`~/.bashrc` is rewired.** As its last step the update runs
   [`tingle install`](install.md) from the updated folder, then prints:
 
@@ -309,6 +343,18 @@ loss). `tingle.json` is written last, so until then it still describes the
 old version. **Re-running `tingle update` finishes an interrupted update**:
 either there is nothing left to do, or it redoes the update from where the
 files stand.
+
+There is one exception. The very last step, after `tingle.json` is written, is
+the [`tingle install`](install.md) run that rewires `~/.bashrc`. If the update
+is cut off during that step, the files and `tingle.json` are already new, so a
+re-run of `tingle update` just says `tingle is already up to date (<version>)`
+and does **not** rewire `~/.bashrc`. Finish it by hand:
+
+```
+<folder>/bin/tingle install
+```
+
+where `<folder>` is the tingle folder (for example `~/.tingle`).
 
 While it runs, the update holds a lock in the tingle folder
 (`.tingle-update.lock/`). If a previous run was killed and left the lock
@@ -328,13 +374,33 @@ source ~/.bashrc
 
 The failures below apply to web installs. For a git checkout, see
 [When a git checkout is not updated](#when-a-git-checkout-is-not-updated).
-Every failure below exits non-zero. Unless stated otherwise, nothing in the
-tingle folder was changed.
+Every failure below exits non-zero (an update that finds nothing to do,
+`tingle is already up to date (<version>)`, is not a failure and exits 0).
+Unless stated otherwise, nothing in the tingle folder was changed.
+
+- **Unknown option or extra argument:** `tingle update: unknown option
+  '<option>'` or `tingle update: unexpected argument '<argument>'`, followed
+  by the usage line `usage: tingle update [--check] [--force] [<version>]`.
+  Only `--check`, `--force` and a single version are accepted. This applies
+  to git checkouts too.
+- **Missing tool:** `tingle update: required tool '<tool>' not found on PATH`,
+  where `<tool>` is `curl`, `unzip` or `jq`. Install it, or add it to your
+  `PATH`, and try again.
 
 - **No network:** `could not reach ... to find the latest release (network
   failure)` or `could not download ... (network failure); nothing was
   changed`. Check your connection and try again. If only the latest-release
   lookup fails, pin a version: `tingle update X.Y.Z`.
+- **Unexpected GitHub response:** `tingle update: unexpected response (HTTP
+  <status>) from <api>/releases/latest; pin a version to skip the lookup, e.g.
+  'tingle update X.Y.Z'`, or `tingle update: unexpected response (HTTP
+  <status>) while downloading <url>; nothing was changed`. GitHub answered
+  with an error other than a rate limit or "not found". Try again later, or
+  pin a version to skip the latest-release lookup.
+- **Latest release unreadable:** `tingle update: could not read the latest
+  release's tag_name from <api>/releases/latest; pin a version to skip the
+  lookup, e.g. 'tingle update X.Y.Z'`. GitHub's answer did not name a
+  release. Pin a version: `tingle update X.Y.Z`.
 - **GitHub rate limit:** `the GitHub API rate limit was hit (HTTP 403) while
   looking up the latest release` (or HTTP 429). Wait and try again, or pin a
   version to skip the lookup: `tingle update X.Y.Z`. If it is hit while
@@ -351,6 +417,21 @@ tingle folder was changed.
   (expected '...', got '...'); the download was deleted and nothing was
   changed`. The download was corrupted or tampered with. Try again; if it
   keeps failing, do not install that release by other means.
+- **Checksum file missing:** `tingle update: could not download the checksum
+  <url>.sha256 (HTTP <status>); nothing was changed`. The release has no
+  checksum file, or it could not be downloaded, so the zip can't be verified
+  and is not installed. Try again later, or pick another release.
+- **Bad release zip:** `tingle update: tingle-<version>.zip could not be
+  unzipped; nothing was changed`, or `tingle update: tingle-<version>.zip has
+  no executable install/installer.sh; nothing was changed`. The zip passed its
+  checksum but is not a usable tingle release. Pick another release.
+- **Broken release file list:** the release zip's `MANIFEST` (its list of
+  shipped files) is missing, malformed or empty, and the update is refused:
+  `installer.sh: the release tree has no MANIFEST ('<path>'); nothing was
+  changed`, `installer.sh: '<path>/MANIFEST' is malformed; nothing was
+  changed` or `installer.sh: '<path>/MANIFEST' is empty; nothing was changed`.
+  This protects your install from a broken release that would otherwise
+  delete every file. Pick another release.
 - **Corrupt `tingle.json`:** `tingle update: <folder>/tingle.json is corrupt
   (it can't be parsed, or 'version', 'repo' or 'manifest' is missing);
   nothing was changed`. The file was edited or damaged. Reinstall tingle with
@@ -370,6 +451,12 @@ tingle folder was changed.
 - **Locally edited shipped files:** `update aborted; nothing was changed`,
   after the list of edited files. See
   [What it changes and what it keeps](#what-it-changes-and-what-it-keeps-web-installs).
+- **Failure in the middle of an update:** `installer.sh: could not replace
+  '<file>'; re-run the update to finish it`, or `installer.sh: could not write
+  '<folder>/tingle.json'; re-run the update to finish it`. Here some files may
+  already be new. `tingle.json` still describes the old version, so fix the
+  cause (for example a full disk or a permissions problem) and re-run
+  `tingle update` to finish; see [Interrupting it](#interrupting-it).
 - **Update done, but `~/.bashrc` not rewired:** `tingle <version> was
   installed in '<folder>', but wiring ~/.bashrc failed; re-run
   '<folder>/bin/tingle install' by hand`. The new version is installed; run
