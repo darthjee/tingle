@@ -1,4 +1,4 @@
-"""Unit tests for code_check.config (default_path, load_section, ConfigError)."""
+"""Unit tests for code_check.config (default_path, load_section(s), ConfigError)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from code_check.config import ConfigError, default_path, load_section
+import code_check.config as config_module
+from code_check.config import ConfigError, default_path, load_section, load_sections
 
 
 def _write(path: Path, content) -> Path:
@@ -114,6 +115,59 @@ def test_load_section_non_utf8_file_raises(tmp_path):
         load_section("check_file_size", path)
 
     assert "cannot read file" in exc_info.value.reason
+
+
+# --- load_sections --------------------------------------------------------------
+
+
+def test_load_sections_missing_file_maps_every_name_to_none(tmp_path):
+    assert load_sections(["a", "b"], tmp_path / "nope.json") == {"a": None, "b": None}
+
+
+def test_load_sections_mixes_present_and_missing_sections(tmp_path):
+    path = _write(tmp_path / "c.json", {"a": {"x": 1}, "c": {}, "other": 3})
+
+    assert load_sections(["a", "b", "c"], path) == {"a": {"x": 1}, "b": None, "c": {}}
+
+
+def test_load_sections_non_object_section_raises_naming_it(tmp_path):
+    path = _write(tmp_path / "c.json", {"a": {}, "b": []})
+
+    with pytest.raises(ConfigError) as exc_info:
+        load_sections(["a", "b"], path)
+
+    assert exc_info.value.reason == "'b' must be an object"
+
+
+def test_load_sections_top_level_not_object_raises(tmp_path):
+    path = _write(tmp_path / "c.json", "[]")
+
+    with pytest.raises(ConfigError) as exc_info:
+        load_sections(["a"], path)
+
+    assert exc_info.value.reason == "top level must be an object"
+
+
+def test_load_sections_reads_file_once(tmp_path, monkeypatch):
+    path = _write(tmp_path / "c.json", {"a": {}, "b": {}})
+    calls = []
+    real_read_json = config_module._read_json
+
+    def counting_read_json(p):
+        calls.append(p)
+        return real_read_json(p)
+
+    monkeypatch.setattr(config_module, "_read_json", counting_read_json)
+
+    load_sections(["a", "b", "c"], path)
+
+    assert calls == [path]
+
+
+def test_load_sections_accepts_any_iterable(tmp_path):
+    path = _write(tmp_path / "c.json", {"a": {}})
+
+    assert load_sections((n for n in ["a", "b"]), path) == {"a": {}, "b": None}
 
 
 def test_config_error_str_is_path_and_reason():
