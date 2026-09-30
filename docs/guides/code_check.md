@@ -86,6 +86,32 @@ Every subcommand uses the same exit codes:
 | `1` | Usage or configuration error (unknown subcommand or option, invalid value, invalid config file, ...) |
 | `2` | The check gate failed (for `file_size`, `--fail-on`) |
 
+## Migrating from `check_file_size`
+
+`tingle check_file_size` was renamed to `tingle code_check file_size`. The
+old name is still available as an alias: it takes the same options and
+produces the same output and exit codes, but it is deprecated and prints a
+warning on stderr before running:
+
+```
+Warning: 'tingle check_file_size' is deprecated; use 'tingle code_check file_size'.
+```
+
+The warning goes to stderr only, so stdout and the exit status are not
+affected. The alias will be removed in a future release, so update your
+scripts and CI jobs to call `tingle code_check file_size` instead:
+
+```
+# Before
+tingle check_file_size --fail-on error .
+
+# After
+tingle code_check file_size --fail-on error .
+```
+
+The configuration file section is unchanged for now: `file_size` still reads
+the `check_file_size` section of `~/.tingle/code_check/config.json`.
+
 ## Quick help
 
 For a short summary of the command and its subcommands, run:

@@ -3,7 +3,9 @@
 Token efficiency triage: file size analysis.
 
 This is a subcommand of [`tingle code_check`](../code_check.md). It was
-previously called `tingle check_file_size`, and that name still works.
+previously called `tingle check_file_size`; that name still works but is
+deprecated and prints a warning (see
+[Migrating from `check_file_size`](../code_check.md#migrating-from-check_file_size)).
 
 ## What it does
 
