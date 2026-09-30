@@ -79,7 +79,7 @@ tingle/
 | Script | Language | Description |
 | --- | --- | --- |
 | [`code_check`](docs/guides/code_check.md) | Python | Code evaluation checks, run as `tingle code_check <subcommand>`. First subcommand: [`file_size`](docs/guides/code_check/file_size.md), token efficiency triage that lists source files by line count against configurable warn/error/critical thresholds. |
-| [`check_file_size`](docs/guides/check_file_size.md) | Python | Moved to `code_check file_size`. Still works unchanged as an alias. |
+| [`check_file_size`](docs/guides/check_file_size.md) | Python | Deprecated: moved to `code_check file_size`. Still works as an alias, but prints a deprecation warning on stderr. |
 | `kube` | Python | Kubernetes (EKS) helper with a scoped alias layer for switching contexts, listing namespaces/pods, and shelling into pods. |
 | `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
 | [`install`](docs/guides/install.md) | Shell | Adds `tingle` to `PATH` and installs bash completion, by idempotently appending a marker block to `~/.bashrc` (rewritten in place if the tingle folder moved). Bash only. |
