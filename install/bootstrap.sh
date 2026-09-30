@@ -27,7 +27,7 @@
 set -euo pipefail
 
 REPO="${TINGLE_REPO:-darthjee/tingle}"
-VERSION="${TINGLE_VERSION:-0.3.0}"
+VERSION="${TINGLE_VERSION:-0.4.0}"
 
 for tool in curl unzip bash; do
     if ! command -v "$tool" >/dev/null 2>&1; then
