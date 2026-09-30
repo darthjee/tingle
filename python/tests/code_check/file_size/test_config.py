@@ -1,4 +1,4 @@
-"""Unit tests for check_file_size.config (load_section, SCHEMA, validate)."""
+"""Unit tests for code_check.file_size.config (load_section, SCHEMA, validate)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from check_file_size.config import SCHEMA, ConfigError, default_path, load_section, validate
+from code_check.file_size.config import SCHEMA, ConfigError, default_path, load_section, validate
 
 
 def _write(path: Path, content) -> Path:

@@ -24,23 +24,23 @@ Example config:
     {"check_file_size": {"warn": 250, "ignore": ["*.lock"], "fail_on": "error"}}
 
 Usage:
-    ./check_file_size.py <path> [options]
+    tingle code_check file_size <path> [options]
 
 Examples
 --------
-    ./check_file_size.py ./src
-    ./check_file_size.py ./src --warn 300 --error 500 --critical 1000
-    ./check_file_size.py ./src --top 20
-    ./check_file_size.py ./src --min-level warn
-    ./check_file_size.py ./src --min-level error --top 5
-    ./check_file_size.py ./src --exclude fixtures
-    ./check_file_size.py ./src --no-default-excludes --exclude fixtures
-    ./check_file_size.py . --no-gitignore
-    ./check_file_size.py ./src --ext .py --ext .js
-    ./check_file_size.py . --ignore '*.test.js' --ignore 'docs/**'
-    ./check_file_size.py . --include 'src/**' --ext .py
-    ./check_file_size.py ./src --fail-on error
-    ./check_file_size.py ./src --no-config
+    tingle code_check file_size ./src
+    tingle code_check file_size ./src --warn 300 --error 500 --critical 1000
+    tingle code_check file_size ./src --top 20
+    tingle code_check file_size ./src --min-level warn
+    tingle code_check file_size ./src --min-level error --top 5
+    tingle code_check file_size ./src --exclude fixtures
+    tingle code_check file_size ./src --no-default-excludes --exclude fixtures
+    tingle code_check file_size . --no-gitignore
+    tingle code_check file_size ./src --ext .py --ext .js
+    tingle code_check file_size . --ignore '*.test.js' --ignore 'docs/**'
+    tingle code_check file_size . --include 'src/**' --ext .py
+    tingle code_check file_size ./src --fail-on error
+    tingle code_check file_size ./src --no-config
 
 """
 
@@ -49,14 +49,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from check_file_size.config import ConfigError, default_path, load_section, validate
-from check_file_size.constants import Constants
-from check_file_size.file_analyzer import FileAnalyzer
-from check_file_size.file_collector import FileCollector
-from check_file_size.palette import Palette
-from check_file_size.reporter import Reporter
+from code_check.file_size.config import ConfigError, default_path, load_section, validate
+from code_check.file_size.constants import Constants
+from code_check.file_size.file_analyzer import FileAnalyzer
+from code_check.file_size.file_collector import FileCollector
+from code_check.file_size.palette import Palette
+from code_check.file_size.reporter import Reporter
 from common.arg_parser import ArgParser
 
 # Flag definitions for ArgParser.

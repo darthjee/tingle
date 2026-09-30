@@ -1,10 +1,10 @@
-"""Unit tests for check_file_size.glob_matcher.GlobMatcher."""
+"""Unit tests for code_check.file_size.glob_matcher.GlobMatcher."""
 
 from __future__ import annotations
 
 import pytest
 
-from check_file_size.glob_matcher import GlobMatcher
+from code_check.file_size.glob_matcher import GlobMatcher
 
 
 @pytest.mark.parametrize(

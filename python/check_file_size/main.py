@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from check_file_size.executor import CheckFileSize
+from code_check.file_size.executor import CheckFileSize
 
 
 def main() -> None:

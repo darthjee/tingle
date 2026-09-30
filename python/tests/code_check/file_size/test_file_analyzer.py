@@ -1,4 +1,4 @@
-"""Unit tests for check_file_size.file_analyzer.FileAnalyzer."""
+"""Unit tests for code_check.file_size.file_analyzer.FileAnalyzer."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from check_file_size.file_analyzer import FileAnalyzer
+from code_check.file_size.file_analyzer import FileAnalyzer
 
 
 def test_count_lines_returns_exact_count(tmp_path):

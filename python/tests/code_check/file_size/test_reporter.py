@@ -1,14 +1,14 @@
-"""Unit tests for check_file_size.reporter.Reporter."""
+"""Unit tests for code_check.file_size.reporter.Reporter."""
 
 from __future__ import annotations
 
 import io
 from pathlib import Path
 
-from check_file_size.constants import Constants
-from check_file_size.file_analyzer import FileAnalyzer
-from check_file_size.palette import Palette
-from check_file_size.reporter import Reporter
+from code_check.file_size.constants import Constants
+from code_check.file_size.file_analyzer import FileAnalyzer
+from code_check.file_size.palette import Palette
+from code_check.file_size.reporter import Reporter
 
 
 class FakeTTY(io.StringIO):

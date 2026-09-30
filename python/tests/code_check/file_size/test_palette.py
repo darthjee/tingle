@@ -1,4 +1,4 @@
-"""Unit tests for check_file_size.palette.Palette."""
+"""Unit tests for code_check.file_size.palette.Palette."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import io
 
 import pytest
 
-from check_file_size.constants import Constants
-from check_file_size.palette import Palette
+from code_check.file_size.constants import Constants
+from code_check.file_size.palette import Palette
 
 
 class FakeTTY(io.StringIO):

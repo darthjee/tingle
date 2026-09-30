@@ -1,4 +1,4 @@
-"""Unit tests for check_file_size.executor.CheckFileSize."""
+"""Unit tests for code_check.file_size.executor.CheckFileSize."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ import subprocess
 
 import pytest
 
-from check_file_size.constants import Constants
-from check_file_size.executor import CheckFileSize
-from check_file_size.file_analyzer import FileAnalyzer
-from check_file_size.file_collector import FileCollector
+from code_check.file_size.constants import Constants
+from code_check.file_size.executor import CheckFileSize
+from code_check.file_size.file_analyzer import FileAnalyzer
+from code_check.file_size.file_collector import FileCollector
 
 
 def test_run_no_args_prints_help_and_exits_zero(capsys):

@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from check_file_size.constants import Constants
-from check_file_size.executor import CheckFileSize
-from check_file_size.file_collector import FileCollector
+from code_check.file_size.constants import Constants
+from code_check.file_size.executor import CheckFileSize
+from code_check.file_size.file_collector import FileCollector
 
 
 def _config_path() -> Path:

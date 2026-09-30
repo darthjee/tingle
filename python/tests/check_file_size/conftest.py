@@ -1,4 +1,4 @@
-"""Shared fixtures for code_check tests."""
+"""Shared fixtures for check_file_size tests."""
 
 from __future__ import annotations
 

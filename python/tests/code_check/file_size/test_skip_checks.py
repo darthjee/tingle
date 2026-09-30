@@ -1,4 +1,4 @@
-"""Unit tests for check_file_size.skip_checks.SkipChecks.
+"""Unit tests for code_check.file_size.skip_checks.SkipChecks.
 
 Also covers the --top 0 and default-exclude edge cases that live at the
 FileCollector/CheckFileSize level.
@@ -10,9 +10,9 @@ import os
 
 import pytest
 
-from check_file_size.constants import Constants
-from check_file_size.file_collector import FileCollector
-from check_file_size.skip_checks import SkipChecks
+from code_check.file_size.constants import Constants
+from code_check.file_size.file_collector import FileCollector
+from code_check.file_size.skip_checks import SkipChecks
 
 
 def test_is_binary_file_known_extension_short_circuits(tmp_path):

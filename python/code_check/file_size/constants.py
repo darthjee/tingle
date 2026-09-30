@@ -1,4 +1,4 @@
-"""constants.py — Immutable configuration for check_file_size."""
+"""constants.py — Immutable configuration for code_check file_size."""
 
 from __future__ import annotations
 
