@@ -39,7 +39,7 @@ Node.js scripts. Best fit for tasks that benefit from the npm ecosystem
 ### Command entrypoint convention
 
 Every command's entry point is `<language>/<command>/main.<extension>` (e.g.
-`python/check_file_size/main.py`, `shell/install/main.sh`) — this is the file
+`python/code_check/main.py`, `shell/install/main.sh`) — this is the file
 `commands/*.json`'s `path` field points at, and the only thing `bin/tingle`
 dispatches to.
 
@@ -52,16 +52,18 @@ dispatches to.
 - Completion is opt-in per command. The completion hub (see `completions/`
   below) detects support by checking whether `completion.<ext>` exists next
   to a command's `main.<ext>` — it never invokes `main.<ext> complete` to
-  probe for support. Commands without a `completion.<ext>` (e.g.
-  `check_file_size`, `install`) get the hub's generic native file/folder
-  completion fallback instead.
+  probe for support. Commands without a `completion.<ext>` (e.g. the
+  `check_file_size` alias, `install`) get the hub's generic native
+  file/folder completion fallback instead.
 - A completion handler's stdout is the list of suggestions, which the hub
   filters with `compgen -W "<output>" -- "$cur"`. Empty output means no
   suggestions. If the whole output, with surrounding whitespace trimmed, is
   exactly the reserved sentinel `__tingle_files__`, the hub instead uses its
   native file/folder completion — the same fallback a command with no
   `completion.<ext>` gets. Use it for positions that take a path (e.g.
-  `tingle linux sed <TAB>`).
+  `tingle linux sed <TAB>`). `code_check`'s completion, for example,
+  returns subcommand names at the first position, flag names when the word
+  being typed starts with `-`, and `__tingle_files__` for the path position.
 - A completion handler receives raw argv, including a possibly-empty
   trailing element for the word currently being typed, and must not run it
   through a strict parser (e.g. `argparse`) — that trailing empty string is
@@ -80,9 +82,13 @@ following this pattern instead of inventing a one-off structure:
   the command's own package.
 - Argument parsing goes through the shared `ArgParser`
   (`python/common/arg_parser.py`):
-  - `ArgParser(flags: list[dict])` — `flags` is a list of dicts shaped like
-    `argparse.add_argument`'s kwargs plus a `"name"` key for the flag string,
-    e.g. `{"name": "--warn", "type": int, "default": 300, "help": "..."}`.
+  - `ArgParser(flags: list[dict], prog: str | None = None)` — `flags` is a
+    list of dicts shaped like `argparse.add_argument`'s kwargs plus a
+    `"name"` key for the flag string, e.g.
+    `{"name": "--warn", "type": int, "default": 300, "help": "..."}`.
+    `prog` is optional and sets the program name shown in `usage:` and help
+    output (e.g. `"tingle code_check file_size"`); when omitted, argparse's
+    default is used.
   - `.parse(argv: list[str] | None = None) -> dict` — parses (defaulting to
     `sys.argv[1:]`) and returns a plain `dict` of option name → value (not an
     `argparse.Namespace`).
@@ -94,10 +100,47 @@ following this pattern instead of inventing a one-off structure:
   `__init__.py` + one file per class), with the orchestrator class named
   after the command.
 
-`python/check_file_size/` is the first example of this pattern in practice:
-it splits into `main.py` (the `run`/`complete` dispatcher), `executor.py`
-(holds the `CheckFileSize` orchestrator class), `constants.py`,
-`skip_checks.py`, `file_collector.py`, `file_analyzer.py`, and `reporter.py`.
+`python/code_check/file_size/` is the first example of this pattern in
+practice: it holds `executor.py` (the `CheckFileSize` orchestrator class),
+`constants.py`, `config.py` (its config section), `flags.py` (its flag
+list), `skip_checks.py`, `glob_matcher.py`, `git_ignore.py`,
+`file_collector.py`, `file_analyzer.py`, and `reporter.py`. Helpers shared
+by all `code_check` subcommands sit one level up in `python/code_check/`:
+`palette.py` (`Palette` plus `Colors`) and a generic `config.py`
+(`default_path`, `load_section`, `ConfigError`).
+
+#### Subcommand dispatch
+
+A command that groups several related checks under one name (e.g.
+`tingle code_check <subcommand>`) keeps the usual `main.py` /
+`executor.py` / `completion.py` trio at its top level, and puts each
+subcommand in its own sub-package. `python/code_check/` is the reference:
+
+- `python/code_check/executor.py` holds `CodeCheck`, whose static
+  `SUBCOMMANDS` dict maps each exact subcommand name to its class and a
+  one-line description (e.g. `{"file_size": (CheckFileSize, "...")}`).
+  There are no argparse subparsers: names are matched exactly, with no case
+  folding and no aliases.
+- `CodeCheck.run` looks up `args[0]` in `SUBCOMMANDS` and forwards
+  `args[1:]` to that subcommand unchanged. `-h <sub>` / `--help <sub>` is
+  forwarded as `<sub> -h`.
+- Exit codes:
+  - `0` — no args, `-h` or `--help`: lists the subcommands, then
+    `Run 'tingle code_check <subcommand> --help' for its options.`
+  - `1` — unknown subcommand (`Error: unknown subcommand '<x>'`) or a flag
+    before the subcommand (`Error: expected a subcommand before options
+    (got '<flag>')`); both print in red to stderr, followed by the list.
+  - `2` — reserved for check gates such as `--fail-on`. A subcommand's own
+    exit code is forwarded unchanged.
+- Code used by a single subcommand stays in that subcommand's package. Move
+  a helper up to the parent package (or to `python/common/`) only once a
+  second consumer needs it.
+- When an existing command becomes a subcommand, its old entry point stays
+  as a thin shim so existing callers keep working. `python/check_file_size/`
+  (`__init__.py`, `main.py`) is that shim: it forwards to
+  `code_check/file_size` with unchanged behaviour and no deprecation
+  warning, and its `commands/python.json` entry still points at
+  `python/check_file_size/main.py`.
 
 #### kube AWS credentials
 
@@ -133,7 +176,7 @@ for the runtime sequence.
 #### Test folder location
 
 Tests for `python/` live under `python/tests/`, mirroring the package layout
-under `python/` (e.g. `python/tests/check_file_size/`,
+under `python/` (e.g. `python/tests/code_check/file_size/`,
 `python/tests/common/`), rather than a top-level `tests/`. Future Python
 commands under this repo should follow the same pattern.
 

@@ -23,7 +23,7 @@ folder.
 
 ## Conventions
 
-- The folder name is the command or topic (e.g. `check_file_size`).
+- The folder name is the command or topic (e.g. `code_check`).
 - The `README.md` links the parent GitHub issue, and each feature spec links
   its sub-issue.
 - A new split adds an entry to [Current specs](#current-specs) (a table with
