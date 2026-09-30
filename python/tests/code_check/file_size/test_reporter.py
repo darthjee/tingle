@@ -5,10 +5,9 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-from code_check.file_size.constants import Constants
 from code_check.file_size.file_analyzer import FileAnalyzer
-from code_check.file_size.palette import Palette
 from code_check.file_size.reporter import Reporter
+from code_check.palette import Colors, Palette
 
 
 class FakeTTY(io.StringIO):
@@ -138,8 +137,8 @@ def test_report_is_coloured_with_a_tty_palette(tmp_path, capsys, monkeypatch):
     Reporter(analyzer, tmp_path, Palette(FakeTTY())).report([(tmp_path / "a.py", 500)])
 
     out = capsys.readouterr().out
-    assert f"{Constants.RED}{Constants.BOLD}🔴 ERROR" in out
-    assert f"{Constants.BOLD}Summary:{Constants.RESET}" in out
+    assert f"{Colors.RED}{Colors.BOLD}🔴 ERROR" in out
+    assert f"{Colors.BOLD}Summary:{Colors.RESET}" in out
 
 
 def test_report_summary_uses_full_results_when_fewer_rows_are_shown(tmp_path, capsys):

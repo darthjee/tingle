@@ -1,4 +1,4 @@
-"""Unit tests for code_check.file_size.palette.Palette."""
+"""Unit tests for code_check.palette.Palette."""
 
 from __future__ import annotations
 
@@ -6,8 +6,7 @@ import io
 
 import pytest
 
-from code_check.file_size.constants import Constants
-from code_check.file_size.palette import Palette
+from code_check.palette import Colors, Palette
 
 
 class FakeTTY(io.StringIO):
@@ -34,7 +33,7 @@ def test_tty_without_no_color_uses_raw_codes():
 
     assert palette.enabled is True
     for name in Palette.NAMES:
-        assert getattr(palette, name) == getattr(Constants, name)
+        assert getattr(palette, name) == getattr(Colors, name)
 
 
 def test_non_tty_stream_disables_colours():
@@ -76,10 +75,10 @@ def test_defaults_to_current_stdout(capsys):
 @pytest.mark.parametrize(
     "level, expected",
     [
-        ("critical", Constants.MAGENTA + Constants.BOLD),
-        ("error", Constants.RED + Constants.BOLD),
-        ("warn", Constants.YELLOW),
-        ("ok", Constants.GREEN),
+        ("critical", Colors.MAGENTA + Colors.BOLD),
+        ("error", Colors.RED + Colors.BOLD),
+        ("warn", Colors.YELLOW),
+        ("ok", Colors.GREEN),
     ],
 )
 def test_level_color_when_enabled(level, expected):
