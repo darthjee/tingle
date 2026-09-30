@@ -42,7 +42,7 @@ def _run(args):
 # --- subcommand table -----------------------------------------------------------
 
 
-def test_subcommands_maps_file_size_to_check_file_size():
+def test_subcommands_maps_file_size_to_executor():
     cls, description = CodeCheck.SUBCOMMANDS["file_size"]
 
     assert cls is CheckFileSize

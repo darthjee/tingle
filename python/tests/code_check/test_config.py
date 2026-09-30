@@ -29,47 +29,47 @@ def test_default_path_follows_home(tmp_path, monkeypatch):
 
 def test_load_section_uses_default_path_under_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
-    _write(tmp_path / ".tingle" / "code_check" / "config.json", {"check_file_size": {"top": 3}})
+    _write(tmp_path / ".tingle" / "code_check" / "config.json", {"file_size": {"top": 3}})
 
-    assert load_section("check_file_size") == {"top": 3}
+    assert load_section("file_size") == {"top": 3}
 
 
 def test_load_section_default_path_missing_returns_none():
-    assert load_section("check_file_size") is None
+    assert load_section("file_size") is None
 
 
 # --- load_section ---------------------------------------------------------------
 
 
 def test_load_section_missing_file_returns_none(tmp_path):
-    assert load_section("check_file_size", tmp_path / "nope.json") is None
+    assert load_section("file_size", tmp_path / "nope.json") is None
 
 
 def test_load_section_missing_section_returns_none(tmp_path):
     path = _write(tmp_path / "c.json", {"code_check": {"x": 1}})
 
-    assert load_section("check_file_size", path) is None
+    assert load_section("file_size", path) is None
 
 
 def test_load_section_empty_section_returns_empty_dict(tmp_path):
-    path = _write(tmp_path / "c.json", {"check_file_size": {}})
+    path = _write(tmp_path / "c.json", {"file_size": {}})
 
-    assert load_section("check_file_size", path) == {}
+    assert load_section("file_size", path) == {}
 
 
 def test_load_section_ignores_other_top_level_keys(tmp_path):
     path = _write(
         tmp_path / "c.json",
-        {"code_check": "anything", "other": [1, 2], "check_file_size": {"warn": 10}},
+        {"code_check": "anything", "other": [1, 2], "file_size": {"warn": 10}},
     )
 
-    assert load_section("check_file_size", path) == {"warn": 10}
+    assert load_section("file_size", path) == {"warn": 10}
 
 
 def test_load_section_does_not_validate_section_keys(tmp_path):
-    path = _write(tmp_path / "c.json", {"check_file_size": {"unknown": True}})
+    path = _write(tmp_path / "c.json", {"file_size": {"unknown": True}})
 
-    assert load_section("check_file_size", path) == {"unknown": True}
+    assert load_section("file_size", path) == {"unknown": True}
 
 
 @pytest.mark.parametrize(
@@ -80,16 +80,16 @@ def test_load_section_does_not_validate_section_keys(tmp_path):
         ("[]", "top level must be an object"),
         ("null", "top level must be an object"),
         ('"text"', "top level must be an object"),
-        ('{"check_file_size": []}', "'check_file_size' must be an object"),
-        ('{"check_file_size": null}', "'check_file_size' must be an object"),
-        ('{"check_file_size": 3}', "'check_file_size' must be an object"),
+        ('{"file_size": []}', "'file_size' must be an object"),
+        ('{"file_size": null}', "'file_size' must be an object"),
+        ('{"file_size": 3}', "'file_size' must be an object"),
     ],
 )
 def test_load_section_file_level_errors(tmp_path, content, reason):
     path = _write(tmp_path / "c.json", content)
 
     with pytest.raises(ConfigError) as exc_info:
-        load_section("check_file_size", path)
+        load_section("file_size", path)
 
     assert exc_info.value.path == path
     assert reason in exc_info.value.reason
@@ -102,7 +102,7 @@ def test_load_section_unreadable_file_raises(tmp_path):
     path.mkdir()
 
     with pytest.raises(ConfigError) as exc_info:
-        load_section("check_file_size", path)
+        load_section("file_size", path)
 
     assert "cannot read file" in exc_info.value.reason
 
@@ -112,7 +112,7 @@ def test_load_section_non_utf8_file_raises(tmp_path):
     path.write_bytes(b"\xff\xfe\x00")
 
     with pytest.raises(ConfigError) as exc_info:
-        load_section("check_file_size", path)
+        load_section("file_size", path)
 
     assert "cannot read file" in exc_info.value.reason
 
