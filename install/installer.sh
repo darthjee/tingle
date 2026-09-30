@@ -32,13 +32,14 @@
 # manifest" is <source>/MANIFEST. It never prompts and skips the
 # "tingle.json already exists" refusal. It requires jq. Phases, in order:
 #   1. Preflight (nothing changes except the lock):
+#      - The target must be an existing, writable directory (named when not)
+#        and must not be the source tree itself. Checked before the lock is
+#        taken, so a bad target changes nothing at all.
 #      - Lock: mkdir <target>/.tingle-update.lock/ (atomic) holding a "pid"
 #        file with the installer's PID. A lock whose PID is running refuses
 #        the run ("another update is in progress"). A lock whose process is
 #        gone, or with no pid file, is stale: it is cleared (with a message)
 #        and taken.
-#      - The target must be an existing, writable directory (named when not)
-#        and must not be the source tree itself.
 #      - The old tingle.json must parse and have "version", "repo" and
 #        "manifest"; otherwise exit non-zero, nothing changed.
 #      - The incoming MANIFEST must exist, be well-formed and list at least
@@ -49,8 +50,9 @@
 #        interrupted update), or when it is missing on disk (an interrupted
 #        prune). Any other mismatch aborts, listing the edited files, unless
 #        TINGLE_UPDATE_FORCE=1. When the old tingle.json records no hashes
-#        (the path-only format from before 0.4.0, or a hand-built install;
-#        decided by format, not by version string), edits can't be
+#        (the path-only format from before 0.4.0, a `version: "unknown"`
+#        install from a checkout, or a hand-built install; decided by
+#        format, not by version string), edits can't be
 #        detected: a warning says they will be overwritten, and it goes on.
 #   2. Stage: every file of the new manifest, plus MANIFEST itself, is
 #      copied (permissions kept, so executables stay executable) to a temp
