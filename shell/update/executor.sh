@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 #
-# executor.sh - Updates a web install of tingle (one with tingle.json) to the
-# latest stable release, or to a pinned one.
+# executor.sh - Updates tingle in place. A web install (one with
+# tingle.json) goes to the latest stable release, or to a pinned one; a git
+# checkout is fast-forwarded with `git pull --ff-only`.
 #
-# This is a deliberately thin command: it resolves the target version,
-# downloads and verifies the release zip into a temp dir, then hands off to
-# the NEW release's install/installer.sh in update mode, which does the
-# actual replacement. The code being overwritten is therefore never the code
-# doing the overwriting.
+# For a web install this is a deliberately thin command: it resolves the
+# target version, downloads and verifies the release zip into a temp dir,
+# then hands off to the NEW release's install/installer.sh in update mode,
+# which does the actual replacement. The code being overwritten is therefore
+# never the code doing the overwriting. For a git checkout, it pulls and then
+# execs the freshly pulled bin/tingle install.
 #
 # Usage:
 #   tingle update [--check] [--force] [<version>]
@@ -16,23 +18,37 @@
 #   <version>          - Pin the target version: X.Y.Z or X.Y.Z-<suffix>, no
 #                        "v" prefix. Skips the GitHub API. May be older than
 #                        the installed version (downgrade) or a pre-release,
-#                        but must be 0.4.0 or later.
+#                        but must be 0.4.0 or later. Refused on a git
+#                        checkout (check out a tag yourself instead).
 #   TINGLE_VERSION     - Same as <version>; the argument wins when both are
-#                        given.
+#                        given. Refused on a git checkout too.
 #   --check            - Dry run: print the installed and target versions,
 #                        and the locally edited shipped files when the
 #                        install tracks hashes, then exit 0 without changing
-#                        anything.
+#                        anything. On a git checkout: fetch, then print how
+#                        many commits the branch is behind and ahead of its
+#                        upstream, and exit 0 without pulling.
 #   --force            - Go ahead even when shipped files were edited locally.
 #                        Passed to the installer as TINGLE_UPDATE_FORCE=1.
+#                        Refused on a git checkout.
 #   TINGLE_ASSUME_YES  - When set (to any value), skip the y/N confirmation.
+#                        Ignored on a git checkout, which never prompts.
 #
 # Flow, in order (every step before the handoff that fails exits non-zero
 # with nothing changed):
-#   1. Detect the install: always the folder of the running bin/tingle. It
-#      must be a web install (tingle.json passing tingle_json_check), and be
-#      writable. A git checkout is told to use `git pull`; an unknown install
-#      is refused.
+#   1. Detect the install: always the folder of the running bin/tingle. A
+#      tingle.json means a web install (it wins when .git exists too);
+#      otherwise a .git means a git checkout; otherwise the install is
+#      unknown and refused.
+#      Git checkout: refuse a pin or --force, require git, a clean tracked
+#      tree (untracked files are fine), a branch (not a detached HEAD) with
+#      an upstream; then `git fetch`. Behind 0: print "tingle is already up
+#      to date (<branch>, <short sha>)" and exit 0. --check: print
+#      "<branch>: <N> commit(s) behind, <M> ahead of <upstream>" and exit 0.
+#      Otherwise `git pull --ff-only`, then exec <folder>/bin/tingle install.
+#      Steps 2-6 below do not apply to a git checkout.
+#      Web install: require curl, unzip and jq, validate the pin, require a
+#      tingle.json passing tingle_json_check and a writable folder.
 #   2. Resolve the target: the pin (validated before any network call), or
 #      GET <api>/releases/latest (.tag_name), the latest stable release. The
 #      target must be X.Y.Z[-suffix] and 0.4.0 or later.
@@ -61,11 +77,16 @@
 # Exit codes:
 #   0         - Handed off successfully (the installer's own status follows),
 #               already up to date, or --check.
-#   non-zero  - Any refusal or failure: git checkout, unknown install,
-#               corrupt tingle.json, folder not writable, invalid pin, pin
-#               below 0.4.0, release not found, network failure or rate
-#               limit, missing or mismatched checksum, bad zip, declined
-#               confirmation, no /dev/tty without TINGLE_ASSUME_YES.
+#   install's - Git checkout after a successful pull: the exit status of the
+#               exec'd `bin/tingle install`.
+#   non-zero  - Any refusal or failure: unknown install, corrupt tingle.json,
+#               folder not writable, invalid pin, pin below 0.4.0, release
+#               not found, network failure or rate limit, missing or
+#               mismatched checksum, bad zip, declined confirmation, no
+#               /dev/tty without TINGLE_ASSUME_YES. On a git checkout: a pin
+#               or --force, git missing, uncommitted tracked changes,
+#               detached HEAD, no upstream, failed fetch, failed
+#               `git pull --ff-only`.
 #
 # Test-only hooks (NOT user-facing; do not document them elsewhere). They let
 # a local folder, a file:// URL or `python3 -m http.server` stand in for
@@ -73,7 +94,8 @@
 #   TINGLE_RELEASE_API_URL   - Default: https://api.github.com/repos/<repo>
 #   TINGLE_RELEASE_BASE_URL  - Default: https://github.com/<repo>/releases/download
 #
-# Dependencies: curl, unzip, jq, sha256sum or shasum; <tingle root>/install/manifest.sh.
+# Dependencies: <tingle root>/install/manifest.sh. Web install: curl, unzip,
+# jq, sha256sum or shasum. Git checkout: git only.
 #
 set -euo pipefail
 
@@ -81,13 +103,6 @@ TINGLE_FOLDER="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # shellcheck source=SCRIPTDIR/../../install/manifest.sh disable=SC1091
 . "$TINGLE_FOLDER/install/manifest.sh"
-
-for tool in curl unzip jq; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "tingle update: required tool '$tool' not found on PATH" >&2
-        exit 1
-    fi
-done
 
 usage() {
     echo "usage: tingle update [--check] [--force] [<version>]" >&2
@@ -146,11 +161,88 @@ validate_version() {
     fi
 }
 
-# A pin is validated before anything else, and before any network call (E6,
-# E2).
-if [ -n "$PIN" ]; then
-    validate_version "$PIN" || exit 1
-fi
+# --- Git checkout update path -----------------------------------------------
+
+# Updates a git checkout of tingle with `git pull --ff-only`, then execs the
+# freshly pulled `bin/tingle install`. Never returns: it exits or execs. Git
+# always runs as `git -C "$TINGLE_FOLDER"`; the script never cd's. There is
+# no confirmation prompt here, and TINGLE_ASSUME_YES is ignored.
+git_update() {
+    local branch upstream behind ahead sha
+
+    if [ -n "$PIN" ]; then
+        echo "tingle update: $TINGLE_FOLDER is a git checkout; version pins" \
+            "are not supported there. Check out a tag yourself instead, e.g." \
+            "'git -C $TINGLE_FOLDER checkout $PIN'" >&2
+        exit 1
+    fi
+
+    if [ "$FORCE" -eq 1 ]; then
+        echo "tingle update: --force is not supported on a git checkout" \
+            "($TINGLE_FOLDER)" >&2
+        exit 1
+    fi
+
+    if ! command -v git >/dev/null 2>&1; then
+        echo "tingle update: required tool 'git' not found on PATH" >&2
+        exit 1
+    fi
+
+    # Tracked files only: untracked files do not make the tree dirty.
+    if ! git -C "$TINGLE_FOLDER" diff --quiet \
+        || ! git -C "$TINGLE_FOLDER" diff --cached --quiet; then
+        echo "tingle update: $TINGLE_FOLDER has uncommitted changes; commit" \
+            "or stash them, then re-run; nothing was changed" >&2
+        exit 1
+    fi
+
+    if ! branch="$(git -C "$TINGLE_FOLDER" symbolic-ref -q --short HEAD)"; then
+        echo "tingle update: $TINGLE_FOLDER is on a detached HEAD; check out" \
+            "a branch, then re-run; nothing was changed" >&2
+        exit 1
+    fi
+
+    if ! upstream="$(git -C "$TINGLE_FOLDER" rev-parse --abbrev-ref \
+        --symbolic-full-name '@{u}' 2>/dev/null)"; then
+        echo "tingle update: branch '$branch' in $TINGLE_FOLDER has no" \
+            "upstream; set one with 'git branch --set-upstream-to', then" \
+            "re-run; nothing was changed" >&2
+        exit 1
+    fi
+
+    # With an upstream set, a bare fetch uses the upstream's remote. Git's own
+    # error goes through to stderr.
+    if ! git -C "$TINGLE_FOLDER" fetch; then
+        echo "tingle update: could not fetch $upstream in $TINGLE_FOLDER;" \
+            "nothing was changed" >&2
+        exit 1
+    fi
+
+    behind="$(git -C "$TINGLE_FOLDER" rev-list --count 'HEAD..@{u}')"
+    ahead="$(git -C "$TINGLE_FOLDER" rev-list --count '@{u}..HEAD')"
+
+    if [ "$behind" -eq 0 ]; then
+        sha="$(git -C "$TINGLE_FOLDER" rev-parse --short HEAD)"
+        echo "tingle is already up to date ($branch, $sha)"
+        exit 0
+    fi
+
+    if [ "$CHECK" -eq 1 ]; then
+        echo "$branch: $behind commit(s) behind, $ahead ahead of $upstream"
+        exit 0
+    fi
+
+    # ff-only never merges, so a failure leaves the working tree untouched.
+    if ! git -C "$TINGLE_FOLDER" pull --ff-only; then
+        echo "tingle update: git pull --ff-only failed in $TINGLE_FOLDER (has" \
+            "the branch diverged from $upstream?); nothing was changed" >&2
+        exit 1
+    fi
+
+    # Nothing may run between the pull and this exec: the pull may have
+    # replaced this very script.
+    exec "$TINGLE_FOLDER/bin/tingle" install
+}
 
 # --- 1. Detect the install (E3, E14, E11) -----------------------------------
 
@@ -158,24 +250,38 @@ TINGLE_JSON="$TINGLE_FOLDER/tingle.json"
 
 echo "Updating tingle in $TINGLE_FOLDER"
 
-if [ -e "$TINGLE_JSON" ]; then
-    if ! tingle_json_check "$TINGLE_JSON"; then
-        echo "tingle update: $TINGLE_JSON is corrupt (it can't be parsed, or" \
-            "'version', 'repo' or 'manifest' is missing); nothing was changed" >&2
-        exit 1
+# tingle.json wins when both it and .git exist.
+if [ ! -e "$TINGLE_JSON" ]; then
+    if [ -e "$TINGLE_FOLDER/.git" ]; then
+        git_update
     fi
-    INSTALLED="$(jq -r '.version | tostring' "$TINGLE_JSON")"
-    REPO="$(jq -r '.repo | tostring' "$TINGLE_JSON")"
-elif [ -e "$TINGLE_FOLDER/.git" ]; then
-    echo "tingle update: $TINGLE_FOLDER is a git checkout; update it with" \
-        "'git pull' instead" >&2
-    exit 1
-else
     echo "tingle update: can't tell how tingle was installed in" \
         "$TINGLE_FOLDER (no tingle.json and not a git checkout); nothing" \
         "was changed" >&2
     exit 1
 fi
+
+# --- Web install path -------------------------------------------------------
+
+for tool in curl unzip jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "tingle update: required tool '$tool' not found on PATH" >&2
+        exit 1
+    fi
+done
+
+# A pin is validated before any network call (E6, E2).
+if [ -n "$PIN" ]; then
+    validate_version "$PIN" || exit 1
+fi
+
+if ! tingle_json_check "$TINGLE_JSON"; then
+    echo "tingle update: $TINGLE_JSON is corrupt (it can't be parsed, or" \
+        "'version', 'repo' or 'manifest' is missing); nothing was changed" >&2
+    exit 1
+fi
+INSTALLED="$(jq -r '.version | tostring' "$TINGLE_JSON")"
+REPO="$(jq -r '.repo | tostring' "$TINGLE_JSON")"
 
 if [ ! -w "$TINGLE_FOLDER" ]; then
     echo "tingle update: the install folder $TINGLE_FOLDER is not writable" >&2

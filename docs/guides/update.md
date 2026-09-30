@@ -1,42 +1,41 @@
 # `tingle update`
 
-Update a web install of tingle to the latest or a pinned release.
+Update tingle: a web install to the latest or a pinned release, or a git
+checkout with `git pull`.
 
 ## What it does
 
-`tingle update` upgrades (or downgrades) a **web install** of tingle: one made
-with the one-line `curl | bash` installer described in the
-[Installation](../../README.md#installation) section of the main README. A web
-install is recognised by the `tingle.json` file in its folder, which records
-the installed version, the GitHub repository it came from, and the list of
-files it shipped.
-
-It always updates the folder of the `tingle` you are running, and names that
-folder at the start of its output:
+`tingle update` always updates the folder of the `tingle` you are running, and
+names that folder at the start of its output:
 
 ```
 Updating tingle in /home/you/.tingle
 ```
 
-It downloads the new release, checks it, and then replaces the shipped files
-in place. Files you added to the tingle folder yourself are left alone.
+How it updates depends on how that folder was installed:
 
-**Git checkouts are not updated.** If you cloned the repository, `tingle
-update` refuses and exits non-zero with:
-
-```
-tingle update: /path/to/tingle is a git checkout; update it with 'git pull' instead
-```
-
-Run `git pull` in your clone instead.
+- **Web install**: one made with the one-line `curl | bash` installer
+  described in the [Installation](../../README.md#installation) section of the
+  main README. A web install is recognised by the `tingle.json` file in its
+  folder, which records the installed version, the GitHub repository it came
+  from, and the list of files it shipped. `tingle update` downloads the new
+  release, checks it, and then replaces the shipped files in place. Files you
+  added to the tingle folder yourself are left alone. Most of this guide
+  describes this case.
+- **Git checkout**: a clone of the repository. `tingle update` fast-forwards
+  the current branch with `git pull --ff-only` and then re-runs
+  `tingle install`. See [Updating a git checkout](#updating-a-git-checkout).
 
 ## Prerequisites
 
-- `curl`, `unzip` and `jq`.
-- `sha256sum` or `shasum`, to verify the download.
-- Network access to GitHub, to download the release (and, when no version is
-  pinned, to look up the latest one through the GitHub API).
 - Write access to the tingle folder.
+- For a **git checkout**: `git`, and network access to the branch's upstream
+  remote.
+- For a **web install** only:
+  - `curl`, `unzip` and `jq`;
+  - `sha256sum` or `shasum`, to verify the download;
+  - network access to GitHub, to download the release (and, when no version
+    is pinned, to look up the latest one through the GitHub API).
 
 ## Usage
 
@@ -50,7 +49,7 @@ tingle update [--check] [--force] [<version>]
 tingle update
 ```
 
-Without a version, the target is the latest **stable** GitHub release:
+On a web install, without a version, the target is the latest **stable** GitHub release:
 pre-releases and drafts are skipped. When the installed version already
 matches it, nothing is changed and tingle prints:
 
@@ -61,7 +60,10 @@ tingle is already up to date (0.5.0)
 Otherwise it prints the installed and target versions, for example
 `0.4.0 → 0.5.0`, asks for confirmation, and updates.
 
-### Pin a version
+On a git checkout, the same command pulls the current branch instead; see
+[Updating a git checkout](#updating-a-git-checkout).
+
+### Pin a version (web installs only)
 
 ```
 tingle update 0.4.1
@@ -84,17 +86,22 @@ A pinned version:
 A pin is checked before any network call, and it skips the GitHub API
 lookup, so pinning is also a way around a GitHub API rate limit.
 
+Pins are refused on a git checkout; check out a tag yourself instead (see
+[Updating a git checkout](#updating-a-git-checkout)).
+
 ### Options
 
-- `--check` — Dry run. Prints the installed and target versions and, when the
-  install tracks file hashes, the shipped files you edited locally. Exits 0
-  without downloading or changing anything.
-- `--force` — Update even when shipped files were edited locally. Those edits
-  are overwritten.
+- `--check` — Dry run. On a web install, prints the installed and target
+  versions and, when the install tracks file hashes, the shipped files you
+  edited locally. On a git checkout, fetches the upstream and reports how far
+  behind and ahead the branch is. Either way it exits 0 without changing
+  anything in the tingle folder.
+- `--force` — Web installs only. Update even when shipped files were edited
+  locally. Those edits are overwritten. It is refused on a git checkout.
 
-### Confirmation
+### Confirmation (web installs only)
 
-Before changing anything, `tingle update` asks:
+Before changing anything on a web install, `tingle update` asks:
 
 ```
 Proceed? [y/N]
@@ -109,6 +116,126 @@ when there is no terminal to ask on, for example in a script or a CI job:
 ```
 TINGLE_ASSUME_YES=1 tingle update
 ```
+
+A git checkout is updated without a prompt, and `TINGLE_ASSUME_YES` is ignored
+there.
+
+## Updating a git checkout
+
+If the tingle folder is a clone of the repository, `tingle update`:
+
+1. checks that the checkout is safe to update (see the refusals below);
+2. fetches the current branch's upstream (for example `origin/main`);
+3. runs `git pull --ff-only` on the current branch, showing git's own output;
+4. re-runs [`tingle install`](install.md) from the freshly pulled folder, so
+   `~/.bashrc` and the bash completion pick up the new version. The exit
+   status of `tingle update` is the exit status of that `tingle install`.
+
+There is no confirmation prompt. Only `git` is needed; `curl`, `unzip` and
+`jq` are not. Untracked files (files git does not know about) do not stop the
+update and are left alone.
+
+When the branch is not behind its upstream, nothing is pulled and tingle
+prints (with your branch and its short commit hash):
+
+```
+tingle is already up to date (main, 1a2b3c4)
+```
+
+### Checking a git checkout
+
+```
+tingle update --check
+```
+
+This fetches the upstream and prints how the branch compares with it, without
+pulling or re-running `tingle install`:
+
+```
+main: 3 commit(s) behind, 0 ahead of origin/main
+```
+
+When the branch is not behind, the up-to-date line above is printed instead.
+It exits 0.
+
+### When a git checkout is not updated
+
+In each case below, tingle prints the message (prefixed with
+`tingle update: `, on stderr), exits 1, and changes nothing. `<folder>` is the
+tingle folder, `<branch>` the current branch and `<upstream>` its upstream.
+
+- **Uncommitted changes.** Staged or unstaged changes to tracked files:
+
+  ```
+  tingle update: <folder> has uncommitted changes; commit or stash them, then re-run; nothing was changed
+  ```
+
+  Commit your changes, or put them aside with `git stash`, then re-run
+  `tingle update` (and `git stash pop` afterwards if you stashed).
+
+- **Detached HEAD.** No branch is checked out, for example after checking out
+  a tag:
+
+  ```
+  tingle update: <folder> is on a detached HEAD; check out a branch, then re-run; nothing was changed
+  ```
+
+  Check out a branch, e.g. `git -C <folder> checkout main`, then re-run.
+
+- **No upstream.** The current branch does not track a remote branch:
+
+  ```
+  tingle update: branch '<branch>' in <folder> has no upstream; set one with 'git branch --set-upstream-to', then re-run; nothing was changed
+  ```
+
+  Set one, e.g. `git -C <folder> branch --set-upstream-to=origin/main`, then
+  re-run.
+
+- **Fetch failed.** git's own error is shown first, then:
+
+  ```
+  tingle update: could not fetch <upstream> in <folder>; nothing was changed
+  ```
+
+  Check your network connection and access to the remote, then try again.
+
+- **Diverged branch.** The pull could not fast-forward, usually because you
+  have local commits and the upstream has new ones too. git's own error is
+  shown first, then:
+
+  ```
+  tingle update: git pull --ff-only failed in <folder> (has the branch diverged from <upstream>?); nothing was changed
+  ```
+
+  Reconcile the branch yourself, e.g. with `git -C <folder> pull --rebase`
+  or a merge, then re-run `tingle update` (or `tingle install`).
+
+- **Version pin.** A `<version>` argument or `TINGLE_VERSION` was given:
+
+  ```
+  tingle update: <folder> is a git checkout; version pins are not supported there. Check out a tag yourself instead, e.g. 'git -C <folder> checkout <version>'
+  ```
+
+  To run a specific release from a clone, check out its tag yourself and then
+  run `tingle install`. Note that this leaves a detached HEAD, so check out a
+  branch again before the next `tingle update`.
+
+- **`--force`.**
+
+  ```
+  tingle update: --force is not supported on a git checkout (<folder>)
+  ```
+
+  Drop `--force`. To discard local edits, use git (for example
+  `git -C <folder> stash`).
+
+- **`git` missing.**
+
+  ```
+  tingle update: required tool 'git' not found on PATH
+  ```
+
+  Install git, or add it to your `PATH`.
 
 ## Examples
 
@@ -130,9 +257,13 @@ tingle update --force
 
 # Update from a script, without the prompt.
 TINGLE_ASSUME_YES=1 tingle update
+
+# In a git checkout: see how far behind the upstream you are, then pull.
+tingle update --check
+tingle update
 ```
 
-## What it changes and what it keeps
+## What it changes and what it keeps (web installs)
 
 - **The download is verified first.** The release zip is checked against its
   SHA-256 checksum before anything in the tingle folder is replaced. On a
@@ -173,7 +304,7 @@ TINGLE_ASSUME_YES=1 tingle update
 
 ## Interrupting it
 
-It is safe to interrupt an update (Ctrl-C, a closed terminal, even a power
+It is safe to interrupt a web-install update (Ctrl-C, a closed terminal, even a power
 loss). `tingle.json` is written last, so until then it still describes the
 old version. **Re-running `tingle update` finishes an interrupted update**:
 either there is nothing left to do, or it redoes the update from where the
@@ -195,6 +326,8 @@ source ~/.bashrc
 
 ## Troubleshooting
 
+The failures below apply to web installs. For a git checkout, see
+[When a git checkout is not updated](#when-a-git-checkout-is-not-updated).
 Every failure below exits non-zero. Unless stated otherwise, nothing in the
 tingle folder was changed.
 
@@ -225,8 +358,6 @@ tingle folder was changed.
 - **Not a web install:** `can't tell how tingle was installed in <folder>
   (no tingle.json and not a git checkout); nothing was changed`. Reinstall
   with the web installer to be able to use `tingle update`.
-- **Git checkout:** `<folder> is a git checkout; update it with 'git pull'
-  instead`. Run `git pull` in your clone.
 - **Folder not writable:** `the install folder <folder> is not writable`.
   Fix the folder's permissions, or run the update as the user who owns it.
 - **Another update in progress:** `another update of '<folder>' is in
@@ -238,7 +369,7 @@ tingle folder was changed.
   running without a terminal.
 - **Locally edited shipped files:** `update aborted; nothing was changed`,
   after the list of edited files. See
-  [What it changes and what it keeps](#what-it-changes-and-what-it-keeps).
+  [What it changes and what it keeps](#what-it-changes-and-what-it-keeps-web-installs).
 - **Update done, but `~/.bashrc` not rewired:** `tingle <version> was
   installed in '<folder>', but wiring ~/.bashrc failed; re-run
   '<folder>/bin/tingle install' by hand`. The new version is installed; run
