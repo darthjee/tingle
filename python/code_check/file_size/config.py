@@ -1,7 +1,8 @@
 """config.py — Validate the file_size section of ~/.tingle/code_check/config.json.
 
-The file is read by the generic `code_check.config.load_section`; `SCHEMA`
-and `validate` hold the rules for the `check_file_size` section.
+The file is read by the generic `code_check.config.load_sections`; `SCHEMA`
+and `validate` hold the rules for the `file_size` section (the deprecated
+`check_file_size` section follows the same rules).
 `ConfigError` is re-exported from `code_check.config`.
 
 Dependencies: standard library only.
@@ -57,7 +58,7 @@ def _one_of(choices: list[str], nullable: bool = False) -> Validator:
     return check
 
 
-# check_file_size section: key → validator.
+# file_size section: key → validator.
 SCHEMA: dict[str, Validator] = {
     "warn": _non_negative_int,
     "error": _non_negative_int,
@@ -75,7 +76,7 @@ SCHEMA: dict[str, Validator] = {
 
 
 def validate(section: dict, path: Path) -> dict:
-    """Check a `check_file_size` section against `SCHEMA` and return it unchanged.
+    """Check a `file_size` section against `SCHEMA` and return it unchanged.
 
     Raises `ConfigError(path, ...)` for an unknown key or a bad value.
     """

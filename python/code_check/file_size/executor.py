@@ -13,15 +13,17 @@ When `<path>` is inside a git work tree, untracked files ignored by git
 (`.gitignore`, `.git/info/exclude`, global excludes) are skipped by default;
 tracked files are always analysed. `--no-gitignore` turns this off.
 
-Personal defaults are read from the `check_file_size` section of
+Personal defaults are read from the `file_size` section of
 `~/.tingle/code_check/config.json` (keys: warn, error, critical, top, exclude,
 ignore, include, ext, no_default_excludes, gitignore, fail_on, min_level).
 Single values given on the CLI win over the config; list values (exclude,
-ignore, include, ext) are concatenated, config first. An invalid config exits
-with status 1. `--no-config` skips the file entirely.
+ignore, include, ext) are concatenated, config first. The legacy
+`check_file_size` section is still read, with a deprecation warning on stderr;
+setting both sections is an error. An invalid config exits with status 1.
+`--no-config` skips the file entirely.
 
 Example config:
-    {"check_file_size": {"warn": 250, "ignore": ["*.lock"], "fail_on": "error"}}
+    {"file_size": {"warn": 250, "ignore": ["*.lock"], "fail_on": "error"}}
 
 Usage:
     tingle code_check file_size <path> [options]
@@ -51,7 +53,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from code_check.config import default_path, load_section
+from code_check.config import default_path, load_sections
 from code_check.file_size.config import ConfigError, validate
 from code_check.file_size.constants import Constants
 from code_check.file_size.file_analyzer import FileAnalyzer
@@ -65,7 +67,11 @@ from common.arg_parser import ArgParser
 PROG = "tingle code_check file_size"
 
 # Section of the config file holding this command's options.
-CONFIG_SECTION = "check_file_size"
+CONFIG_SECTION = "file_size"
+
+# Deprecated name of the config section, still read with a warning.
+# Removing it is tracked in #286.
+LEGACY_CONFIG_SECTION = "check_file_size"
 
 # Built-in defaults for single-value options, applied after the config merge.
 SINGLE_DEFAULTS: dict = {
@@ -105,6 +111,12 @@ class CheckFileSize:
         print(f"{err.RED}Error: {message}{err.RESET}", file=sys.stderr)
         sys.exit(1)
 
+    @staticmethod
+    def _warn(message: str) -> None:
+        """Print `Warning: <message>` in yellow on stderr."""
+        err = Palette(sys.stderr)
+        print(f"{err.YELLOW}Warning: {message}{err.RESET}", file=sys.stderr)
+
     @classmethod
     def _resolve_target(cls, path: str) -> Path:
         """Resolve `path`, exiting with status 1 when it does not exist."""
@@ -117,15 +129,31 @@ class CheckFileSize:
     def _load_config(cls, no_config: bool) -> tuple[dict, Path | None]:
         """Load and validate the config section.
 
-        Returns `(section, path)`; `path` is None when nothing was loaded
-        (`--no-config`, missing file or missing section). A `ConfigError`
-        exits with status 1.
+        Reads the `file_size` section, falling back to the deprecated
+        `check_file_size` section with a warning on stderr. Setting both is
+        a config error. Returns `(section, path)`; `path` is None when nothing
+        was loaded (`--no-config`, missing file or missing sections). A
+        `ConfigError` exits with status 1.
         """
         if no_config:
             return {}, None
         path = default_path()
         try:
-            section = load_section(CONFIG_SECTION, path)
+            sections = load_sections([CONFIG_SECTION, LEGACY_CONFIG_SECTION], path)
+            section = sections[CONFIG_SECTION]
+            legacy = sections[LEGACY_CONFIG_SECTION]
+            if section is not None and legacy is not None:
+                raise ConfigError(
+                    path,
+                    f"both '{CONFIG_SECTION}' and '{LEGACY_CONFIG_SECTION}' "
+                    f"sections are set; keep only '{CONFIG_SECTION}'",
+                )
+            if legacy is not None:
+                cls._warn(
+                    f"{path}: '{LEGACY_CONFIG_SECTION}' section is deprecated; "
+                    f"rename it to '{CONFIG_SECTION}'."
+                )
+                section = legacy
             if section is None:
                 return {}, None
             return validate(section, path), path
