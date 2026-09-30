@@ -48,7 +48,7 @@ def _project(root: Path) -> Path:
 
 
 def test_config_thresholds_apply(tmp_path, capsys):
-    _write_config({"check_file_size": {"warn": 10, "error": 20, "critical": 30}})
+    _write_config({"file_size": {"warn": 10, "error": 20, "critical": 30}})
 
     CheckFileSize().run([str(_project(tmp_path))])
 
@@ -59,7 +59,7 @@ def test_config_thresholds_apply(tmp_path, capsys):
 
 
 def test_cli_overrides_config_single_values(tmp_path, capsys):
-    _write_config({"check_file_size": {"warn": 10, "error": 20, "critical": 30}})
+    _write_config({"file_size": {"warn": 10, "error": 20, "critical": 30}})
 
     CheckFileSize().run([str(_project(tmp_path)), "--warn", "40", "--critical", "600"])
 
@@ -67,7 +67,7 @@ def test_cli_overrides_config_single_values(tmp_path, capsys):
 
 
 def test_config_top_and_min_level_apply(tmp_path, capsys):
-    _write_config({"check_file_size": {"warn": 10, "min_level": "warn", "top": 1}})
+    _write_config({"file_size": {"warn": 10, "min_level": "warn", "top": 1}})
 
     CheckFileSize().run([str(_project(tmp_path))])
 
@@ -78,7 +78,7 @@ def test_config_top_and_min_level_apply(tmp_path, capsys):
 
 
 def test_cli_top_and_min_level_override_config(tmp_path, capsys):
-    _write_config({"check_file_size": {"warn": 10, "min_level": "critical", "top": 1}})
+    _write_config({"file_size": {"warn": 10, "min_level": "critical", "top": 1}})
 
     CheckFileSize().run([str(_project(tmp_path)), "--min-level", "ok", "--top", "0"])
 
@@ -87,7 +87,7 @@ def test_cli_top_and_min_level_override_config(tmp_path, capsys):
 
 
 def test_config_fail_on_gates_exit_status(tmp_path, capsys):
-    _write_config({"check_file_size": {"fail_on": "error"}})
+    _write_config({"file_size": {"fail_on": "error"}})
 
     with pytest.raises(SystemExit) as exc_info:
         CheckFileSize().run([str(_project(tmp_path))])
@@ -96,7 +96,7 @@ def test_config_fail_on_gates_exit_status(tmp_path, capsys):
 
 
 def test_cli_fail_on_overrides_config(tmp_path, capsys):
-    _write_config({"check_file_size": {"fail_on": "warn"}})
+    _write_config({"file_size": {"fail_on": "warn"}})
 
     # big.js has 500 lines: reaches error but not critical.
     CheckFileSize().run([str(_project(tmp_path)), "--fail-on", "critical"])
@@ -105,7 +105,7 @@ def test_cli_fail_on_overrides_config(tmp_path, capsys):
 
 
 def test_config_fail_on_null_means_no_gate(tmp_path, capsys):
-    _write_config({"check_file_size": {"fail_on": None}})
+    _write_config({"file_size": {"fail_on": None}})
 
     CheckFileSize().run([str(_project(tmp_path))])
 
@@ -117,7 +117,7 @@ def test_config_fail_on_null_means_no_gate(tmp_path, capsys):
 
 def test_config_and_cli_lists_are_merged_and_deduplicated(tmp_path, capsys, monkeypatch):
     _project(tmp_path)
-    _write_config({"check_file_size": {
+    _write_config({"file_size": {
         "exclude": ["fixtures", "tmp"],
         "ignore": ["*.lock", "a"],
         "include": ["*.py"],
@@ -140,7 +140,7 @@ def test_config_and_cli_lists_are_merged_and_deduplicated(tmp_path, capsys, monk
 
 
 def test_config_ignore_drops_files(tmp_path, capsys):
-    _write_config({"check_file_size": {"ignore": ["*.js"]}})
+    _write_config({"file_size": {"ignore": ["*.js"]}})
 
     CheckFileSize().run([str(_project(tmp_path)), "--ignore", "small.*"])
 
@@ -151,7 +151,7 @@ def test_config_ignore_drops_files(tmp_path, capsys):
 
 
 def test_empty_config_ext_means_no_filter(tmp_path, capsys, monkeypatch):
-    _write_config({"check_file_size": {"ext": []}})
+    _write_config({"file_size": {"ext": []}})
 
     CheckFileSize().run([str(_project(tmp_path))])
 
@@ -164,7 +164,7 @@ def test_empty_config_ext_means_no_filter(tmp_path, capsys, monkeypatch):
 
 
 def test_config_gitignore_false_applies(tmp_path, capsys, monkeypatch):
-    _write_config({"check_file_size": {"gitignore": False}})
+    _write_config({"file_size": {"gitignore": False}})
     seen = _spy_collector(monkeypatch)
 
     CheckFileSize().run([str(_project(tmp_path))])
@@ -173,7 +173,7 @@ def test_config_gitignore_false_applies(tmp_path, capsys, monkeypatch):
 
 
 def test_cli_no_gitignore_wins_over_config_true(tmp_path, capsys, monkeypatch):
-    _write_config({"check_file_size": {"gitignore": True}})
+    _write_config({"file_size": {"gitignore": True}})
     seen = _spy_collector(monkeypatch)
 
     CheckFileSize().run([str(_project(tmp_path)), "--no-gitignore"])
@@ -182,7 +182,7 @@ def test_cli_no_gitignore_wins_over_config_true(tmp_path, capsys, monkeypatch):
 
 
 def test_config_no_default_excludes_applies(tmp_path, capsys, monkeypatch):
-    _write_config({"check_file_size": {"no_default_excludes": True, "exclude": ["x"]}})
+    _write_config({"file_size": {"no_default_excludes": True, "exclude": ["x"]}})
     seen = _spy_collector(monkeypatch)
 
     CheckFileSize().run([str(_project(tmp_path))])
@@ -191,7 +191,7 @@ def test_config_no_default_excludes_applies(tmp_path, capsys, monkeypatch):
 
 
 def test_cli_no_default_excludes_wins_over_config_false(tmp_path, capsys, monkeypatch):
-    _write_config({"check_file_size": {"no_default_excludes": False}})
+    _write_config({"file_size": {"no_default_excludes": False}})
     seen = _spy_collector(monkeypatch)
 
     CheckFileSize().run([str(_project(tmp_path)), "--no-default-excludes"])
@@ -207,11 +207,11 @@ def test_cli_no_default_excludes_wins_over_config_false(tmp_path, capsys, monkey
     [
         ("{oops", "invalid JSON"),
         ("[]", "top level must be an object"),
-        ('{"check_file_size": []}', "'check_file_size' must be an object"),
-        ('{"check_file_size": {"path": "."}}', "unknown key 'path'"),
-        ('{"check_file_size": {"top": true}}', "'top' must be an integer >= 0"),
+        ('{"file_size": []}', "'file_size' must be an object"),
+        ('{"file_size": {"path": "."}}', "unknown key 'path'"),
+        ('{"file_size": {"top": true}}', "'top' must be an integer >= 0"),
         (
-            '{"check_file_size": {"fail_on": "ok"}}',
+            '{"file_size": {"fail_on": "ok"}}',
             "'fail_on' must be one of warn, error, critical or null",
         ),
     ],
@@ -231,7 +231,7 @@ def test_config_error_prints_to_stderr_and_exits_one(tmp_path, capsys, content, 
 
 
 def test_config_is_validated_even_when_cli_sets_every_value(tmp_path, capsys):
-    _write_config({"check_file_size": {"warn": -1}})
+    _write_config({"file_size": {"warn": -1}})
 
     with pytest.raises(SystemExit) as exc_info:
         CheckFileSize().run([str(_project(tmp_path)), "--warn", "10"])
@@ -266,7 +266,7 @@ def test_no_args_prints_help_even_with_invalid_config(capsys):
 
 
 def test_no_config_ignores_valid_config(tmp_path, capsys):
-    _write_config({"check_file_size": {"warn": 10}})
+    _write_config({"file_size": {"warn": 10}})
 
     CheckFileSize().run([str(_project(tmp_path)), "--no-config"])
 
@@ -290,7 +290,7 @@ def test_no_config_ignores_invalid_config(tmp_path, capsys):
 
 @pytest.mark.parametrize("section", [{}, {"warn": 400}])
 def test_header_shows_config_line_when_section_loaded(tmp_path, capsys, section):
-    path = _write_config({"check_file_size": section})
+    path = _write_config({"file_size": section})
 
     CheckFileSize().run([str(_project(tmp_path))])
 
@@ -312,6 +312,92 @@ def test_header_has_no_config_line_without_section(tmp_path, capsys):
     CheckFileSize().run([str(_project(tmp_path))])
 
     assert "Config:" not in capsys.readouterr().out
+
+
+# --- legacy check_file_size section -------------------------------------------------
+
+
+def _deprecation_line(path: Path) -> str:
+    return (
+        f"Warning: {path}: 'check_file_size' section is deprecated; "
+        "rename it to 'file_size'."
+    )
+
+
+def test_legacy_section_applies_with_warning(tmp_path, capsys):
+    path = _write_config({"check_file_size": {"warn": 10}})
+
+    CheckFileSize().run([str(_project(tmp_path))])
+
+    captured = capsys.readouterr()
+    assert "Thresholds: warn=10 |" in captured.out
+    assert f"Config: {path}" in captured.out
+    assert captured.err == _deprecation_line(path) + "\n"
+
+
+def test_invalid_legacy_section_warns_then_errors(tmp_path, capsys):
+    path = _write_config({"check_file_size": {"warn": -1}})
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(_project(tmp_path))])
+
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    warning, error = captured.err.splitlines()
+    assert warning == _deprecation_line(path)
+    assert error.startswith(f"Error: {path}: ")
+    assert "'warn' must be an integer >= 0" in error
+
+
+def test_legacy_section_not_an_object_names_it(tmp_path, capsys):
+    path = _write_config({"check_file_size": []})
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(_project(tmp_path))])
+
+    assert exc_info.value.code == 1
+    assert capsys.readouterr().err == (
+        f"Error: {path}: 'check_file_size' must be an object\n"
+    )
+
+
+def test_both_sections_is_an_error(tmp_path, capsys):
+    path = _write_config({"file_size": {"warn": 10}, "check_file_size": {"warn": 20}})
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckFileSize().run([str(_project(tmp_path))])
+
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        f"Error: {path}: both 'file_size' and 'check_file_size' sections are set; "
+        "keep only 'file_size'\n"
+    )
+    assert "Warning:" not in captured.err
+
+
+def test_both_sections_with_no_config_runs_normally(tmp_path, capsys):
+    _write_config({"file_size": {"warn": 10}, "check_file_size": {"warn": 20}})
+
+    CheckFileSize().run([str(_project(tmp_path)), "--no-config"])
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert "Config:" not in captured.out
+    assert f"warn={Constants.DEFAULT_WARN}" in captured.out
+
+
+def test_file_size_section_with_unrelated_key_has_no_warning(tmp_path, capsys):
+    path = _write_config({"file_size": {"warn": 10}, "other": {"x": 1}})
+
+    CheckFileSize().run([str(_project(tmp_path))])
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert "Thresholds: warn=10 |" in captured.out
+    assert f"Config: {path}" in captured.out
 
 
 # --- _merge ---------------------------------------------------------------------

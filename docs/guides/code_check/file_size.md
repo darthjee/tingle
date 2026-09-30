@@ -356,11 +356,11 @@ optional: if it does not exist, the built-in defaults are used and nothing
 is printed about it.
 
 The file holds a JSON object. The options for this command go under the
-`check_file_size` key:
+`file_size` key:
 
 ```json
 {
-  "check_file_size": {
+  "file_size": {
     "warn": 200,
     "exclude": ["fixtures"],
     "ignore": ["*.test.js", "*.lock"],
@@ -371,8 +371,44 @@ The file holds a JSON object. The options for this command go under the
 
 Other top-level keys are ignored: they belong to the other
 [`tingle code_check`](../code_check.md) subcommands that share this file. If the file exists but has no
-`check_file_size` key, the built-in defaults are used, as if the file did
+`file_size` key, the built-in defaults are used, as if the file did
 not exist.
+
+### Legacy `check_file_size` section
+
+Before this command became `tingle code_check file_size`, its section was
+called `check_file_size`. That name still works: if the file has a
+`check_file_size` section and no `file_size` section, the options are read
+from it exactly as from `file_size`, but a warning is printed on standard
+error first:
+
+```
+Warning: /home/me/.tingle/code_check/config.json: 'check_file_size' section is deprecated; rename it to 'file_size'.
+```
+
+The warning goes to standard error only, so the report and the exit status
+are not affected. If the legacy section is invalid, the warning is followed
+by the usual [config error](#config-errors).
+
+Setting both sections is an error. The command prints this line on standard
+error, prints no report and exits with status `1`:
+
+```
+Error: /home/me/.tingle/code_check/config.json: both 'file_size' and 'check_file_size' sections are set; keep only 'file_size'
+```
+
+To migrate, rename the key and keep its contents as they are:
+
+```json
+{
+  "file_size": {
+    "warn": 200
+  }
+}
+```
+
+The legacy section will be removed in a future release. `--no-config` skips
+the file entirely, so neither the warning nor the error is printed.
 
 ### Keys
 
@@ -422,7 +458,8 @@ With the example config above:
 | `tingle code_check file_size . --ignore '*.spec.js'` | Skips `*.test.js`, `*.lock` **and** `*.spec.js`: both lists apply. |
 | `tingle code_check file_size . --fail-on critical` | Fails on CRITICAL only. |
 
-When a `check_file_size` section was loaded, even an empty one, the header
+When a `file_size` section, or a legacy `check_file_size` section, was
+loaded, even an empty one, the header
 shows the file in use (see [Header](#header)).
 
 ### Running without the config: `--no-config`
@@ -452,7 +489,13 @@ Error: /home/me/.tingle/code_check/config.json: <reason>
 Typical reasons:
 
 - the file is not valid JSON, or cannot be read;
-- the top level, or the `check_file_size` section, is not a JSON object;
+- the top level, or the `file_size` section (or the legacy
+  `check_file_size` section), is not a JSON object, for example
+  `'file_size' must be an object`;
+- both the `file_size` and the legacy `check_file_size` sections are set:
+  `both 'file_size' and 'check_file_size' sections are set; keep only
+  'file_size'` (see
+  [Legacy `check_file_size` section](#legacy-check_file_size-section));
 - an unknown key, such as a typo: `unknown key 'wran'`;
 - a wrong type or value, for example `'top' must be an integer >= 0` or
   `'fail_on' must be one of warn, error, critical or null`.
@@ -511,8 +554,9 @@ Total: 2.278 lines
   after applying the config file and the command-line options.
 - `Config:` (dimmed) shows the path of the
   [configuration file](#configuration-file), right after the `Thresholds:`
-  line. It only appears when the file has a `check_file_size` section (even
-  an empty one), and never with `--no-config`:
+  line. It only appears when the file has a `file_size` section, or a legacy
+  `check_file_size` section (even an empty one), and never with
+  `--no-config`:
 
   ```
   Analyzing: /home/me/projects/my-app

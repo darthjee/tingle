@@ -63,13 +63,13 @@ of each section are documented on the subcommand's page.
 
 | Subcommand | Section | Keys |
 |---|---|---|
-| `file_size` | `check_file_size` | [Configuration file](code_check/file_size.md#configuration-file) |
+| `file_size` | `file_size` | [Configuration file](code_check/file_size.md#configuration-file) |
 
 For example:
 
 ```json
 {
-  "check_file_size": {
+  "file_size": {
     "warn": 200,
     "fail_on": "error"
   }
@@ -109,8 +109,19 @@ tingle check_file_size --fail-on error .
 tingle code_check file_size --fail-on error .
 ```
 
-The configuration file section is unchanged for now: `file_size` still reads
-the `check_file_size` section of `~/.tingle/code_check/config.json`.
+The configuration file section was renamed too: `file_size` now reads the
+`file_size` section of `~/.tingle/code_check/config.json`. The old
+`check_file_size` section is still read, but it prints a deprecation warning
+on stderr:
+
+```
+Warning: /home/me/.tingle/code_check/config.json: 'check_file_size' section is deprecated; rename it to 'file_size'.
+```
+
+Having both sections in the file is a config error (exit status `1`). To
+migrate, rename the `check_file_size` key to `file_size`. See
+[Legacy `check_file_size` section](code_check/file_size.md#legacy-check_file_size-section)
+for details.
 
 ## Quick help
 

@@ -1,8 +1,9 @@
 """config.py — Load ~/.tingle/code_check/config.json.
 
 The config file is a JSON object whose top-level keys are sections, one per
-code_check subcommand. `load_section` is generic and knows nothing about any
-section's keys; each subcommand validates its own section.
+code_check subcommand. `load_section` returns one section and `load_sections`
+returns several from a single read of the file. Both are generic and know
+nothing about any section's keys; each subcommand validates its own section.
 
 Dependencies: standard library only.
 """
@@ -10,6 +11,7 @@ Dependencies: standard library only.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +48,32 @@ def _read_json(path: Path) -> Any:
         raise ConfigError(path, f"invalid JSON: {exc}") from exc
 
 
+def load_sections(
+    names: Iterable[str], path: Path | None = None
+) -> dict[str, dict | None]:
+    """Return `{name: section}` for every name in `names`, reading the file once.
+
+    `path` defaults to `default_path()`. A section maps to None when the file
+    or that section is missing. Raises `ConfigError` when the file cannot be
+    read, is not valid JSON, or when the top level or a present section is
+    not a JSON object.
+    """
+    names = list(names)
+    path = path if path is not None else default_path()
+    data = _read_json(path)
+    if data is _MISSING:
+        return dict.fromkeys(names)
+    if not isinstance(data, dict):
+        raise ConfigError(path, "top level must be an object")
+    sections: dict[str, dict | None] = {}
+    for name in names:
+        section = data.get(name)
+        if name in data and not isinstance(section, dict):
+            raise ConfigError(path, f"'{name}' must be an object")
+        sections[name] = section
+    return sections
+
+
 def load_section(name: str, path: Path | None = None) -> dict | None:
     """Return the `name` section of the config file at `path` (default: `default_path()`).
 
@@ -54,15 +82,4 @@ def load_section(name: str, path: Path | None = None) -> dict | None:
     cannot be read, is not valid JSON, or when the top level or the section is
     not a JSON object.
     """
-    path = path if path is not None else default_path()
-    data = _read_json(path)
-    if data is _MISSING:
-        return None
-    if not isinstance(data, dict):
-        raise ConfigError(path, "top level must be an object")
-    if name not in data:
-        return None
-    section = data[name]
-    if not isinstance(section, dict):
-        raise ConfigError(path, f"'{name}' must be an object")
-    return section
+    return load_sections([name], path)[name]
