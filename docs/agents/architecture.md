@@ -138,9 +138,11 @@ subcommand in its own sub-package. `python/code_check/` is the reference:
 - When an existing command becomes a subcommand, its old entry point stays
   as a thin shim so existing callers keep working. `python/check_file_size/`
   (`__init__.py`, `main.py`) is that shim: it forwards to
-  `code_check/file_size` with unchanged behaviour and no deprecation
-  warning, and its `commands/python.json` entry still points at
-  `python/check_file_size/main.py`.
+  `code_check/file_size` and prints
+  `Warning: 'tingle check_file_size' is deprecated; use 'tingle code_check file_size'.`
+  on stderr. Stdout and exit codes are unchanged. Its `commands/python.json`
+  entry still points at `python/check_file_size/main.py`. The shim is kept
+  until a future issue removes the alias.
 
 #### kube AWS credentials
 
