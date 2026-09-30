@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""main.py — Flow-verb dispatcher entrypoint for check_file_size.
+"""main.py — Flow-verb dispatcher entrypoint for the check_file_size alias.
 
 `cli` invokes this file with a flow verb as the first argument
-(e.g. `run`) followed by the command's own arguments.
+(e.g. `run`) followed by the command's own arguments. `run` forwards them
+unchanged to `code_check.file_size`, so `tingle check_file_size` behaves
+exactly like `tingle code_check file_size`. There is deliberately no
+`complete` flow, so the alias keeps the hub's file/folder completion.
 """
 
 from __future__ import annotations
