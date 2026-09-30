@@ -61,6 +61,9 @@ from code_check.file_size.reporter import Reporter
 from code_check.palette import Palette
 from common.arg_parser import ArgParser
 
+# Program name shown in the help usage line.
+PROG = "tingle code_check file_size"
+
 # Section of the config file holding this command's options.
 CONFIG_SECTION = "check_file_size"
 
@@ -207,7 +210,7 @@ class CheckFileSize:
 
     def run(self, args: list[str]):
         """Entry point for the script."""
-        arg_parser = ArgParser(FLAGS)
+        arg_parser = ArgParser(FLAGS, prog=PROG)
 
         # No arguments → show help and exit
         if len(args) == 0:

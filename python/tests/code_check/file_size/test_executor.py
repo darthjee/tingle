@@ -20,6 +20,7 @@ def test_run_no_args_prints_help_and_exits_zero(capsys):
     assert exc_info.value.code == 0
     out = capsys.readouterr().out
     assert "usage" in out.lower()
+    assert out.startswith("usage: tingle code_check file_size ")
 
 
 def test_run_path_not_found_prints_error_and_exits_one(tmp_path, capsys):
