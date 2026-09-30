@@ -1,12 +1,15 @@
-# `tingle check_file_size`
+# `tingle code_check file_size`
 
 Token efficiency triage: file size analysis.
+
+This is a subcommand of [`tingle code_check`](../code_check.md). It was
+previously called `tingle check_file_size`, and that name still works.
 
 ## What it does
 
 When you feed a repository to an AI assistant, very long files use up a lot
-of tokens and are harder for the model to work with. `tingle
-check_file_size` helps you find them before that happens.
+of tokens and are harder for the model to work with. `tingle code_check
+file_size` helps you find them before that happens.
 
 It walks a file or directory, counts the lines of every text file it finds,
 and lists them from largest to smallest. Each file is labelled OK, WARN,
@@ -16,7 +19,7 @@ the files worth splitting or leaving out stand out at a glance.
 ## Usage
 
 ```
-tingle check_file_size <path> [options]
+tingle code_check file_size <path> [options]
 ```
 
 `<path>` can be:
@@ -60,7 +63,7 @@ These directories are always skipped unless you pass
 **adds** names to this list:
 
 ```
-tingle check_file_size . --exclude fixtures
+tingle code_check file_size . --exclude fixtures
 ```
 
 skips `fixtures` as well as `node_modules`, `dist`, `build` and the rest.
@@ -76,10 +79,10 @@ use [`--ignore`](#--ignore-and---include).
 
 | Invocation | Excluded names |
 | --- | --- |
-| `tingle check_file_size .` | The defaults |
-| `tingle check_file_size . --exclude fixtures` | The defaults + `fixtures` |
-| `tingle check_file_size . --no-default-excludes` | None (`.git/` is walked too) |
-| `tingle check_file_size . --no-default-excludes --exclude fixtures` | Only `fixtures` |
+| `tingle code_check file_size .` | The defaults |
+| `tingle code_check file_size . --exclude fixtures` | The defaults + `fixtures` |
+| `tingle code_check file_size . --no-default-excludes` | None (`.git/` is walked too) |
+| `tingle code_check file_size . --no-default-excludes --exclude fixtures` | Only `fixtures` |
 
 `--exclude` is not repeatable: if you pass it more than once, only the last
 one counts. Put all the names in a single comma-separated list.
@@ -99,13 +102,13 @@ Drops the default list, so directories such as `.git/` and `node_modules/`
 are walked too. On its own, it skips no directory at all:
 
 ```
-tingle check_file_size . --no-default-excludes
+tingle code_check file_size . --no-default-excludes
 ```
 
 Combine it with `--exclude` to choose exactly which names to skip:
 
 ```
-tingle check_file_size . --no-default-excludes --exclude node_modules,fixtures
+tingle code_check file_size . --no-default-excludes --exclude node_modules,fixtures
 ```
 
 `.gitignore` support does not skip `.git/`, because git never lists it as
@@ -130,7 +133,7 @@ For example, with `*.log` in `.gitignore`, an untracked `debug.log` and a
 force-added `keep.log`:
 
 ```
-tingle check_file_size .
+tingle code_check file_size .
 ```
 
 skips `debug.log` and analyses `keep.log`. An ignored directory, such as
@@ -139,7 +142,7 @@ skips `debug.log` and analyses `keep.log`. An ignored directory, such as
 To turn this step off and analyse ignored files too, pass `--no-gitignore`:
 
 ```
-tingle check_file_size . --no-gitignore
+tingle code_check file_size . --no-gitignore
 ```
 
 A few details:
@@ -165,7 +168,7 @@ Limits the analysis to files with the given extension. Repeat the option to
 allow more than one:
 
 ```
-tingle check_file_size ./src --ext .py --ext .js
+tingle code_check file_size ./src --ext .py --ext .js
 ```
 
 Include the leading dot (`.py`, not `py`). The comparison is
@@ -236,11 +239,11 @@ prints `No files found for analysis.` and exits `0`.
 
 | Command | Effect |
 | --- | --- |
-| `tingle check_file_size . --ignore '*.test.js'` | Skips `a.test.js` and `src/b.TEST.js`. |
-| `tingle check_file_size . --ignore 'docs/**' --ignore '*.md'` | Skips everything under `docs/` and every Markdown file. |
-| `tingle check_file_size . --include 'src/**'` | Analyses only files under `src/`. |
-| `tingle check_file_size . --include 'src/**' --ext .py` | Analyses only `.py` files under `src/`. |
-| `tingle check_file_size . --include 'src/**' --ignore 'src/vendor/'` | Analyses files under `src/`, except those under `src/vendor/`. |
+| `tingle code_check file_size . --ignore '*.test.js'` | Skips `a.test.js` and `src/b.TEST.js`. |
+| `tingle code_check file_size . --ignore 'docs/**' --ignore '*.md'` | Skips everything under `docs/` and every Markdown file. |
+| `tingle code_check file_size . --include 'src/**'` | Analyses only files under `src/`. |
+| `tingle code_check file_size . --include 'src/**' --ext .py` | Analyses only `.py` files under `src/`. |
+| `tingle code_check file_size . --include 'src/**' --ignore 'src/vendor/'` | Analyses files under `src/`, except those under `src/vendor/`. |
 
 ### `--min-level`
 
@@ -273,7 +276,7 @@ A few details:
   command exits `0` (unless the `--fail-on` gate fails):
 
   ```
-  $ tingle check_file_size ./my-app --min-level warn
+  $ tingle code_check file_size ./my-app --min-level warn
   Analyzing: /home/me/projects/my-app
   Thresholds: warn=300 | error=500 | critical=1000
 
@@ -289,10 +292,10 @@ A few details:
 
 | Command | Rows shown |
 | --- | --- |
-| `tingle check_file_size .` | All rows. |
-| `tingle check_file_size . --min-level warn` | WARN, ERROR and CRITICAL rows. |
-| `tingle check_file_size . --min-level error --top 5` | The 5 largest ERROR or CRITICAL rows. |
-| `tingle check_file_size . --min-level critical --fail-on error` | Only CRITICAL rows. Exits `2` if any file is ERROR or higher, shown or not. |
+| `tingle code_check file_size .` | All rows. |
+| `tingle code_check file_size . --min-level warn` | WARN, ERROR and CRITICAL rows. |
+| `tingle code_check file_size . --min-level error --top 5` | The 5 largest ERROR or CRITICAL rows. |
+| `tingle code_check file_size . --min-level critical --fail-on error` | Only CRITICAL rows. Exits `2` if any file is ERROR or higher, shown or not. |
 
 ### `--fail-on`
 
@@ -332,7 +335,7 @@ still apply:
 - `--ext` is checked against the file's extension.
 
 The file is analysed if it passes these filters and is not detected as
-binary. For example, `tingle check_file_size ./main.py --ignore 'main.*'`
+binary. For example, `tingle code_check file_size ./main.py --ignore 'main.*'`
 leaves nothing to analyse, so it prints `No files found for analysis.` and
 exits `0`.
 
@@ -364,8 +367,8 @@ The file holds a JSON object. The options for this command go under the
 }
 ```
 
-Other top-level keys are ignored: they are reserved for a future `code_check`
-tool that will share this file. If the file exists but has no
+Other top-level keys are ignored: they belong to the other
+[`tingle code_check`](../code_check.md) subcommands that share this file. If the file exists but has no
 `check_file_size` key, the built-in defaults are used, as if the file did
 not exist.
 
@@ -412,10 +415,10 @@ With the example config above:
 
 | Command | Result |
 | --- | --- |
-| `tingle check_file_size .` | `warn=200`, the default excludes plus `fixtures`, skips `*.test.js` and `*.lock`, fails on ERROR. |
-| `tingle check_file_size . --warn 400` | `warn=400`: the command line wins. |
-| `tingle check_file_size . --ignore '*.spec.js'` | Skips `*.test.js`, `*.lock` **and** `*.spec.js`: both lists apply. |
-| `tingle check_file_size . --fail-on critical` | Fails on CRITICAL only. |
+| `tingle code_check file_size .` | `warn=200`, the default excludes plus `fixtures`, skips `*.test.js` and `*.lock`, fails on ERROR. |
+| `tingle code_check file_size . --warn 400` | `warn=400`: the command line wins. |
+| `tingle code_check file_size . --ignore '*.spec.js'` | Skips `*.test.js`, `*.lock` **and** `*.spec.js`: both lists apply. |
+| `tingle code_check file_size . --fail-on critical` | Fails on CRITICAL only. |
 
 When a `check_file_size` section was loaded, even an empty one, the header
 shows the file in use (see [Header](#header)).
@@ -428,7 +431,7 @@ to turn `.gitignore` back on when it sets `"gitignore": false`. Pass
 `--no-config` to ignore the file completely:
 
 ```
-tingle check_file_size . --no-config
+tingle code_check file_size . --no-config
 ```
 
 With `--no-config`, the file is not read or checked at all (even an invalid
@@ -454,7 +457,7 @@ Typical reasons:
 
 Fix the file, or run with `--no-config` in the meantime.
 
-The config is never read when you run `tingle check_file_size` with no
+The config is never read when you run `tingle code_check file_size` with no
 arguments: the help is printed as usual.
 
 ## Skipped files
@@ -483,7 +486,7 @@ scanned like any other directory.
 Sample run against a small project:
 
 ```
-$ tingle check_file_size ./my-app
+$ tingle code_check file_size ./my-app
 Analyzing: /home/me/projects/my-app
 Thresholds: warn=300 | error=500 | critical=1000
 
@@ -569,7 +572,7 @@ To turn colours off in a terminal too, set the
 value:
 
 ```
-NO_COLOR=1 tingle check_file_size ./src
+NO_COLOR=1 tingle code_check file_size ./src
 ```
 
 ## Examples
@@ -577,70 +580,70 @@ NO_COLOR=1 tingle check_file_size ./src
 Analyse everything under `./src` with the default settings:
 
 ```
-tingle check_file_size ./src
+tingle code_check file_size ./src
 ```
 
 Set the thresholds explicitly (these are the defaults; change the numbers
 to suit your project):
 
 ```
-tingle check_file_size ./src --warn 300 --error 500 --critical 1000
+tingle code_check file_size ./src --warn 300 --error 500 --critical 1000
 ```
 
 Show only the 20 largest files:
 
 ```
-tingle check_file_size ./src --top 20
+tingle code_check file_size ./src --top 20
 ```
 
 Show only the files at WARN or higher:
 
 ```
-tingle check_file_size ./src --min-level warn
+tingle code_check file_size ./src --min-level warn
 ```
 
 Show the 5 largest ERROR or CRITICAL files:
 
 ```
-tingle check_file_size ./src --min-level error --top 5
+tingle code_check file_size ./src --min-level error --top 5
 ```
 
 Also skip `fixtures` directories, on top of the default exclude list:
 
 ```
-tingle check_file_size ./src --exclude fixtures
+tingle code_check file_size ./src --exclude fixtures
 ```
 
 Skip only `fixtures`, scanning `node_modules`, `.git` and the other default
 directories too:
 
 ```
-tingle check_file_size ./src --no-default-excludes --exclude fixtures
+tingle code_check file_size ./src --no-default-excludes --exclude fixtures
 ```
 
 Also analyse files that git ignores (build output, local data, ...):
 
 ```
-tingle check_file_size . --no-gitignore
+tingle code_check file_size . --no-gitignore
 ```
 
 Analyse only Python and JavaScript files:
 
 ```
-tingle check_file_size ./src --ext .py --ext .js
+tingle code_check file_size ./src --ext .py --ext .js
 ```
 
 Skip test files and everything under `docs/`:
 
 ```
-tingle check_file_size . --ignore '*.test.js' --ignore 'docs/**'
+tingle code_check file_size . --ignore '*.test.js' --ignore 'docs/**'
 ```
 
 Analyse only the code under `src/`, leaving out the vendored copy in
 `src/vendor/`:
 
 ```
-tingle check_file_size . --include 'src/**' --ignore 'src/vendor/'
+tingle code_check file_size . --include 'src/**' --ignore 'src/vendor/'
 ```
 
 ### Using in CI
@@ -648,7 +651,7 @@ tingle check_file_size . --include 'src/**' --ignore 'src/vendor/'
 Fail the build when any file under `./src` reaches the ERROR threshold:
 
 ```
-tingle check_file_size ./src --fail-on error
+tingle code_check file_size ./src --fail-on error
 ```
 
 The report is printed as usual, and the step fails with exit status `2` if
@@ -656,14 +659,14 @@ an ERROR or CRITICAL file is found. Combine it with the other options to fit
 your project, for example:
 
 ```
-tingle check_file_size ./src --ext .py --error 400 --fail-on error
+tingle code_check file_size ./src --ext .py --error 400 --fail-on error
 ```
 
 To keep CI logs short, list only the files that fail the gate. The gate still
 checks every file:
 
 ```
-tingle check_file_size ./src --min-level error --fail-on error
+tingle code_check file_size ./src --min-level error --fail-on error
 ```
 
 If your personal [configuration file](#configuration-file) sets options,
@@ -671,7 +674,7 @@ they apply on any machine where that file exists. Pass `--no-config` to make a C
 own options:
 
 ```
-tingle check_file_size ./src --no-config --fail-on error
+tingle code_check file_size ./src --no-config --fail-on error
 ```
 
 ## Exit status and errors
@@ -701,8 +704,11 @@ standard output and error messages to standard error.
 
 ## Quick help
 
-For a short summary of the command, run:
+For a short summary of the command's options, run:
 
 ```
-tingle --help check_file_size
+tingle code_check file_size --help
 ```
+
+`tingle --help code_check` shows the same options, together with the list
+of `code_check` subcommands.
