@@ -20,6 +20,22 @@ def test_main_dispatches_run_flow_with_remaining_args(monkeypatch):
     assert captured["args"] == ["file_size", "./src", "--warn", "100"]
 
 
+def test_main_dispatches_complete_flow_and_prints_words(monkeypatch, capsys):
+    captured = {}
+
+    def fake_complete(argv):
+        captured["argv"] = argv
+        return ["a", "b"]
+
+    monkeypatch.setattr(main_module, "complete", fake_complete)
+    monkeypatch.setattr("sys.argv", ["main.py", "complete", "file_size", ""])
+
+    main_module.main()
+
+    assert captured["argv"] == ["file_size", ""]
+    assert capsys.readouterr().out == "a b\n"
+
+
 def test_main_does_not_dispatch_unknown_flow(monkeypatch, capsys):
     called = {"run": False}
 

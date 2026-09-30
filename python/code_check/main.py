@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from code_check.completion import complete
 from code_check.executor import CodeCheck
 
 
@@ -20,6 +21,8 @@ def main() -> None:
     args = sys.argv[2:]
     if flow == "run":
         CodeCheck().run(args)
+    elif flow == "complete":
+        print(" ".join(complete(args)))
 
 
 if __name__ == "__main__":

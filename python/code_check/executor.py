@@ -28,6 +28,7 @@ class CodeCheck:
     """Dispatch `tingle code_check <subcommand> ...` to the subcommand class."""
 
     # Subcommand name → (class with a `run(args)` method, one-line description).
+    # Keys match `code_check.subcommands.SUBCOMMAND_NAMES`, read by completion.
     SUBCOMMANDS: ClassVar[dict[str, tuple[type, str]]] = {
         "file_size": (CheckFileSize, "Token efficiency triage: file size analysis."),
     }
