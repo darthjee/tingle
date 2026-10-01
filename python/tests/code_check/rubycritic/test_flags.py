@@ -17,6 +17,7 @@ def test_flag_names_in_order():
         "path", "--warn", "--error", "--critical", "--top",
         "--min-level", "--fail-on", "--details", "--image",
         "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
+        "--no-config",
     ]
 
 
@@ -38,6 +39,7 @@ def test_single_value_flags_default_to_none():
         "no_gitignore": False,
         "ignore": None,
         "include": None,
+        "no_config": False,
     }
 
 
@@ -91,6 +93,7 @@ def test_choices():
             "--include",
             "Only analyse .rb files whose path relative to <path> matches this glob (can be repeated)",
         ),
+        ("--no-config", "Do not read ~/.tingle/code_check/config.json"),
     ],
 )
 def test_help_texts_match_spec(name, text):
@@ -127,10 +130,21 @@ def test_ignore_and_include_are_repeatable():
 
 
 def test_store_true_flags():
-    parsed = ArgParser(FLAGS).parse(["app", "--no-default-excludes", "--no-gitignore"])
+    parsed = ArgParser(FLAGS).parse(
+        ["app", "--no-default-excludes", "--no-gitignore", "--no-config"]
+    )
 
     assert parsed["no_default_excludes"] is True
     assert parsed["no_gitignore"] is True
+    assert parsed["no_config"] is True
+
+
+def test_no_config_is_the_last_flag():
+    assert FLAGS[-1] == {
+        "name": "--no-config",
+        "action": "store_true",
+        "help": "Do not read ~/.tingle/code_check/config.json",
+    }
 
 
 def test_no_ext_flag():
