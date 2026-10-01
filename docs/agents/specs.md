@@ -41,4 +41,5 @@ folder.
 
 | Topic | Specs | Parent issue | Sub-issues |
 |---|---|---|---|
-| `code_check rubycritic` | [code_check/rubycritic/](specs/code_check/rubycritic/README.md) | #290 | #292 #293 #294 #295 #296 #297 #298 |
+
+None currently.
