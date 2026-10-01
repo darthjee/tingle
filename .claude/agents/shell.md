@@ -18,8 +18,9 @@ You own everything inside `shell/` and `docker/`:
 
 The `tingle_rubycritic` build context is `docker/rubycritic/`. Build it
 locally with `make rubycritic-image`, which produces `tingle_rubycritic:dev`.
-Version bumps (Ruby base image tag and digest, RubyCritic gem) follow section 8
-of `docs/agents/specs/code_check/rubycritic/image.md`.
+Version bumps (Ruby base image tag and digest, RubyCritic gem) follow the
+"Bumping versions" section of
+[`docs/agents/tingle-rubycritic-image.md`](../../docs/agents/tingle-rubycritic-image.md#bumping-versions).
 
 Do NOT touch `python/`, `node/`, `bin/`, or `docs/agents/`.
 
