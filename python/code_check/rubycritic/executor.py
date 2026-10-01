@@ -39,6 +39,7 @@ from code_check.rubycritic.constants import Constants
 from code_check.rubycritic.errors import RubycriticError
 from code_check.rubycritic.flags import FLAGS
 from code_check.rubycritic.image import resolve_image
+from code_check.rubycritic.selection import Selection, select_files
 from common.arg_parser import ArgParser
 
 # Program name shown in the help usage line.
@@ -143,6 +144,21 @@ class CheckRubycritic:
         print(f"{out.DIM}Image: {image}{out.RESET}")
         print()
 
+    @classmethod
+    def _select(cls, out: Palette, target: Path, root: Path) -> Selection:
+        """Select the files, warning about unsendable names.
+
+        Exits 0 with `No Ruby files found for analysis.` (before any Docker
+        call) when nothing is left to send.
+        """
+        selection = select_files(target, root)
+        for message in selection.skipped:
+            cls._warn(message)
+        if not selection.lines:
+            print(f"{out.YELLOW}No Ruby files found for analysis.{out.RESET}")
+            sys.exit(0)
+        return selection
+
     def run(self, args: list[str]) -> None:
         """Entry point for the subcommand."""
         arg_parser = ArgParser(FLAGS, prog=PROG)
@@ -155,8 +171,10 @@ class CheckRubycritic:
         cli = self._parse(arg_parser, args)
         try:
             options = self._validate(self._apply_defaults(cli))
-            target, _root = self._resolve_target(options["path"])
+            target, root = self._resolve_target(options["path"])
             image = resolve_image(options["image"])
-            self._print_header(Palette(sys.stdout), target, options, image)
+            out = Palette(sys.stdout)
+            self._print_header(out, target, options, image)
+            self._select(out, target, root)
         except RubycriticError as exc:
             self._fail(exc.message)

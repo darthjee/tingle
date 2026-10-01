@@ -218,3 +218,66 @@ def test_print_header(tmp_path, capsys, monkeypatch):
         "Image: img:1\n"
         "\n"
     )
+
+
+# --- selection ----------------------------------------------------------------------
+
+
+@pytest.fixture
+def no_docker(monkeypatch):
+    """Fail the test if anything looks up or runs a command."""
+    import shutil
+    import subprocess
+
+    calls = []
+    monkeypatch.setattr(shutil, "which", lambda *a, **k: calls.append(("which", a)))
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append(("run", a)))
+    return calls
+
+
+def test_run_no_ruby_files_exits_zero_without_docker(tmp_path, capsys, no_docker):
+    (tmp_path / "a.py").write_text("x\n")
+    (tmp_path / "tmp").mkdir()
+    (tmp_path / "tmp" / "skip.rb").write_text("x\n")
+
+    assert _run([str(tmp_path), "--image", "img:dev"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == (
+        f"Analyzing: {tmp_path.resolve()}\n"
+        "Thresholds: warn=100 | error=200 | critical=400\n"
+        "Image: img:dev\n"
+        "\n"
+        "No Ruby files found for analysis.\n"
+    )
+    assert captured.err == ""
+    assert no_docker == []
+
+
+def test_run_single_non_ruby_file_exits_zero_without_docker(tmp_path, capsys, no_docker):
+    file_path = tmp_path / "a.py"
+    file_path.write_text("x\n")
+
+    assert _run([str(file_path), "--image", "img:dev"]) == 0
+
+    assert "No Ruby files found for analysis." in capsys.readouterr().out
+    assert no_docker == []
+
+
+def test_select_warns_about_unsendable_names(tmp_path, capsys, monkeypatch):
+    from code_check.rubycritic import executor
+    from code_check.rubycritic.selection import Selection
+
+    monkeypatch.setattr(
+        executor,
+        "select_files",
+        lambda target, root: Selection(root, [], ["skipping file with a newline in its name: 'a'"]),
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        CheckRubycritic._select(Palette(), tmp_path, tmp_path)
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert captured.err == "Warning: skipping file with a newline in its name: 'a'\n"
+    assert captured.out == "No Ruby files found for analysis.\n"
