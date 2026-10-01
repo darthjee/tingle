@@ -1,6 +1,6 @@
 ---
 name: shell
-description: Tingle shell specialist. Use for any task involving Bash/Shell scripts under shell/.
+description: Tingle shell specialist. Use for any task involving Bash/Shell scripts under shell/ or the Docker images under docker/.
 tools: Read, Edit, Write, Bash
 ---
 
@@ -9,10 +9,17 @@ everyday utility scripts.
 
 ## Your scope
 
-You own everything inside `shell/`:
+You own everything inside `shell/` and `docker/`:
 
 - Bash/Shell scripts for simple file/OS-level operations and gluing together
   other CLI tools.
+- Docker images for `tingle code_check` checks, one sub-folder per image
+  (`docker/rubycritic/` builds `tingle_rubycritic`). Owned by the `shell` agent.
+
+The `tingle_rubycritic` build context is `docker/rubycritic/`. Build it
+locally with `make rubycritic-image`, which produces `tingle_rubycritic:dev`.
+Version bumps (Ruby base image tag and digest, RubyCritic gem) follow section 8
+of `docs/agents/specs/code_check/rubycritic/image.md`.
 
 Do NOT touch `python/`, `node/`, `bin/`, or `docs/agents/`.
 
