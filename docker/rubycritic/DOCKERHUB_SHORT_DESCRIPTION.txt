@@ -1,0 +1,1 @@
+RubyCritic (Flog, Flay, Reek) as JSON for tingle code_check rubycritic.
