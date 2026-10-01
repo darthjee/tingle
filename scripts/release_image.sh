@@ -409,12 +409,11 @@ smoke_test_identity() {
 RUBYCRITIC_FIXTURE_DIR="docker/rubycritic/fixture"
 RUBYCRITIC_FIXTURE_FILES=(simple.rb complex.rb dup_a.rb dup_b.rb broken.rb empty.rb constants_only.rb)
 
-# Runs the fixture checks from
-# docs/agents/specs/code_check/rubycritic/image.md (section 6) against a local
-# tingle_rubycritic image, with the canonical run line (--network none,
-# read-only /src, foreign uid 501:20): the full fixture run (JSON checked with
-# python3, "methods" included), no git in the image, and the empty object on
-# empty stdin. Any failure prints "<reason> on <platform>" on stderr and exits 1.
+# Runs the fixture checks from docs/agents/tingle-rubycritic-image.md
+# ("Smoke test") against a local tingle_rubycritic image, with the canonical
+# run line (--network none, read-only /src, foreign uid 501:20): the full
+# fixture run (JSON checked with python3, "methods" included), no git in the
+# image, and the empty object on empty stdin. Any failure prints "<reason> on <platform>" on stderr and exits 1.
 smoke_test_rubycritic() {
   local image="$1"
   local platform="$2"

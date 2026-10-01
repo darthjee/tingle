@@ -23,7 +23,7 @@
 # Dependencies: the locked bundle (rubycritic 5.0.0, reek, flog) from
 # /opt/tingle_rubycritic/Gemfile.lock.
 #
-# Contract: docs/agents/specs/code_check/rubycritic/image.md (section 4).
+# Contract: docs/agents/tingle-rubycritic-image.md ("Contract").
 
 # Real stdout, written to once at the very end. Anything printed through
 # $stdout before that (warnings, library output) goes to stderr instead.
