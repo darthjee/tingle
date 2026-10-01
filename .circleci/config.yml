@@ -24,9 +24,24 @@ workflows:
               only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
             branches:
               ignore: /.*/
+      - build-and-publish-rubycritic-image:
+          filters:
+            tags:
+              only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
+            branches:
+              ignore: /.*/
+      - update-rubycritic-description:
+          requires:
+            - build-and-publish-rubycritic-image
+          filters:
+            tags:
+              only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
+            branches:
+              ignore: /.*/
       - build-and-publish-release:
           requires:
             - build-and-publish-linux-image
+            - build-and-publish-rubycritic-image
           filters:
             tags:
               only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
@@ -98,6 +113,33 @@ jobs:
       - run:
           name: Update Docker Hub description
           command: scripts/release_image.sh update-description
+  build-and-publish-rubycritic-image:
+    machine:
+      image: ubuntu-2404:current
+    steps:
+      - checkout
+      - run:
+          name: Set up builder
+          command: scripts/release_image.sh setup-builder
+      - run:
+          name: Build image
+          command: scripts/release_image.sh build rubycritic
+      - run:
+          name: Smoke test
+          command: scripts/release_image.sh smoke-test rubycritic
+      - run:
+          name: Scan image
+          command: scripts/release_image.sh scan rubycritic
+      - run:
+          name: Publish image
+          command: scripts/release_image.sh publish rubycritic
+  update-rubycritic-description:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Update Docker Hub description
+          command: scripts/release_image.sh update-description rubycritic
   build-and-publish-release:
     machine: true
     steps:

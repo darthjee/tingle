@@ -1,18 +1,33 @@
 #!/usr/bin/env bash
 #
-# release_image.sh — build, smoke-test, and publish the darthjee/tingle
-# Docker image, plus update its Docker Hub description.
+# release_image.sh — build, smoke-test, and publish the darthjee/tingle and
+# darthjee/tingle_rubycritic Docker images, plus update their Docker Hub
+# descriptions.
 #
 # Usage:
 #   scripts/release_image.sh setup-builder
-#   scripts/release_image.sh build
-#   scripts/release_image.sh smoke-test
-#   scripts/release_image.sh scan
-#   scripts/release_image.sh publish
-#   scripts/release_image.sh update-description
+#   scripts/release_image.sh build [linux|rubycritic]
+#   scripts/release_image.sh smoke-test [linux|rubycritic]
+#   scripts/release_image.sh scan [linux|rubycritic]
+#   scripts/release_image.sh publish [linux|rubycritic]
+#   scripts/release_image.sh update-description [linux|rubycritic]
 #
-# Tag resolution: $CIRCLE_TAG when set (CI), else the trimmed content of
-# shell/linux/VERSION (local dev). In CI, the pin file must match
+# Image selector: the optional second argument picks the image; it defaults
+# to "linux", so calls without a selector behave as before. setup-builder
+# ignores it (the builder is shared). An unknown selector prints the usage
+# line on stderr and exits 1. Per-image settings (see select_image()):
+#
+#   Setting            linux                            rubycritic
+#   Image name         darthjee/tingle                  darthjee/tingle_rubycritic
+#   Dockerfile         shell/linux/Dockerfile           docker/rubycritic/Dockerfile
+#   Build context      . (repo root)                    docker/rubycritic
+#   Change detection   shell/linux/ since previous tag  none, always runs
+#   Smoke test         smoke_test_image                 smoke_test_rubycritic
+#   Short description  DOCKERHUB_SHORT_DESCRIPTION.txt  docker/rubycritic/DOCKERHUB_SHORT_DESCRIPTION.txt
+#   Full description   DOCKERHUB_DESCRIPTION.md         docker/rubycritic/DOCKERHUB_DESCRIPTION.md
+#
+# Tag resolution (both images): $CIRCLE_TAG when set (CI), else the trimmed
+# content of shell/linux/VERSION (local dev). In CI, the pin file must match
 # $CIRCLE_TAG exactly or the job hard-fails before building/publishing.
 #
 # Platforms: $PLATFORMS (space-separated, default "linux/amd64 linux/arm64")
@@ -28,43 +43,55 @@
 # fallback (the only path that loses the builder's cache). Stopping the
 # builder interrupts any build using it at that moment.
 #
-# build loads one local image per platform, tagged darthjee/tingle:<tag>-<arch>
-# (never pushed); smoke-test runs every check against each of them — GNU sed,
+# build loads one local image per platform, tagged <image>:<tag>-<arch>
+# (never pushed). publish pushes a single multi-platform <image>:<tag>
+# through the same builder (reusing its cache) and fails unless `docker
+# buildx imagetools inspect` lists every platform in $PLATFORMS.
+#
+# Smoke test (linux): runs every check against each local image — GNU sed,
 # a non-root user, and every tool in the smoke-check table (one container per
 # platform, with --network none) — plus the identity and hardening checks in
 # smoke_test_identity(): the image's ENTRYPOINT/CMD and default bash, a
 # foreign uid (--user 501:20) resolving as tingle-host with a writable
 # HOME=/home/tingle, ~/.ssh, ~/.kube and ~/.config and a working `ssh -G`,
 # no nss_wrapper for the default uid, an unchanged read-only /etc/passwd, byte-exact sed stdin/stdout,
-# non-zero exit codes passed through, and no setuid/setgid files. publish
-# pushes a single multi-platform darthjee/tingle:<tag> through the same
-# builder (reusing its cache) and fails unless `docker buildx imagetools
-# inspect` lists every platform in $PLATFORMS.
+# non-zero exit codes passed through, and no setuid/setgid files.
+#
+# Smoke test (rubycritic): see smoke_test_rubycritic().
 #
 # Scan: scan runs the pinned Trivy image ($TRIVY_IMAGE) against each local
-# darthjee/tingle:<tag>-<arch> image through the docker socket and prints the
+# <image>:<tag>-<arch> image through the docker socket and prints the
 # vulnerability report. It is report-only: findings, and Trivy failures such
 # as a DB download error, only print a warning — scan never fails the build.
 #
-# Change detection: build, smoke-test, scan and publish are safe no-ops (exit 0) when
-# shell/linux/ hasn't changed since the previous X.Y.Z tag — see
-# changed_since_previous().
+# Change detection (linux only): build, smoke-test, scan and publish are safe
+# no-ops (exit 0) when shell/linux/ hasn't changed since the previous X.Y.Z
+# tag — see changed_since_previous(). The rubycritic image has NO change
+# detection: its build, smoke-test, scan and publish never skip, so
+# darthjee/tingle_rubycritic:X.Y.Z always exists for tingle X.Y.Z.
 #
-# Descriptions: update-description sends the one-line summary in
-# DOCKERHUB_SHORT_DESCRIPTION.txt (trimmed, 1-100 characters) as the Docker
-# Hub "description" and DOCKERHUB_DESCRIPTION.md as "full_description", in
-# a single PATCH. It fails when either file is missing, the summary is
-# empty or too long, or the login/PATCH HTTP call fails.
+# Descriptions: update-description sends the image's one-line summary
+# (trimmed, 1-100 characters) as the Docker Hub "description" and its
+# markdown file as "full_description", in a single PATCH. It fails when
+# either file is missing, the summary is empty or too long, or the
+# login/PATCH HTTP call fails.
 #
 # Dependencies: git, docker, curl, python3.
 
 set -euo pipefail
 
 VERSION_FILE="shell/linux/VERSION"
-IMAGE_NAME="darthjee/tingle"
-SHORT_DESCRIPTION_FILE="DOCKERHUB_SHORT_DESCRIPTION.txt"
-FULL_DESCRIPTION_FILE="DOCKERHUB_DESCRIPTION.md"
 SHORT_DESCRIPTION_MAX_LENGTH=100
+USAGE="Usage: $0 {setup-builder|build|smoke-test|scan|publish|update-description} [linux|rubycritic]"
+
+# Per-image settings, set by select_image().
+IMAGE_NAME=""
+DOCKERFILE=""
+BUILD_CONTEXT=""
+SHORT_DESCRIPTION_FILE=""
+FULL_DESCRIPTION_FILE=""
+CHANGE_DETECTION_PATH=""
+SMOKE_TEST_FUNCTION=""
 PLATFORMS="${PLATFORMS:-linux/amd64 linux/arm64}"
 BUILDER_NAME="tingle-builder"
 BINFMT_IMAGE="tonistiigi/binfmt:qemu-v10.2.3"
@@ -91,11 +118,48 @@ platforms_csv() {
   echo "$csv"
 }
 
+usage() {
+  echo "$USAGE" >&2
+  exit 1
+}
+
+# Sets the per-image globals for the given selector. An empty
+# CHANGE_DETECTION_PATH disables change detection (the image always builds).
+select_image() {
+  case "$1" in
+    linux)
+      IMAGE_NAME="darthjee/tingle"
+      DOCKERFILE="shell/linux/Dockerfile"
+      BUILD_CONTEXT="."
+      SHORT_DESCRIPTION_FILE="DOCKERHUB_SHORT_DESCRIPTION.txt"
+      FULL_DESCRIPTION_FILE="DOCKERHUB_DESCRIPTION.md"
+      CHANGE_DETECTION_PATH="shell/linux/"
+      SMOKE_TEST_FUNCTION="smoke_test_image"
+      ;;
+    rubycritic)
+      IMAGE_NAME="darthjee/tingle_rubycritic"
+      DOCKERFILE="docker/rubycritic/Dockerfile"
+      BUILD_CONTEXT="docker/rubycritic"
+      SHORT_DESCRIPTION_FILE="docker/rubycritic/DOCKERHUB_SHORT_DESCRIPTION.txt"
+      FULL_DESCRIPTION_FILE="docker/rubycritic/DOCKERHUB_DESCRIPTION.md"
+      CHANGE_DETECTION_PATH=""
+      SMOKE_TEST_FUNCTION="smoke_test_rubycritic"
+      ;;
+    *)
+      usage
+      ;;
+  esac
+}
+
 previous_tag() {
   git tag --sort=-creatordate | awk 'NR==2{print; exit}'
 }
 
 changed_since_previous() {
+  if [ -z "$CHANGE_DETECTION_PATH" ]; then
+    return 0
+  fi
+
   local prev
   prev=$(previous_tag)
 
@@ -103,7 +167,7 @@ changed_since_previous() {
     return 0
   fi
 
-  ! git diff --quiet "$prev"..HEAD -- shell/linux/
+  ! git diff --quiet "$prev"..HEAD -- "$CHANGE_DETECTION_PATH"
 }
 
 verify_version_pin() {
@@ -192,7 +256,7 @@ cmd_build() {
   for platform in $PLATFORMS; do
     echo "Building $IMAGE_NAME:$tag-$(platform_arch "$platform") for $platform"
     docker buildx build --builder "$BUILDER_NAME" --platform "$platform" --load \
-      -t "$IMAGE_NAME:$tag-$(platform_arch "$platform")" -f shell/linux/Dockerfile .
+      -t "$IMAGE_NAME:$tag-$(platform_arch "$platform")" -f "$DOCKERFILE" "$BUILD_CONTEXT"
   done
 }
 
@@ -342,6 +406,112 @@ smoke_test_identity() {
   fi
 }
 
+RUBYCRITIC_FIXTURE_DIR="docker/rubycritic/fixture"
+RUBYCRITIC_FIXTURE_FILES=(simple.rb complex.rb dup_a.rb dup_b.rb broken.rb empty.rb constants_only.rb)
+
+# Runs the fixture checks from
+# docs/agents/specs/code_check/rubycritic/image.md (section 6) against a local
+# tingle_rubycritic image, with the canonical run line (--network none,
+# read-only /src, foreign uid 501:20): the full fixture run (JSON checked with
+# python3), no git in the image, and the empty object on empty stdin. Any
+# failure prints "<reason> on <platform>" on stderr and exits 1.
+smoke_test_rubycritic() {
+  local image="$1"
+  local platform="$2"
+  local run=(docker run --rm -i --pull never --network none --security-opt no-new-privileges
+    --platform "$platform" --user "$FOREIGN_USER"
+    -v "$PWD/$RUBYCRITIC_FIXTURE_DIR:/src:ro" -w /src)
+
+  local output status=0
+  output=$(printf '%s\n' "${RUBYCRITIC_FIXTURE_FILES[@]}" | "${run[@]}" "$image") || status=$?
+  if [ "$status" -ne 0 ]; then
+    smoke_fail "Fixture run exited with status $status on $platform"
+  fi
+
+  python3 -c '
+import json, sys
+
+platform = sys.argv[1]
+
+def fail(reason):
+    print(f"{reason} on {platform}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError as error:
+    fail(f"Fixture output is not valid JSON ({error})")
+if not isinstance(report, dict):
+    fail("Fixture output is not a JSON object")
+
+version = ((report.get("metadata") or {}).get("rubycritic") or {}).get("version")
+if version != "5.0.0":
+    fail(f"metadata.rubycritic.version is {version!r}, not \"5.0.0\"")
+
+modules = {m.get("path"): m for m in report.get("analysed_modules") or []}
+expected = {"simple.rb", "complex.rb", "dup_a.rb", "dup_b.rb", "empty.rb", "constants_only.rb"}
+if set(modules) != expected:
+    fail(f"analysed_modules paths are {sorted(modules)}, expected {sorted(expected)}")
+
+errors = [e.get("path") for e in report.get("parse_errors") or []]
+if errors != ["broken.rb"]:
+    fail(f"parse_errors paths are {errors}, expected [\"broken.rb\"]")
+
+score = report.get("score")
+if isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= score <= 100:
+    fail(f"score is {score!r}, not a number between 0 and 100")
+
+def number(path, key):
+    value = modules[path].get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        fail(f"{path} {key} is {value!r}, not a number")
+    return value
+
+if not number("simple.rb", "complexity") < 5:
+    fail("simple.rb complexity is not below 5")
+rating = modules["simple.rb"].get("rating")
+if rating != "A":
+    fail(f"simple.rb rating is {rating!r}, not \"A\"")
+if not number("complex.rb", "complexity") > 50:
+    fail("complex.rb complexity is not above 50")
+for path in ("dup_a.rb", "dup_b.rb"):
+    if not number(path, "duplication") > 0:
+        fail(f"{path} duplication is not above 0")
+for path in ("empty.rb", "constants_only.rb"):
+    if number(path, "complexity") != 0:
+        fail(f"{path} complexity is not 0.0")
+    if number(path, "methods_count") != 0:
+        fail(f"{path} methods_count is not 0")
+' "$platform" <<< "$output"
+
+  local git_check
+  git_check=$(docker run --rm --network none --platform "$platform" --entrypoint sh "$image" \
+    -c 'if command -v git >/dev/null 2>&1; then echo present; else echo absent; fi')
+  if [ "$git_check" != "absent" ]; then
+    smoke_fail "git is present in the image on $platform"
+  fi
+
+  status=0
+  output=$("${run[@]}" "$image" < /dev/null) || status=$?
+  if [ "$status" -ne 0 ]; then
+    smoke_fail "Empty stdin exited with status $status on $platform"
+  fi
+
+  python3 -c '
+import json, sys
+
+platform = sys.argv[1]
+expected = {"metadata": None, "analysed_modules": [], "score": None, "parse_errors": []}
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError:
+    report = None
+if report != expected:
+    print(f"Empty stdin did not print the empty object on {platform}", file=sys.stderr)
+    sys.exit(1)
+' "$platform" <<< "$output"
+}
+
 cmd_smoke_test() {
   if ! changed_since_previous; then
     echo "shell/linux/ unchanged since previous release tag — skipping smoke test"
@@ -354,7 +524,7 @@ cmd_smoke_test() {
   local platform
   for platform in $PLATFORMS; do
     echo "Smoke-testing $IMAGE_NAME:$tag-$(platform_arch "$platform") on $platform"
-    smoke_test_image "$IMAGE_NAME:$tag-$(platform_arch "$platform")" "$platform"
+    "$SMOKE_TEST_FUNCTION" "$IMAGE_NAME:$tag-$(platform_arch "$platform")" "$platform"
   done
 }
 
@@ -410,7 +580,7 @@ cmd_publish() {
   echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
 
   docker buildx build --builder "$BUILDER_NAME" --platform "$(platforms_csv)" --push \
-    -t "$IMAGE_NAME:$tag" -f shell/linux/Dockerfile .
+    -t "$IMAGE_NAME:$tag" -f "$DOCKERFILE" "$BUILD_CONTEXT"
 
   verify_published_platforms "$IMAGE_NAME:$tag"
 }
@@ -469,29 +639,34 @@ print(json.dumps({
 
 main() {
   local subcommand="${1:-}"
+  local selector="${2:-linux}"
 
   case "$subcommand" in
     setup-builder)
       cmd_setup_builder
       ;;
     build)
+      select_image "$selector"
       cmd_build
       ;;
     smoke-test)
+      select_image "$selector"
       cmd_smoke_test
       ;;
     scan)
+      select_image "$selector"
       cmd_scan
       ;;
     publish)
+      select_image "$selector"
       cmd_publish
       ;;
     update-description)
+      select_image "$selector"
       cmd_update_description
       ;;
     *)
-      echo "Usage: $0 {setup-builder|build|smoke-test|scan|publish|update-description}" >&2
-      exit 1
+      usage
       ;;
   esac
 }
