@@ -143,7 +143,7 @@ Issue #296 updates, in the same PR:
   `rubycritic` part of `long_help` in `commands/python.json`;
 - completion (new flags; `--exclude`, `--ignore`, `--include` take free-form
   values);
-- the `rubycritic` section of `docs/guides/code_check.md`;
+- the `rubycritic` guide page, `docs/guides/code_check/rubycritic.md`;
 - tests under `python/tests/code_check/rubycritic/`, covering each flag, the
   filter order (a file matching several steps is dropped by the first),
   single-file `<path>`, symlinks inside, outside, absolute-inside and
