@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from code_check.palette import Palette
 from code_check.rubycritic.constants import Constants
+from code_check.rubycritic.docker_runner import DockerRunner
 from code_check.rubycritic.errors import RubycriticError
 from code_check.rubycritic.flags import FLAGS
 from code_check.rubycritic.image import resolve_image
@@ -175,6 +176,11 @@ class CheckRubycritic:
             image = resolve_image(options["image"])
             out = Palette(sys.stdout)
             self._print_header(out, target, options, image)
-            self._select(out, target, root)
+            selection = self._select(out, target, root)
+            runner = DockerRunner(image)
+            runner.preflight()
+            runner.ensure_image()
+            proc = runner.run(root, selection.lines)
+            runner.check_outcome(proc, root)
         except RubycriticError as exc:
             self._fail(exc.message)
