@@ -156,7 +156,7 @@ to 4, the `--include` part of step 5 and the symlink rule.
 
   `<root>` is the resolved `<path>` for a directory, or its parent directory
   for a single file. Tingle pulls the image beforehand when it is missing (see
-  [subcommand.md](subcommand.md#3-pulling-the-image)).
+  [subcommand.md](subcommand.md#3-run-order-preflight-and-pulling)).
 - **stdin:** the selected files, one path per line, relative to `<root>`,
   UTF-8, POSIX separators, each line ending in `\n`.
 - **stdout:** exactly one JSON object: RubyCritic's `report.json` plus a
