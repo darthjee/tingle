@@ -412,8 +412,10 @@ RUBYCRITIC_FIXTURE_FILES=(simple.rb complex.rb dup_a.rb dup_b.rb broken.rb empty
 # Runs the fixture checks from docs/agents/tingle-rubycritic-image.md
 # ("Smoke test") against a local tingle_rubycritic image, with the canonical
 # run line (--network none, read-only /src, foreign uid 501:20): the full
-# fixture run (JSON checked with python3, "methods" included), no git in the
-# image, and the empty object on empty stdin. Any failure prints "<reason> on <platform>" on stderr and exits 1.
+# fixture run (JSON checked with python3, "methods" included; the fixture's
+# coverage/ holds a leftover .resultset.json.lock, which must neither crash the
+# read-only run nor show up in the report), no git in the image, and the empty
+# object on empty stdin. Any failure prints "<reason> on <platform>" on stderr and exits 1.
 smoke_test_rubycritic() {
   local image="$1"
   local platform="$2"
@@ -455,6 +457,10 @@ if set(modules) != expected:
 errors = [e.get("path") for e in report.get("parse_errors") or []]
 if errors != ["broken.rb"]:
     fail(f"parse_errors paths are {errors}, expected [\"broken.rb\"]")
+
+coverage_paths = [p for p in list(modules) + errors if str(p).startswith("coverage/")]
+if coverage_paths:
+    fail(f"report has paths under coverage/: {coverage_paths}")
 
 score = report.get("score")
 if isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= score <= 100:
