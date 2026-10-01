@@ -116,7 +116,7 @@ The rating (A–F) is shown for information only and never sets the level.
 
 ## 4. The docker run line
 
-**Image resolution.**
+### Image resolution
 
 - `--image` (or, from #297, the `image` config key) wins when set.
 - Otherwise the image is `darthjee/tingle_rubycritic:<version>`, where
@@ -295,7 +295,7 @@ removes a leading `./`; an absolute path would stay absolute). Tingle:
 
 The report goes to stdout and mirrors `file_size`'s `Reporter`.
 
-**Header.**
+### Header
 
 ```
 Analyzing: <resolved path>
@@ -308,7 +308,7 @@ Config: <config file>        (only when a config section was loaded, #297)
 `Analyzing:` is cyan and bold; the other lines are dim. Thresholds print with
 `format(value, "g")` (`100`, `12.5`).
 
-**Table.**
+### Table
 
 ```
 Status            Complexity  Rating  Smells  Duplication  File
@@ -347,7 +347,8 @@ Score: <score>/100 (RubyCritic)
 
 - `<N>` is the number of selected files, `PARSE` files included. `<a>` to
   `<d>` count the level rows (dropped files count as `OK`).
-- ` | <k> skipped (parse error)` (gray) is appended only when `<k>` > 0.
+- The suffix `| <k> skipped (parse error)` (gray, preceded by a space) is
+  appended only when `<k>` > 0.
 - `<score>` has 2 decimals (`83.23`). When `score` is `null` the line is
   `Score: n/a (RubyCritic)`.
 - There is no `Total:` line.
@@ -380,7 +381,7 @@ body.
 
 ## 7. File selection in #295
 
-#295 selects, with `file_size`'s `FileCollector`:
+Issue #295 selects, with `file_size`'s `FileCollector`:
 
 - for a directory `<path>`: the regular files under it whose suffix is `.rb`
   (case-insensitive), minus the default excludes (see

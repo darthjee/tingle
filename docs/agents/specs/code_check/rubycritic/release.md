@@ -9,7 +9,7 @@ This spec covers how the image built from `docker/rubycritic/` (see
 
 ## 1. Ordering rule
 
-#294 must be merged before the tingle release tag that ships #295 (the
+Issue #294 must be merged before the tingle release tag that ships #295 (the
 `rubycritic` subcommand) is pushed. The CLI defaults to
 `darthjee/tingle_rubycritic:<tingle version>`, so a tingle release without
 this pipeline would point at an image tag that was never published.
@@ -141,8 +141,8 @@ tag filter and `branches: ignore: /.*/` as the existing ones:
 
 ## 6. Implementation doc
 
-#294 adds `docs/agents/tingle-rubycritic-image.md` (owned by `product-owner`),
-in the style of `docs/agents/tingle-linux-image.md`, with these sections:
+Issue #294 adds `docs/agents/tingle-rubycritic-image.md` (owned by
+`product-owner`), in the style of `docs/agents/tingle-linux-image.md`, with these sections:
 
 1. **Header bullets:** image name, tag strategy (same semver as tingle, every
    tag published, no `latest`, `v` tags ignored, one amd64/arm64 manifest),

@@ -96,7 +96,7 @@ So every `COPY` source is relative to `docker/rubycritic/`.
 The entrypoint is a Ruby script that loads the locked bundle
 (`require "bundler/setup"`). It is the only process tingle talks to.
 
-**Input**
+### Input
 
 - It reads all of stdin as UTF-8 and splits it on `\n`.
 - Each non-blank line is one file path, relative to the working directory
@@ -104,7 +104,7 @@ The entrypoint is a Ruby script that loads the locked bundle
   first position.
 - It receives no arguments.
 
-**Pre-parse**
+### Pre-parse
 
 RubyCritic 5.0.0 aborts the whole run on the first file with a syntax error
 (Reek raises `Reek::Errors::SyntaxError`, RubyCritic exits 1 and writes no
@@ -123,7 +123,7 @@ Reek::Source::SourceCode.new(source: File.read(path), origin: path).syntax_tree
   Observed messages: `unexpected token tSTRING` (syntax error) and
   `invalid byte sequence in UTF-8` (bad encoding).
 
-**Run**
+### Run
 
 - When at least one path survives the pre-parse, the entrypoint runs, in
   `/src`:
@@ -143,7 +143,7 @@ Reek::Source::SourceCode.new(source: File.read(path), origin: path).syntax_tree
   writable by everyone, and the run needs no extra environment (it was
   checked with `--user 501:20` and the inherited `HOME=/`).
 
-**Output**
+### Output
 
 - On success, stdout holds exactly one JSON object followed by `\n`: the
   object parsed from `/tmp/out/report.json`, with one extra top-level key,
@@ -160,7 +160,7 @@ Reek::Source::SourceCode.new(source: File.read(path), origin: path).syntax_tree
 - The field paths and meanings are pinned in
   [subcommand.md](subcommand.md#5-rubycritic-json-contract).
 
-**Exit status**
+### Exit status
 
 | Status | When |
 |--------|------|
@@ -213,11 +213,11 @@ section 4 with exit 0. The release pipeline runs it per platform (see
 
 ## 7. Local build
 
-The root `Makefile` gets a `rubycritic-image` target:
+The root `Makefile` gets a `rubycritic-image` target with a single recipe
+line (tab-indented, as Make requires) that runs:
 
-```make
-rubycritic-image:
-	docker build -t tingle_rubycritic:dev docker/rubycritic
+```sh
+docker build -t tingle_rubycritic:dev docker/rubycritic
 ```
 
 `make rubycritic-image` builds `tingle_rubycritic:dev` for the host

@@ -97,11 +97,11 @@ keyword-only arguments whose defaults keep `file_size` unchanged:
 | `binary_check` | `True` | `False` | When `False`, `SkipChecks.is_binary_file` is not called. |
 | `outside_symlinks` | `True` (kept) | `False` | When `False`, step 6 applies. |
 
-#295 adds `binary_check` (it needs it from the start); #296 adds
+Issue #295 adds `binary_check` (it needs it from the start); #296 adds
 `outside_symlinks`. The rubycritic executor builds it as
 `FileCollector(excludes, [".rb"], ignore=..., include=..., gitignore=..., binary_check=False, outside_symlinks=False)`.
 
-**What does not apply from `file_size`:**
+What does not apply from `file_size`:
 
 - `--ext` and the `ext` config key: the `.rb` filter is fixed.
 - The binary check. It would silently drop a `.rb` file that is not valid
@@ -137,7 +137,7 @@ does this; #296 does not change it.
 
 ## 7. Docs and tests
 
-#296 updates, in the same PR:
+Issue #296 updates, in the same PR:
 
 - the flag help in `python/code_check/rubycritic/flags.py` and the
   `rubycritic` part of `long_help` in `commands/python.json`;

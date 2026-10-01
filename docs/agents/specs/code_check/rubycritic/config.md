@@ -133,7 +133,7 @@ With this file, `tingle code_check rubycritic . --warn 50 --exclude tmp2
 
 ## 7. Docs and tests
 
-#297 updates, in the same PR:
+Issue #297 updates, in the same PR:
 
 - `long_help` in `commands/python.json` (the config file and `--no-config`)
   and the executor module docstring;

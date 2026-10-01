@@ -137,8 +137,8 @@ these steps in this order. The first step that rejects a file drops it.
 After the filters, tingle drops symlinks whose target is outside the mount
 root and filenames that cannot be sent on stdin (see
 [file-selection.md](file-selection.md#6-symlinks-and-unsendable-names)).
-#295 ships steps 1 and 5 (default excludes and `.rb` only); #296 adds steps 2
-to 4, the `--include` part of step 5 and the symlink rule.
+Issue #295 ships steps 1 and 5 (default excludes and `.rb` only); issue #296
+adds steps 2 to 4, the `--include` part of step 5 and the symlink rule.
 
 ## 8. Image contract summary
 
