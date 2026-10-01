@@ -11,7 +11,7 @@ from code_check.palette import Colors, Palette
 from code_check.rubycritic.output_parser import FileResult, MethodResult, ParsedOutput
 from code_check.rubycritic.reporter import Reporter
 
-# The header f-string from spec §6 (as in file_size's reporter).
+# The report header f-string (as in file_size's reporter).
 HEADER = (
     f"{'Status':<16} {'Complexity':>10}  {'Rating':<6}  {'Smells':>6}  {'Duplication':>11}  File"
 )
