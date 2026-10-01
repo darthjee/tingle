@@ -1,4 +1,4 @@
-"""The container output sample from the spec (subcommand.md §5), shared by tests."""
+"""Container output sample (docs/agents/tingle-rubycritic-image.md, RubyCritic JSON contract)."""
 
 from __future__ import annotations
 

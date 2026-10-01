@@ -11,7 +11,7 @@
 #   - RubyCritic and every gem it pulls in are pinned by Gemfile.lock
 #     (platforms aarch64-linux and x86_64-linux), and Bundler runs frozen;
 #   - build-essential is pinned to its version in the base image's archive.
-#   See docs/agents/specs/code_check/rubycritic/image.md (section 8) for the
+#   See docs/agents/tingle-rubycritic-image.md ("Bumping versions") for the
 #   bump procedure.
 #
 # Build context is this folder, not the repo root:
