@@ -72,6 +72,7 @@ key.
 | `--ignore GLOB` | str | yes (`append`) | `[]` | #296 | `ignore` (list of str) |
 | `--include GLOB` | str | yes (`append`) | `[]` | #296 | `include` (list of str) |
 | `--no-config` | `store_true` | no | off | #297 | none (the config file is not read or validated) |
+| `--details [N]` | int ≥ 0, optional value (`nargs='?'`, `const=5`) | no | `None` (off) | #291 | `details` (int ≥ 0 or `null`) |
 
 - The flag names, meanings and argparse style are the same as `file_size`'s
   (`python/code_check/file_size/flags.py`). Single-value flags default to
@@ -83,6 +84,13 @@ key.
   Argparse's exit 2 is remapped to 1, as in `file_size`.
 - The precedence rules (CLI over config for single values, concatenation for
   lists) are defined in [config.md](config.md).
+- `--details` alone means 5; `--details 0` means all methods; absent means no
+  detail lines. A negative value is a usage error (exit 1,
+  `Error: --details must be an integer >= 0`). The detail lines under each
+  file and the missing-`methods` error are pinned in
+  [subcommand.md](subcommand.md#5-rubycritic-json-contract). Method scores
+  are informative only: levels, `--fail-on` and the exit codes stay
+  file-based.
 
 ## 4. Exit codes and streams
 
@@ -104,7 +112,7 @@ key.
 The `rubycritic` section of `~/.tingle/code_check/config.json` accepts these
 keys, and no others: `warn`, `error`, `critical`, `top`, `exclude`,
 `no_default_excludes`, `ignore`, `include`, `gitignore`, `fail_on`,
-`min_level`, `image`. Types are in [section 3](#3-cli-and-flags). The schema,
+`min_level`, `image`, `details`. Types are in [section 3](#3-cli-and-flags). The schema,
 precedence, list merging and error handling are in [config.md](config.md).
 
 ## 6. Default excludes
@@ -159,8 +167,9 @@ adds steps 2 to 4, the `--include` part of step 5 and the symlink rule.
   [subcommand.md](subcommand.md#3-run-order-preflight-and-pulling)).
 - **stdin:** the selected files, one path per line, relative to `<root>`,
   UTF-8, POSIX separators, each line ending in `\n`.
-- **stdout:** exactly one JSON object: RubyCritic's `report.json` plus a
-  `parse_errors` key added by the entrypoint. See
+- **stdout:** exactly one JSON object: RubyCritic's `report.json` plus
+  `parse_errors` and `methods` (per-method Flog scores, added by #291), both
+  added by the entrypoint. See
   [image.md](image.md#4-entrypoint-contract) and
   [subcommand.md](subcommand.md#5-rubycritic-json-contract).
 - **stderr:** everything else, including RubyCritic's own progress output

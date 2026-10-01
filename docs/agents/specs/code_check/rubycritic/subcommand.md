@@ -173,7 +173,8 @@ known to Docker.`, exit 125).
 ## 5. RubyCritic JSON contract
 
 The entrypoint prints RubyCritic's `report.json` plus a `parse_errors` key
-(see [image.md](image.md#4-entrypoint-contract)). This trimmed sample comes
+and a `methods` key (per-method Flog scores, added by #291; see
+[image.md](image.md#4-entrypoint-contract)). This trimmed sample comes
 from a real run of `rubycritic 5.0.0` on the fixture (smell lists cut to one
 entry, `simple.rb`, `dup_b.rb` and `constants_only.rb` removed, the
 `broken.rb` entry from the entrypoint run):
@@ -245,6 +246,9 @@ entry, `simple.rb`, `dup_b.rb` and `constants_only.rb` removed, the
   "score": 83.23,
   "parse_errors": [
     {"path": "broken.rb", "message": "unexpected token tSTRING"}
+  ],
+  "methods": [
+    {"path": "complex.rb", "name": "Complex#run", "line": 2, "score": 72.25}
   ]
 }
 ```
@@ -260,6 +264,7 @@ entry, `simple.rb`, `dup_b.rb` and `constants_only.rb` removed, the
 | `Duplication` | `m.duplication` | number | Flay mass for the file (integer in practice). |
 | `PARSE` rows | `parse_errors[].path`, `parse_errors[].message` | list of objects | Added by the entrypoint. |
 | `Score:` | `score` (top level) | number or `null` | RubyCritic's overall score, 0–100. `null` when RubyCritic did not run (every file failed to parse). |
+| `--details` lines | `methods[].path`, `methods[].name`, `methods[].line`, `methods[].score` | list of objects | Added by the entrypoint (#291). One entry per method Flog scored: `path` as sent on stdin, `name` as `Class#method` / `Class::method` (Flog's `#none` buckets excluded), `line` the method's first line (int), `score` rounded to 2 decimals. Sorted by score descending, then `path`, then `name`. `[]` when RubyCritic did not run. |
 
 Fields not used: `name` (derived from the file name, e.g. `Empty`),
 `churn` (always `0` without git), `committed_at` (`null`), `methods_count`,
@@ -279,7 +284,12 @@ holds several classes.
   counts as `null`;
 - `parse_errors` is a list of objects with `path` and `message` strings
   (`unexpected parse_errors`); a missing `parse_errors` counts as an empty
-  list.
+  list;
+- `methods`, when present, is a list of objects with `path` (str), `name`
+  (str), `line` (int) and `score` (number) (`unexpected methods`). A present
+  but malformed `methods` key always fails, whether or not `--details` is
+  set. A missing `methods` key is ignored without `--details`; with
+  `--details` it is an error (see below).
 
 JSON booleans are not numbers here.
 
@@ -294,6 +304,25 @@ removes a leading `./`; an absolute path would stay absolute). Tingle:
    for a path given twice;
 4. turns each sent line back into its host path (`<root>/<line>`) for the
    report.
+
+`methods[].path` is mapped the same way; entries whose path matches no sent
+line (or a `PARSE` file) are ignored.
+
+**Per-method details (`--details [N]`, #291).** `--details` alone means 5,
+`--details 0` means all methods, and an absent flag (with no `details` config
+key) prints no detail lines. Under each shown level row (never under `PARSE`
+rows), the report prints up to N lines, in dim/gray, for that file's methods,
+sorted by score descending then name:
+
+```
+{'':<16} {score:>10.2f}  {name}  ({display_path}:{line})
+```
+
+The score is aligned under the `Complexity` column; `display_path` is the
+row's file display path. A file with no methods gets no lines. Method scores
+are informative only: levels, `--fail-on`, the summary and the exit codes stay
+file-based. If `--details` is set and the output has no `methods` key (an
+older image), the run fails with exit 1 (see [section 10](#10-messages)).
 
 ## 6. Report
 
@@ -496,12 +525,14 @@ and `<root>` are resolved absolute paths, `<image>` the resolved image,
 | `docker run` cannot be executed (`OSError`) | `Error: could not run docker: <exc>` |
 | Container or RubyCritic failure (after the container stderr) | `Error: RubyCritic failed in <image> (exit <status>)` |
 | Unparsable output | `Error: could not parse the RubyCritic output from <image>: <reason>` |
+| `--details` with no `methods` key in the output (#291) | `Error: the RubyCritic output from <image> has no per-method data; --details needs a newer tingle_rubycritic image` |
 | `<path>` missing | `Error: path not found: <path>` |
 | `<path>` unreadable | `Error: path not readable: <path>` |
 | Mount root with `:` | `Error: cannot mount <root>: Docker volume paths cannot contain ':'` |
 | Version file unreadable | `Error: cannot read the tingle version from <file>; use --image to choose the image` |
 | Negative threshold | `Error: --warn must be a number >= 0` (`--error`, `--critical` likewise) |
 | Negative `--top` | `Error: --top must be an integer >= 0` |
+| Negative `--details` (#291) | `Error: --details must be an integer >= 0` |
 | Empty `--image` | `Error: --image must not be empty` |
 | Filename with a newline | `Warning: skipping file with a newline in its name: <repr>` |
 | Filename not valid UTF-8 | `Warning: skipping file whose name is not valid UTF-8: <repr>` |

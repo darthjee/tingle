@@ -146,13 +146,30 @@ Reek::Source::SourceCode.new(source: File.read(path), origin: path).syntax_tree
 ### Output
 
 - On success, stdout holds exactly one JSON object followed by `\n`: the
-  object parsed from `/tmp/out/report.json`, with one extra top-level key,
-  `parse_errors`. Nothing else is written to stdout.
+  object parsed from `/tmp/out/report.json`, with two extra top-level keys,
+  `parse_errors` and `methods` (added by #291). Nothing else is written to
+  stdout.
+- `methods` lists every method Flog scored, across all files passed to
+  RubyCritic (the files that survived the pre-parse):
+
+  ```json
+  "methods": [
+    {"path": "complex.rb", "name": "Complex#run", "line": 2, "score": 72.25}
+  ]
+  ```
+
+  - `path`: str, the path exactly as received on stdin (the same form as
+    `parse_errors[].path`).
+  - `name`: str, Flog's `Class#method` / `Class::method` name. Flog's
+    non-method buckets (names ending in `#none`) are excluded.
+  - `line`: int, the first line of the method.
+  - `score`: number, rounded to 2 decimals.
+  - Order: score descending, then `path`, then `name`.
 - When no path survives (all paths failed the pre-parse, or stdin had no
   paths), RubyCritic is not run, and the entrypoint prints:
 
   ```json
-  {"metadata":null,"analysed_modules":[],"score":null,"parse_errors":[...]}
+  {"metadata":null,"analysed_modules":[],"score":null,"parse_errors":[...],"methods":[]}
   ```
 
   with exit status 0. Tingle never starts the container with an empty list,
