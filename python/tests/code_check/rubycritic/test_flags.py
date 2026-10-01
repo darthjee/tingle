@@ -16,6 +16,7 @@ def test_flag_names_in_order():
     assert [f["name"] for f in FLAGS] == [
         "path", "--warn", "--error", "--critical", "--top",
         "--min-level", "--fail-on", "--details", "--image",
+        "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
     ]
 
 
@@ -32,6 +33,11 @@ def test_single_value_flags_default_to_none():
         "fail_on": None,
         "details": None,
         "image": None,
+        "exclude": None,
+        "no_default_excludes": False,
+        "no_gitignore": False,
+        "ignore": None,
+        "include": None,
     }
 
 
@@ -67,6 +73,24 @@ def test_choices():
             ),
         ),
         ("--image", "Docker image to run (default: darthjee/tingle_rubycritic:<tingle version>)"),
+        (
+            "--exclude",
+            (
+                "Extra directory names to skip (comma-separated), added to the defaults: "
+                "node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,"
+                ".cache,coverage,.nuxt,out,target,tmp,log,.bundle"
+            ),
+        ),
+        ("--no-default-excludes", "Do not skip the default directories; only --exclude names apply"),
+        (
+            "--no-gitignore",
+            "Do not skip files ignored by git (.gitignore, .git/info/exclude, global excludes)",
+        ),
+        ("--ignore", "Skip files whose path relative to <path> matches this glob (can be repeated)"),
+        (
+            "--include",
+            "Only analyse .rb files whose path relative to <path> matches this glob (can be repeated)",
+        ),
     ],
 )
 def test_help_texts_match_spec(name, text):
@@ -85,3 +109,29 @@ def test_help_texts_match_spec(name, text):
 )
 def test_details_values(args, expected):
     assert ArgParser(FLAGS).parse(args)["details"] == expected
+
+
+def test_exclude_is_not_repeatable_last_wins():
+    parsed = ArgParser(FLAGS).parse(["app", "--exclude", "a,b", "--exclude", "c"])
+
+    assert parsed["exclude"] == "c"
+
+
+def test_ignore_and_include_are_repeatable():
+    parsed = ArgParser(FLAGS).parse(
+        ["app", "--ignore", "a", "--ignore", "b", "--include", "x", "--include", "y"]
+    )
+
+    assert parsed["ignore"] == ["a", "b"]
+    assert parsed["include"] == ["x", "y"]
+
+
+def test_store_true_flags():
+    parsed = ArgParser(FLAGS).parse(["app", "--no-default-excludes", "--no-gitignore"])
+
+    assert parsed["no_default_excludes"] is True
+    assert parsed["no_gitignore"] is True
+
+
+def test_no_ext_flag():
+    assert all(f["name"] != "--ext" for f in FLAGS)

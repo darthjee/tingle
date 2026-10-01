@@ -45,17 +45,18 @@ def build_selection(root: Path, files: Iterable[Path]) -> Selection:
     """Turn collected `files` into stdin lines relative to `root`, dropping unsendable names.
 
     Each file is resolved first, so a symlink becomes its target's path
-    (`root` must be resolved too), and files resolving to the same path are
-    kept once.
+    relative to the resolved `root`), and files resolving to the same path
+    are kept once.
     """
     selection = Selection(root)
+    base = root.resolve()
     seen: set[Path] = set()
     for path in files:
         resolved = path.resolve()
         if resolved in seen:
             continue
         seen.add(resolved)
-        rel = resolved.relative_to(root).as_posix()
+        rel = resolved.relative_to(base).as_posix()
         reason = unsendable_reason(rel)
         if reason is None:
             selection.lines.append(rel)
