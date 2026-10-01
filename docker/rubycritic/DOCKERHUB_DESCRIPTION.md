@@ -36,7 +36,8 @@ no churn.
   non-zero otherwise.
 
 The image works under any `--user <uid>:<gid>`, with no network and a
-read-only `/src`. It only writes under `/tmp`.
+read-only `/src`. It only writes under `/tmp`. The project's own `coverage/`
+folder (SimpleCov data) is ignored, so coverage is not reported.
 
 ## Usage
 
