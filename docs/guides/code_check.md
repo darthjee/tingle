@@ -22,9 +22,10 @@ The subcommand comes first; its options follow it.
 | Subcommand | Description |
 |---|---|
 | [`file_size`](code_check/file_size.md) | Token efficiency triage: file size analysis. |
+| [`rubycritic`](code_check/rubycritic.md) | Ruby code complexity via RubyCritic (Docker). |
 
-Subcommand names are exact: `file_size` works, `file-size` and `FILE_SIZE`
-do not.
+Subcommand names are exact: `file_size` and `rubycritic` work, `file-size`,
+`FILE_SIZE` and `RubyCritic` do not.
 
 ## Help
 
@@ -65,6 +66,9 @@ of each section are documented on the subcommand's page.
 |---|---|---|
 | `file_size` | `file_size` | [Configuration file](code_check/file_size.md#configuration-file) |
 
+`rubycritic` does not read the config file yet: pass its options on the
+command line.
+
 For example:
 
 ```json
@@ -84,7 +88,7 @@ Every subcommand uses the same exit codes:
 |---|---|
 | `0` | Success, or the check gate passed or was not requested |
 | `1` | Usage or configuration error (unknown subcommand or option, invalid value, invalid config file, ...) |
-| `2` | The check gate failed (for `file_size`, `--fail-on`) |
+| `2` | The check gate failed (`--fail-on`) |
 
 ## Migrating from `check_file_size`
 

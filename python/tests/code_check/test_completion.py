@@ -11,6 +11,7 @@ import pytest
 from code_check.completion import FILES_SENTINEL, complete
 from code_check.executor import CodeCheck
 from code_check.file_size.flags import FLAGS
+from code_check.rubycritic.flags import FLAGS as RUBYCRITIC_FLAGS
 from code_check.subcommands import SUBCOMMAND_NAMES
 
 EXPECTED_FLAGS = [f["name"] for f in FLAGS if f["name"].startswith("-")]
@@ -43,7 +44,10 @@ def test_completion_imports_no_heavy_module():
         "import sys; import code_check.completion; "
         "heavy = [m for m in ('code_check.executor', 'code_check.file_size.executor', "
         "'code_check.file_size.file_collector', 'code_check.config', "
-        "'code_check.file_size.config', 'code_check.file_size.reporter') if m in sys.modules]; "
+        "'code_check.file_size.config', 'code_check.file_size.reporter', "
+        "'code_check.rubycritic.executor', 'code_check.rubycritic.docker_runner', "
+        "'code_check.rubycritic.output_parser', 'code_check.rubycritic.reporter', "
+        "'code_check.rubycritic.selection') if m in sys.modules]; "
         "print(','.join(heavy))"
     )
     python_dir = Path(__file__).resolve().parents[2]
@@ -157,3 +161,59 @@ def test_file_sentinel_is_never_mixed_with_words(argv):
     result = complete(argv)
 
     assert result == [FILES_SENTINEL] or FILES_SENTINEL not in result
+
+
+# --- rubycritic -------------------------------------------------------------------
+
+RUBYCRITIC_EXPECTED_FLAGS = [f["name"] for f in RUBYCRITIC_FLAGS if f["name"].startswith("-")]
+
+
+def test_rubycritic_flag_names():
+    assert RUBYCRITIC_EXPECTED_FLAGS == [
+        "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--image",
+    ]
+
+
+@pytest.mark.parametrize("current", ["", "app", "./ap"])
+def test_rubycritic_without_path_returns_file_sentinel(current):
+    assert complete(["rubycritic", current]) == [FILES_SENTINEL]
+
+
+def test_help_then_rubycritic_behaves_like_rubycritic():
+    assert complete(["-h", "rubycritic", ""]) == [FILES_SENTINEL]
+
+
+@pytest.mark.parametrize("current", ["-", "--i"])
+def test_rubycritic_dash_word_returns_every_flag(current):
+    assert complete(["rubycritic", current]) == RUBYCRITIC_EXPECTED_FLAGS
+
+
+def test_rubycritic_after_path_returns_every_flag():
+    assert complete(["rubycritic", "app", ""]) == RUBYCRITIC_EXPECTED_FLAGS
+
+
+@pytest.mark.parametrize(
+    ("flag", "choices"),
+    [
+        ("--min-level", ["ok", "warn", "error", "critical"]),
+        ("--fail-on", ["warn", "error", "critical"]),
+    ],
+)
+def test_rubycritic_choice_flags_return_choices(flag, choices):
+    assert complete(["rubycritic", "app", flag, ""]) == choices
+
+
+@pytest.mark.parametrize("flag", ["--warn", "--error", "--critical", "--top", "--image"])
+def test_rubycritic_free_value_flags_return_nothing(flag):
+    assert complete(["rubycritic", "app", flag, ""]) == []
+
+
+def test_rubycritic_value_flag_before_path_does_not_count_as_path():
+    assert complete(["rubycritic", "--image", "img:dev", ""]) == [FILES_SENTINEL]
+
+
+def test_rubycritic_does_not_offer_file_size_only_flags():
+    flags = complete(["rubycritic", "app", ""])
+
+    assert "--ext" not in flags
+    assert "--no-config" not in flags

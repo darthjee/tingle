@@ -29,7 +29,8 @@ and edge cases. File selection flags come in #296
   as `file_size`, from `code_check.rubycritic.flags.FLAGS`: flag names, the
   `choices` of choice flags, nothing for free-form values (`--image`,
   `--warn`, ...), and the file sentinel for the path.
-- Docs in the same PR: a `rubycritic` page or section in
+- Docs in the same PR: the `rubycritic` guide page
+  `docs/guides/code_check/rubycritic.md`, linked from
   `docs/guides/code_check.md` (with the Podman note: Podman aliased as
   `docker` may work but is not supported), `docs/agents/architecture.md`, and
   the `README.md` table.
@@ -270,12 +271,15 @@ holds several classes.
 
 - stdout is one JSON object (`invalid JSON: <error>` /
   `expected a JSON object`);
-- `analysed_modules` is a list, and each entry has `path` (str),
+- `analysed_modules` is present and a list (`unexpected analysed_modules`),
+  and each entry has `path` (str),
   `complexity` (number), `rating` (str), `smells` (list) and `duplication`
   (number) (`unexpected analysed_modules entry: <path or index>`);
-- `score` is a number or `null` (`unexpected score`);
+- `score` is a number or `null` (`unexpected score`); a missing `score`
+  counts as `null`;
 - `parse_errors` is a list of objects with `path` and `message` strings
-  (`unexpected parse_errors`).
+  (`unexpected parse_errors`); a missing `parse_errors` counts as an empty
+  list.
 
 JSON booleans are not numbers here.
 
@@ -311,13 +315,16 @@ Config: <config file>        (only when a config section was loaded, #297)
 ### Table
 
 ```
-Status            Complexity  Rating  Smells  Duplication  File
+Status           Complexity  Rating  Smells  Duplication  File
 ──────────────── ──────────  ──────  ──────  ───────────  ──────────────────────────────────────────────────
 ```
 
 - Header: `f"{'Status':<16} {'Complexity':>10}  {'Rating':<6}  {'Smells':>6}  {'Duplication':>11}  File"`.
 - Separator: `─` repeated 16, 10, 6, 6, 11 and 50 times, with the same
   spacing.
+- Padding counts code points, as Python's format spec does. `⚠️` is two code
+  points (U+26A0 U+FE0F), so `⚠️  WARN` rows look one column narrower than
+  the other labels in the examples below; that matches `file_size`.
 - Row: the level label padded to 16 and coloured like `file_size`
   (`Palette.level_color`), then the complexity with 2 decimals (`72.25`), the
   rating, the smell count and the duplication (as an integer), aligned like
@@ -361,11 +368,11 @@ Analyzing: /home/me/fixture
 Thresholds: warn=10 | error=50 | critical=100
 Image: darthjee/tingle_rubycritic:0.6.0
 
-Status            Complexity  Rating  Smells  Duplication  File
+Status           Complexity  Rating  Smells  Duplication  File
 ──────────────── ──────────  ──────  ──────  ───────────  ──────────────────────────────────────────────────
 🔴 ERROR               72.25  B           14            0  fixture/complex.rb
-⚠️  WARN               15.11  C           11           39  fixture/dup_a.rb
-⚠️  WARN               15.11  C           11           39  fixture/dup_b.rb
+⚠️  WARN              15.11  C           11           39  fixture/dup_a.rb
+⚠️  WARN              15.11  C           11           39  fixture/dup_b.rb
 ✅ OK                   0.00  A            0            0  fixture/constants_only.rb
 ✅ OK                   0.00  A            0            0  fixture/empty.rb
 ✅ OK                   0.00  A            1            0  fixture/simple.rb
@@ -486,6 +493,7 @@ and `<root>` are resolved absolute paths, `<image>` the resolved image,
 | Pull progress (dim, not an error) | `Pulling <image> ...` |
 | Pull failure | `Error: could not pull image <image>` |
 | Mount failure | `Error: Docker could not mount <root>; on Docker Desktop, share it (or a parent folder) under Settings > Resources > File sharing, then retry` |
+| `docker run` cannot be executed (`OSError`) | `Error: could not run docker: <exc>` |
 | Container or RubyCritic failure (after the container stderr) | `Error: RubyCritic failed in <image> (exit <status>)` |
 | Unparsable output | `Error: could not parse the RubyCritic output from <image>: <reason>` |
 | `<path>` missing | `Error: path not found: <path>` |

@@ -20,6 +20,7 @@ class FileCollector:
         ignore: list[str] | None = None,
         include: list[str] | None = None,
         gitignore: bool = True,
+        binary_check: bool = True,
     ):
         """Store the resolved filters.
 
@@ -30,12 +31,15 @@ class FileCollector:
         relative to the target (`None`: no globs). `gitignore` skips the untracked
         files git ignores when the target is inside a work tree (silently a no-op
         when git is missing, the target is not in a work tree or git fails).
+        `binary_check` skips binary files (by extension or content); turn it off
+        to keep every file that passes the other filters.
         """
         self._exclude_set = {e.lower() for e in excludes}
         self._ext_set = {e.lower() for e in extensions} if extensions else None
         self._ignore = GlobMatcher(ignore or [])
         self._include = GlobMatcher(include or [])
         self._gitignore = gitignore
+        self._binary_check = binary_check
 
     def collect(self, target: Path) -> list[Path]:
         """Collect all analyzable files from a file or directory path."""
@@ -80,14 +84,14 @@ class FileCollector:
         return ignored is not None and ignored.contains(path)
 
     def _accepts(self, path: Path, rel: str) -> bool:
-        """Apply the glob, extension and binary filters, in that order, to one file."""
+        """Apply the glob, extension and (optional) binary filters, in that order, to one file."""
         if self._ignore.matches(rel):
             return False
         if self._include and not self._include.matches(rel):
             return False
         if self._ext_set and path.suffix.lower() not in self._ext_set:
             return False
-        return not SkipChecks.is_binary_file(path)
+        return not (self._binary_check and SkipChecks.is_binary_file(path))
 
     def _is_excluded(self, rel: Path) -> bool:
         """Check if any component of `rel` (relative to the target) is excluded."""

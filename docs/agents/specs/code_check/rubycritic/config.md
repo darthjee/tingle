@@ -138,7 +138,7 @@ Issue #297 updates, in the same PR:
 - `long_help` in `commands/python.json` (the config file and `--no-config`)
   and the executor module docstring;
 - the `rubycritic` row of the "Configuration file" table and the
-  `rubycritic` section of `docs/guides/code_check.md`;
+  `rubycritic` guide page, `docs/guides/code_check/rubycritic.md`;
 - tests under `python/tests/code_check/rubycritic/`, covering every key's
   valid and invalid values (booleans as numbers, `NaN`, negative numbers,
   empty `image`, `ext`), each precedence rule, list merging and

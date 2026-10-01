@@ -9,6 +9,7 @@ import pytest
 from code_check.executor import CodeCheck
 from code_check.file_size.executor import CheckFileSize
 from code_check.palette import Colors
+from code_check.rubycritic.executor import CheckRubycritic
 
 LIST_FOOTER = "Run 'tingle code_check <subcommand> --help' for its options."
 
@@ -49,6 +50,17 @@ def test_subcommands_maps_file_size_to_executor():
     assert description
 
 
+def test_subcommands_maps_rubycritic_to_executor():
+    cls, description = CodeCheck.SUBCOMMANDS["rubycritic"]
+
+    assert cls is CheckRubycritic
+    assert description == "Ruby code complexity via RubyCritic (Docker)."
+
+
+def test_subcommands_order():
+    assert list(CodeCheck.SUBCOMMANDS) == ["file_size", "rubycritic"]
+
+
 # --- listing --------------------------------------------------------------------
 
 
@@ -59,6 +71,7 @@ def test_list_on_no_args_or_help_exits_zero(capsys, args):
     captured = capsys.readouterr()
     assert "file_size" in captured.out
     assert "Token efficiency triage: file size analysis." in captured.out
+    assert "rubycritic  Ruby code complexity via RubyCritic (Docker)." in captured.out
     assert captured.out.rstrip().endswith(LIST_FOOTER)
     assert captured.err == ""
 
@@ -90,6 +103,31 @@ def test_file_size_without_path_prints_its_help_and_exits_zero(capsys):
     assert _run(["file_size"]) == 0
 
     assert capsys.readouterr().out.startswith("usage: tingle code_check file_size ")
+
+
+def test_dispatches_rubycritic_with_remaining_args(monkeypatch):
+    calls: list[list[str]] = []
+
+    class FakeRubycritic:
+        def run(self, args):
+            calls.append(args)
+
+    monkeypatch.setitem(CodeCheck.SUBCOMMANDS, "rubycritic", (FakeRubycritic, "desc"))
+
+    CodeCheck().run(["rubycritic", "app", "--top", "3"])
+
+    assert calls == [["app", "--top", "3"]]
+
+
+@pytest.mark.parametrize("args", [["-h", "rubycritic"], ["rubycritic", "--help"], ["rubycritic"]])
+def test_rubycritic_help_is_printed_and_exits_zero(capsys, args):
+    assert _run(args) == 0
+
+    assert capsys.readouterr().out.startswith("usage: tingle code_check rubycritic ")
+
+
+def test_rubycritic_usage_error_exit_code_is_forwarded(tmp_path, capsys):
+    assert _run(["rubycritic", str(tmp_path), "--warn", "x"]) == 1
 
 
 # --- errors ---------------------------------------------------------------------

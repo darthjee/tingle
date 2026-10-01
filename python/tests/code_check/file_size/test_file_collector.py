@@ -334,3 +334,48 @@ def test_collect_gitignore_relative_target(tmp_path, fake_git, monkeypatch):
 
     assert {p.as_posix() for p in results} == {"main.py"}
     assert fake_git["calls"] == [tmp_path.resolve()]
+
+
+def _non_utf8_rb(path):
+    path.write_bytes(b"puts '\xff\xfe'\n")
+    return path
+
+
+def test_collect_binary_check_default_skips_non_utf8_file_in_directory(tmp_path):
+    _non_utf8_rb(tmp_path / "bad.rb")
+    (tmp_path / "good.rb").write_text("puts 1\n")
+
+    collector = FileCollector([], [".rb"])
+
+    assert collector.collect(tmp_path) == [tmp_path / "good.rb"]
+
+
+def test_collect_binary_check_false_keeps_non_utf8_file_in_directory(tmp_path):
+    bad = _non_utf8_rb(tmp_path / "bad.rb")
+    good = tmp_path / "good.rb"
+    good.write_text("puts 1\n")
+
+    collector = FileCollector([], [".rb"], binary_check=False)
+
+    assert set(collector.collect(tmp_path)) == {bad, good}
+
+
+def test_collect_binary_check_default_skips_single_non_utf8_file(tmp_path):
+    bad = _non_utf8_rb(tmp_path / "bad.rb")
+
+    assert FileCollector([], [".rb"]).collect(bad) == []
+
+
+def test_collect_binary_check_false_keeps_single_non_utf8_file(tmp_path):
+    bad = _non_utf8_rb(tmp_path / "bad.rb")
+
+    assert FileCollector([], [".rb"], binary_check=False).collect(bad) == [bad]
+
+
+def test_collect_binary_check_false_still_applies_extension_filter(tmp_path):
+    (tmp_path / "image.png").write_bytes(b"\x00\x01")
+    (tmp_path / "a.rb").write_text("x\n")
+
+    collector = FileCollector([], [".rb"], binary_check=False)
+
+    assert collector.collect(tmp_path) == [tmp_path / "a.rb"]

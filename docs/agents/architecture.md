@@ -64,6 +64,12 @@ dispatches to.
   `tingle linux sed <TAB>`). `code_check`'s completion, for example,
   returns subcommand names at the first position, flag names when the word
   being typed starts with `-`, and `__tingle_files__` for the path position.
+  Each subcommand's completion is driven by its own `flags.FLAGS`
+  (`code_check.file_size.flags`, `code_check.rubycritic.flags`):
+  `flag_tables(flags)` in `python/code_check/completion.py` turns a `FLAGS`
+  list into its flag names and value-taking flags (with their `choices`), and
+  `SUBCOMMAND_FLAGS` maps each subcommand name to those tables. Adding a
+  subcommand means adding its entry there.
 - A completion handler receives raw argv, including a possibly-empty
   trailing element for the word currently being typed, and must not run it
   through a strict parser (e.g. `argparse`) — that trailing empty string is
@@ -106,8 +112,54 @@ practice: it holds `executor.py` (the `CheckFileSize` orchestrator class),
 list), `skip_checks.py`, `glob_matcher.py`, `git_ignore.py`,
 `file_collector.py`, `file_analyzer.py`, and `reporter.py`. Helpers shared
 by all `code_check` subcommands sit one level up in `python/code_check/`:
-`palette.py` (`Palette` plus `Colors`) and a generic `config.py`
-(`default_path`, `load_section`, `ConfigError`).
+`palette.py` (`Palette` plus `Colors`), a generic `config.py`
+(`default_path`, `load_section`, `ConfigError`) and `subcommands.py`
+(`SUBCOMMAND_NAMES`, import-light so completion can read it).
+
+`python/code_check/rubycritic/` follows the same layout:
+
+- `executor.py` — `CheckRubycritic` (`PROG = "tingle code_check rubycritic"`).
+  `run` calls `_execute(options)` and catches `RubycriticError` in one place,
+  printing it and exiting 1.
+- `constants.py` — thresholds, default excludes, the image repository, the
+  `VERSION` file path, the `docker info` timeout, the mount-error markers
+  and the smell types that are not counted.
+- `errors.py` — `RubycriticError`, the user-facing error.
+- `flags.py` — the import-light `FLAGS` list (shared by the parser and
+  completion).
+- `image.py` — `resolve_image`: `--image`, or the default image.
+- `selection.py` — `Selection`: the mount root, the `.rb` paths sent on
+  stdin and the warnings for names that cannot be sent.
+- `docker_runner.py` — `DockerRunner`: preflight, pull, run and outcome check.
+- `output_parser.py` — checks the container's JSON and maps its paths back to
+  the sent lines (`OutputFormatError` on a contract break).
+- `reporter.py` — the header, table, summary and `Score:` line.
+
+The Docker runner contract, in short (the full rules are in
+[specs/code_check/rubycritic/subcommand.md](specs/code_check/rubycritic/subcommand.md),
+sections 3 and 4):
+
+- Preflight: `shutil.which("docker")`, then `docker info` with a 30 s
+  timeout.
+- Image: `docker image inspect <image>`; when it is missing, `docker pull`
+  with its progress on stderr.
+- Run: `docker run --rm -i --pull never --network none --security-opt
+  no-new-privileges --user <uid>:<gid> -v <root>:/src:ro -w /src <image>`,
+  with the selected paths (relative to `<root>`) on stdin, one per line. All
+  commands are list-form, never through a shell.
+- Default image: `darthjee/tingle_rubycritic:<version>`, where `<version>` is
+  read from `shell/linux/VERSION`, located relative to the module path (not
+  the working directory).
+- No Docker-in-Docker: tingle calls the host's `docker`, it never runs
+  inside a container itself.
+
+**`FileCollector` reuse.** `rubycritic` imports `FileCollector` straight
+from `code_check.file_size.file_collector` and passes the keyword-only
+`binary_check=False` (the default `True` keeps `file_size`'s binary skip).
+This is an intentional exception to the "move a helper up once a second
+consumer needs it" rule below: the collector stays in `file_size/` until a
+third consumer, or a change that only one side needs, makes the move worth
+it.
 
 #### Subcommand dispatch
 
@@ -118,9 +170,20 @@ subcommand in its own sub-package. `python/code_check/` is the reference:
 
 - `python/code_check/executor.py` holds `CodeCheck`, whose static
   `SUBCOMMANDS` dict maps each exact subcommand name to its class and a
-  one-line description (e.g. `{"file_size": (CheckFileSize, "...")}`).
+  one-line description:
+
+  ```python
+  SUBCOMMANDS = {
+      "file_size": (CheckFileSize, "Token efficiency triage: file size analysis."),
+      "rubycritic": (CheckRubycritic, "Ruby code complexity via RubyCritic (Docker)."),
+  }
+  ```
+
   There are no argparse subparsers: names are matched exactly, with no case
   folding and no aliases.
+- `SUBCOMMAND_NAMES` in `python/code_check/subcommands.py` must list the same
+  names as `SUBCOMMANDS`, in the same order; completion reads it so it never
+  imports a subcommand implementation. A test enforces that the two match.
 - `CodeCheck.run` looks up `args[0]` in `SUBCOMMANDS` and forwards
   `args[1:]` to that subcommand unchanged. `-h <sub>` / `--help <sub>` is
   forwarded as `<sub> -h`.
@@ -134,7 +197,8 @@ subcommand in its own sub-package. `python/code_check/` is the reference:
     exit code is forwarded unchanged.
 - Code used by a single subcommand stays in that subcommand's package. Move
   a helper up to the parent package (or to `python/common/`) only once a
-  second consumer needs it.
+  second consumer needs it. The one current exception is `FileCollector`,
+  shared by `file_size` and `rubycritic` (see above).
 - When an existing command becomes a subcommand, its old entry point stays
   as a thin shim so existing callers keep working. `python/check_file_size/`
   (`__init__.py`, `main.py`) is that shim: it forwards to
@@ -179,8 +243,13 @@ for the runtime sequence.
 
 Tests for `python/` live under `python/tests/`, mirroring the package layout
 under `python/` (e.g. `python/tests/code_check/file_size/`,
-`python/tests/common/`), rather than a top-level `tests/`. Future Python
-commands under this repo should follow the same pattern.
+`python/tests/common/`, `python/tests/code_check/rubycritic/`), rather than
+a top-level `tests/`. Future Python commands under this repo should follow
+the same pattern.
+
+The `rubycritic` tests mock `shutil.which` and `subprocess.run`, so Docker
+never runs in the test suite; a shared container output sample lives in
+`python/tests/code_check/rubycritic/sample_output.py`.
 
 ### `bin/`
 

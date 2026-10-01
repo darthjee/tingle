@@ -14,4 +14,5 @@ For a quick summary of any command, run `tingle --help <command>`.
 - [`kube`](kube.md) — Kubernetes (EKS) subcommand with a scoped alias layer.
 - [`code_check`](code_check.md) — Code evaluation checks, grouped as subcommands.
   - [`file_size`](code_check/file_size.md) — Token efficiency triage: file size analysis.
+  - [`rubycritic`](code_check/rubycritic.md) — Ruby code complexity via RubyCritic (Docker).
 - [`check_file_size`](check_file_size.md) — Deprecated: use `code_check file_size`.
