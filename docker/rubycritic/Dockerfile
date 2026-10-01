@@ -51,7 +51,7 @@ ENV BUNDLE_GEMFILE=/opt/tingle_rubycritic/Gemfile \
 
 COPY --from=build /usr/local/bundle /usr/local/bundle
 COPY --from=build /opt/tingle_rubycritic/Gemfile /opt/tingle_rubycritic/Gemfile.lock /opt/tingle_rubycritic/
-COPY entrypoint.rb /opt/tingle_rubycritic/entrypoint.rb
+COPY entrypoint.rb coverage_path_patch.rb /opt/tingle_rubycritic/
 
 USER 1000:1000
 

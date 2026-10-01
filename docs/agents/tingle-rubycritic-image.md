@@ -26,6 +26,7 @@ are released by the same script and the same CircleCI workflow.
   | `Gemfile` | `source "https://rubygems.org"` and `gem "rubycritic", "5.0.0"`, nothing else. |
   | `Gemfile.lock` | The resolved lock, committed. |
   | `entrypoint.rb` | The entrypoint wrapper (see [Contract](#contract)). |
+  | `coverage_path_patch.rb` | A preload patch that makes RubyCritic honour `--coverage-path` (see [Contract](#contract)). |
   | `fixture/` | The smoke-test fixture (see [Smoke test](#smoke-test)). |
   | `DOCKERHUB_SHORT_DESCRIPTION.txt`, `DOCKERHUB_DESCRIPTION.md` | The Docker Hub description (see [Docker Hub description](#docker-hub-description)). |
   | `.dockerignore` | Excludes `fixture/` and both Docker Hub description files from the build context. |
@@ -43,6 +44,8 @@ are released by the same script and the same CircleCI workflow.
   - Both stages set `BUNDLE_GEMFILE=/opt/tingle_rubycritic/Gemfile` and
     `BUNDLE_FROZEN=true`, so `bundle install` fails if the lock does not
     match the Gemfile, and the runtime loads exactly the locked versions.
+  - `entrypoint.rb` and `coverage_path_patch.rb` are copied to
+    `/opt/tingle_rubycritic/` (`COPY entrypoint.rb coverage_path_patch.rb /opt/tingle_rubycritic/`).
   - `ENTRYPOINT ["ruby", "/opt/tingle_rubycritic/entrypoint.rb"]`, no `CMD`.
     The base image's `LANG=C.UTF-8` is kept, so sources are read as UTF-8.
 - **Reproducible pins**: the same Dockerfile builds the same image later.
@@ -113,10 +116,24 @@ single file. Tingle pulls the image beforehand when it is missing.
   | `1` | `report.json` is missing or not valid JSON after a successful RubyCritic run, or any other entrypoint failure. A one-line reason goes to stderr. Nothing is printed on stdout. |
 
 - **Run**: with at least one surviving path, the entrypoint runs
-  `rubycritic --format json --no-browser -p /tmp/out <paths>` in `/src`,
-  under the locked bundle, with the paths as separate arguments in input
-  order. RubyCritic is never run with zero paths, because it would then
-  analyse `.`.
+  `bundle exec rubycritic --format json --no-browser -p /tmp/out --coverage-path /tmp/coverage <paths>`
+  in `/src`, under the locked bundle, with the paths as separate arguments in
+  input order, and with `RUBYOPT` set to the existing `RUBYOPT` (if any) plus
+  `-r/opt/tingle_rubycritic/coverage_path_patch.rb`. RubyCritic is never run
+  with zero paths, because it would then analyse `.`.
+- **Why `--coverage-path` and the preload patch**: RubyCritic reads SimpleCov
+  data from `./coverage` by default, that is the analysed project's
+  `/src/coverage`. When that folder holds a `.resultset.json`, SimpleCov opens
+  `.resultset.json.lock` for writing, which raises `Errno::EROFS` on the
+  read-only `/src` and crashes the run (for example with a leftover
+  `coverage/.resultset.json.lock`). RubyCritic 5.0.0 parses `--coverage-path`
+  but drops it in `RubyCritic::Cli::Options::Argv#to_h`, so the flag alone does
+  nothing. `coverage_path_patch.rb` prepends a module to `Argv#to_h` that adds
+  `coverage_path` to the config only when `--coverage-path` was given. The
+  entrypoint never creates `/tmp/coverage`, so the project's `coverage/` is
+  ignored, coverage in the report is always empty, and nothing is written
+  under `/src`. The patch can be dropped once RubyCritic forwards
+  `coverage_path` upstream.
 - **Why the entrypoint pre-parses**: RubyCritic 5.0.0 aborts the whole run
   on the first file with a syntax error (Reek raises
   `Reek::Errors::SyntaxError`, RubyCritic exits 1 and writes no report). So
@@ -308,7 +325,9 @@ older image), the run fails with exit 1 (the messages live in the code, under
   only under `/tmp` (world-writable), and the run needs no extra environment
   (checked with `--user 501:20` and the inherited `HOME=/`).
 - **Read-only `/src`**: the sources are mounted with `:ro`. RubyCritic writes
-  its report to `/tmp/out` (`-p /tmp/out`), never under `/src`.
+  its report to `/tmp/out` (`-p /tmp/out`), never under `/src`, and reads
+  coverage from `/tmp/coverage` (never created) instead of the project's
+  `coverage/` (see [Contract](#contract)).
 - **No network**: the canonical line uses `--network none`; the image needs
   no network at runtime. `--security-opt no-new-privileges` is always set.
 - **No git**: neither stage installs git and the base image has none
@@ -389,6 +408,8 @@ checks the JSON with `python3`. The fixture:
 | `broken.rb` | A method with an unclosed parameter list. | Only in `parse_errors`. |
 | `empty.rb` | An empty file. | In `analysed_modules`, `complexity` `0.0`, `methods_count` `0`. |
 | `constants_only.rb` | A module with two constants and no method. | In `analysed_modules`, `complexity` `0.0`, `methods_count` `0`. |
+| `coverage/.resultset.json` | A small, valid SimpleCov resultset. Not sent on stdin. | Nowhere: no report path starts with `coverage/`. |
+| `coverage/.resultset.json.lock` | An empty, leftover SimpleCov lock file. Not sent on stdin. | Nowhere. Without the coverage fix the run crashes with `Errno::EROFS`. |
 
 It asserts that:
 
@@ -396,6 +417,9 @@ It asserts that:
 - `metadata.rubycritic.version` is `"5.0.0"`;
 - the set of `analysed_modules[].path` is exactly the six non-broken files;
 - `parse_errors[].path` is exactly `["broken.rb"]`;
+- no `analysed_modules[].path` or `parse_errors[].path` starts with
+  `coverage/` (the leftover lock in `coverage/` neither crashes the read-only
+  run nor shows up in the report);
 - `score` is a number between 0 and 100;
 - the per-file expectations in the table hold;
 - `methods` is a list, with no entry for `broken.rb`, `empty.rb` or

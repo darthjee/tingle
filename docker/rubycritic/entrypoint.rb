@@ -20,6 +20,11 @@
 # the first syntax error), so every path is pre-parsed with Reek's own parser
 # first. Failures go to "parse_errors" and are not passed to RubyCritic.
 #
+# The project's own coverage/ (SimpleCov data) is ignored: RubyCritic runs
+# with --coverage-path /tmp/coverage (never created, so coverage is always
+# empty) and RUBYOPT preloads coverage_path_patch.rb, which makes RubyCritic
+# 5.0.0 honour that flag. Nothing is ever written under /src.
+#
 # Dependencies: the locked bundle (rubycritic 5.0.0, reek, flog) from
 # /opt/tingle_rubycritic/Gemfile.lock.
 #
@@ -39,6 +44,8 @@ require "set"
 
 REPORT_DIR = "/tmp/out"
 REPORT_PATH = File.join(REPORT_DIR, "report.json")
+COVERAGE_PATH = "/tmp/coverage"
+COVERAGE_PATH_PATCH = File.expand_path("coverage_path_patch.rb", __dir__)
 
 def fail_with(reason, status = 1)
   warn("tingle_rubycritic: #{reason.to_s.lines.first.to_s.strip}")
@@ -70,8 +77,10 @@ end
 
 def run_rubycritic(paths)
   FileUtils.rm_rf(REPORT_DIR)
-  command = ["bundle", "exec", "rubycritic", "--format", "json", "--no-browser", "-p", REPORT_DIR, *paths]
-  system(*command, out: $stderr, err: $stderr)
+  command = ["bundle", "exec", "rubycritic", "--format", "json", "--no-browser", "-p", REPORT_DIR,
+             "--coverage-path", COVERAGE_PATH, *paths]
+  env = { "RUBYOPT" => [ENV["RUBYOPT"], "-r#{COVERAGE_PATH_PATCH}"].compact.join(" ") }
+  system(env, *command, out: $stderr, err: $stderr)
   status = $?
   fail_with("could not run rubycritic") if status.nil?
   return if status.success?
