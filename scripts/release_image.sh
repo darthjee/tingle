@@ -406,6 +406,112 @@ smoke_test_identity() {
   fi
 }
 
+RUBYCRITIC_FIXTURE_DIR="docker/rubycritic/fixture"
+RUBYCRITIC_FIXTURE_FILES=(simple.rb complex.rb dup_a.rb dup_b.rb broken.rb empty.rb constants_only.rb)
+
+# Runs the fixture checks from
+# docs/agents/specs/code_check/rubycritic/image.md (section 6) against a local
+# tingle_rubycritic image, with the canonical run line (--network none,
+# read-only /src, foreign uid 501:20): the full fixture run (JSON checked with
+# python3), no git in the image, and the empty object on empty stdin. Any
+# failure prints "<reason> on <platform>" on stderr and exits 1.
+smoke_test_rubycritic() {
+  local image="$1"
+  local platform="$2"
+  local run=(docker run --rm -i --pull never --network none --security-opt no-new-privileges
+    --platform "$platform" --user "$FOREIGN_USER"
+    -v "$PWD/$RUBYCRITIC_FIXTURE_DIR:/src:ro" -w /src)
+
+  local output status=0
+  output=$(printf '%s\n' "${RUBYCRITIC_FIXTURE_FILES[@]}" | "${run[@]}" "$image") || status=$?
+  if [ "$status" -ne 0 ]; then
+    smoke_fail "Fixture run exited with status $status on $platform"
+  fi
+
+  python3 -c '
+import json, sys
+
+platform = sys.argv[1]
+
+def fail(reason):
+    print(f"{reason} on {platform}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError as error:
+    fail(f"Fixture output is not valid JSON ({error})")
+if not isinstance(report, dict):
+    fail("Fixture output is not a JSON object")
+
+version = ((report.get("metadata") or {}).get("rubycritic") or {}).get("version")
+if version != "5.0.0":
+    fail(f"metadata.rubycritic.version is {version!r}, not \"5.0.0\"")
+
+modules = {m.get("path"): m for m in report.get("analysed_modules") or []}
+expected = {"simple.rb", "complex.rb", "dup_a.rb", "dup_b.rb", "empty.rb", "constants_only.rb"}
+if set(modules) != expected:
+    fail(f"analysed_modules paths are {sorted(modules)}, expected {sorted(expected)}")
+
+errors = [e.get("path") for e in report.get("parse_errors") or []]
+if errors != ["broken.rb"]:
+    fail(f"parse_errors paths are {errors}, expected [\"broken.rb\"]")
+
+score = report.get("score")
+if isinstance(score, bool) or not isinstance(score, (int, float)) or not 0 <= score <= 100:
+    fail(f"score is {score!r}, not a number between 0 and 100")
+
+def number(path, key):
+    value = modules[path].get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        fail(f"{path} {key} is {value!r}, not a number")
+    return value
+
+if not number("simple.rb", "complexity") < 5:
+    fail("simple.rb complexity is not below 5")
+rating = modules["simple.rb"].get("rating")
+if rating != "A":
+    fail(f"simple.rb rating is {rating!r}, not \"A\"")
+if not number("complex.rb", "complexity") > 50:
+    fail("complex.rb complexity is not above 50")
+for path in ("dup_a.rb", "dup_b.rb"):
+    if not number(path, "duplication") > 0:
+        fail(f"{path} duplication is not above 0")
+for path in ("empty.rb", "constants_only.rb"):
+    if number(path, "complexity") != 0:
+        fail(f"{path} complexity is not 0.0")
+    if number(path, "methods_count") != 0:
+        fail(f"{path} methods_count is not 0")
+' "$platform" <<< "$output"
+
+  local git_check
+  git_check=$(docker run --rm --network none --platform "$platform" --entrypoint sh "$image" \
+    -c 'if command -v git >/dev/null 2>&1; then echo present; else echo absent; fi')
+  if [ "$git_check" != "absent" ]; then
+    smoke_fail "git is present in the image on $platform"
+  fi
+
+  status=0
+  output=$("${run[@]}" "$image" < /dev/null) || status=$?
+  if [ "$status" -ne 0 ]; then
+    smoke_fail "Empty stdin exited with status $status on $platform"
+  fi
+
+  python3 -c '
+import json, sys
+
+platform = sys.argv[1]
+expected = {"metadata": None, "analysed_modules": [], "score": None, "parse_errors": []}
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError:
+    report = None
+if report != expected:
+    print(f"Empty stdin did not print the empty object on {platform}", file=sys.stderr)
+    sys.exit(1)
+' "$platform" <<< "$output"
+}
+
 cmd_smoke_test() {
   if ! changed_since_previous; then
     echo "shell/linux/ unchanged since previous release tag — skipping smoke test"
