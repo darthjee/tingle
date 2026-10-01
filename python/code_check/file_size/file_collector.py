@@ -21,6 +21,7 @@ class FileCollector:
         include: list[str] | None = None,
         gitignore: bool = True,
         binary_check: bool = True,
+        outside_symlinks: bool = True,
     ):
         """Store the resolved filters.
 
@@ -32,7 +33,11 @@ class FileCollector:
         files git ignores when the target is inside a work tree (silently a no-op
         when git is missing, the target is not in a work tree or git fails).
         `binary_check` skips binary files (by extension or content); turn it off
-        to keep every file that passes the other filters.
+        to keep every file that passes the other filters. `outside_symlinks`
+        keeps files whose resolved path is outside the resolved root (the
+        target, or a single file's parent); turn it off to drop them, which
+        also drops dangling symlinks. Kept files are returned as found (a
+        symlink stays a symlink path) and every other filter runs on that path.
         """
         self._exclude_set = {e.lower() for e in excludes}
         self._ext_set = {e.lower() for e in extensions} if extensions else None
@@ -40,6 +45,7 @@ class FileCollector:
         self._include = GlobMatcher(include or [])
         self._gitignore = gitignore
         self._binary_check = binary_check
+        self._outside_symlinks = outside_symlinks
 
     def collect(self, target: Path) -> list[Path]:
         """Collect all analyzable files from a file or directory path."""
@@ -60,7 +66,9 @@ class FileCollector:
                 continue
             if self._is_git_ignored(ignored, root / rel):
                 continue
-            if self._accepts(path, rel.as_posix()):
+            if not self._accepts(path, rel.as_posix()):
+                continue
+            if self._is_confined(path, root):
                 files.append(path)
 
         return files
@@ -70,7 +78,9 @@ class FileCollector:
         parent = target.parent.resolve()
         if self._is_git_ignored(self._git_ignored(parent), parent / target.name):
             return []
-        return [target] if self._accepts(target, target.name) else []
+        if not self._accepts(target, target.name):
+            return []
+        return [target] if self._is_confined(target, parent) else []
 
     def _git_ignored(self, root: Path) -> GitIgnored | None:
         """Ask git once for the ignored paths under `root` (`None` when disabled or unknown)."""
@@ -92,6 +102,17 @@ class FileCollector:
         if self._ext_set and path.suffix.lower() not in self._ext_set:
             return False
         return not (self._binary_check and SkipChecks.is_binary_file(path))
+
+    def _is_confined(self, path: Path, root: Path) -> bool:
+        """Check the symlink rule: always `True` unless `outside_symlinks` is off.
+
+        With `outside_symlinks` off, `path` must resolve to a path inside the
+        resolved `root` (a dangling link resolves to a missing path and fails).
+        """
+        if self._outside_symlinks:
+            return True
+        resolved = path.resolve()
+        return resolved.is_file() and resolved.is_relative_to(root)
 
     def _is_excluded(self, rel: Path) -> bool:
         """Check if any component of `rel` (relative to the target) is excluded."""

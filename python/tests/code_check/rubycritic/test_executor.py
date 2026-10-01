@@ -8,11 +8,25 @@ from types import SimpleNamespace
 
 import pytest
 
+from code_check.file_size.git_ignore import GitIgnore, GitIgnored
 from code_check.palette import Palette
 from code_check.rubycritic import docker_runner
 from code_check.rubycritic.errors import RubycriticError
 from code_check.rubycritic.executor import CheckRubycritic
 from tests.code_check.rubycritic.sample_output import sample
+
+
+@pytest.fixture(autouse=True)
+def fake_git(monkeypatch):
+    """Stub GitIgnore.ignored_paths (no real git); returns the roots it was called with."""
+    state = {"calls": [], "result": None}
+
+    def ignored_paths(root):
+        state["calls"].append(root)
+        return state["result"]
+
+    monkeypatch.setattr(GitIgnore, "ignored_paths", staticmethod(ignored_paths))
+    return state
 
 
 def _run(args):
@@ -285,11 +299,13 @@ def test_select_warns_about_unsendable_names(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(
         executor,
         "select_files",
-        lambda target, root: Selection(root, [], ["skipping file with a newline in its name: 'a'"]),
+        lambda target, root, **kwargs: Selection(
+            root, [], ["skipping file with a newline in its name: 'a'"]
+        ),
     )
 
     with pytest.raises(SystemExit) as exc_info:
-        CheckRubycritic._select(Palette(), tmp_path, tmp_path)
+        CheckRubycritic._select(Palette(), tmp_path, tmp_path, {})
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
@@ -642,3 +658,102 @@ def test_end_to_end_details(fixture_dir, capsys, docker, monkeypatch):
     assert out[index + 2].startswith("⚠️  WARN")
     assert "  DupA#a  (fixture/dup_a.rb:2)" in out[index + 3]
     assert out[index + 4].endswith("fixture/dup_b.rb")
+
+
+# --- file selection options --------------------------------------------------------
+
+
+def test_selection_options_defaults():
+    from code_check.rubycritic.constants import Constants
+
+    assert CheckRubycritic._selection_options({}) == {
+        "excludes": Constants.DEFAULT_EXCLUDES,
+        "ignore": [],
+        "include": [],
+        "gitignore": True,
+    }
+
+
+def test_selection_options_from_flags():
+    from code_check.rubycritic.constants import Constants
+
+    options = {
+        "exclude": " spec, ,tmp,db ",
+        "no_default_excludes": False,
+        "ignore": ["*_spec.rb"],
+        "include": ["app/**"],
+        "no_gitignore": True,
+    }
+
+    assert CheckRubycritic._selection_options(options) == {
+        "excludes": [*Constants.DEFAULT_EXCLUDES, "spec", "db"],
+        "ignore": ["*_spec.rb"],
+        "include": ["app/**"],
+        "gitignore": False,
+    }
+
+
+def test_selection_options_no_default_excludes():
+    options = {"exclude": "spec", "no_default_excludes": True}
+
+    assert CheckRubycritic._selection_options(options)["excludes"] == ["spec"]
+
+
+def _stdin(docker):
+    _args, kwargs = docker.get().run_call()
+    return kwargs["input"].decode().splitlines()
+
+
+def test_end_to_end_exclude_and_ignore_reflected_in_stdin(fixture_dir, capsys, docker):
+    (fixture_dir / "spec").mkdir()
+    (fixture_dir / "spec" / "a_spec.rb").write_text("x\n")
+    (fixture_dir / "lib").mkdir()
+    (fixture_dir / "lib" / "keep.rb").write_text("x\n")
+    (fixture_dir / "lib" / "skip_me.rb").write_text("x\n")
+
+    _run_status([
+        str(fixture_dir), "--image", "img", "--exclude", "spec",
+        "--ignore", "lib/skip_*", "--ignore", "dup_*.rb",
+    ])
+
+    expected = sorted({*FIXTURE_FILES, "lib/keep.rb"} - {"dup_a.rb", "dup_b.rb"})
+    assert _stdin(docker) == expected
+
+
+def test_end_to_end_include_reflected_in_stdin(fixture_dir, capsys, docker):
+    _run_status([str(fixture_dir), "--image", "img", "--include", "dup_*", "--include", "*.txt"])
+
+    assert _stdin(docker) == ["dup_a.rb", "dup_b.rb"]
+
+
+def test_end_to_end_gitignore_on_by_default(fixture_dir, capsys, docker, fake_git):
+    root = fixture_dir.resolve()
+    fake_git["result"] = GitIgnored({root / "broken.rb"}, [])
+
+    _run_status([str(fixture_dir), "--image", "img"])
+
+    assert "broken.rb" not in _stdin(docker)
+    assert fake_git["calls"] == [root]
+
+
+def test_end_to_end_no_gitignore_skips_git(fixture_dir, capsys, docker, fake_git):
+    fake_git["result"] = GitIgnored({fixture_dir.resolve() / "broken.rb"}, [])
+
+    _run_status([str(fixture_dir), "--image", "img", "--no-gitignore"])
+
+    assert "broken.rb" in _stdin(docker)
+    assert fake_git["calls"] == []
+
+
+def test_end_to_end_symlink_stdin_line_is_its_target(tmp_path, capsys, docker):
+    root = tmp_path / "proj"
+    (root / "lib").mkdir(parents=True)
+    (root / "lib" / "real.rb").write_text("x\n")
+    (root / "link.rb").symlink_to(root / "lib" / "real.rb")
+    outside = tmp_path / "outside.rb"
+    outside.write_text("x\n")
+    (root / "out.rb").symlink_to(outside)
+
+    _run_status([str(root), "--image", "img"])
+
+    assert _stdin(docker) == ["lib/real.rb"]

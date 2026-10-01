@@ -171,7 +171,7 @@ RUBYCRITIC_EXPECTED_FLAGS = [f["name"] for f in RUBYCRITIC_FLAGS if f["name"].st
 def test_rubycritic_flag_names():
     assert RUBYCRITIC_EXPECTED_FLAGS == [
         "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--details",
-        "--image",
+        "--image", "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
     ]
 
 
@@ -205,10 +205,20 @@ def test_rubycritic_choice_flags_return_choices(flag, choices):
 
 
 @pytest.mark.parametrize(
-    "flag", ["--warn", "--error", "--critical", "--top", "--details", "--image"],
+    "flag",
+    [
+        "--warn", "--error", "--critical", "--top", "--details", "--image",
+        "--exclude", "--ignore", "--include",
+    ],
 )
 def test_rubycritic_free_value_flags_return_nothing(flag):
     assert complete(["rubycritic", "app", flag, ""]) == []
+
+
+@pytest.mark.parametrize("flag", ["--no-default-excludes", "--no-gitignore"])
+def test_rubycritic_store_true_flags_take_no_value(flag):
+    assert complete(["rubycritic", "app", flag, ""]) == RUBYCRITIC_EXPECTED_FLAGS
+    assert complete(["rubycritic", flag, ""]) == [FILES_SENTINEL]
 
 
 def test_rubycritic_value_flag_before_path_does_not_count_as_path():

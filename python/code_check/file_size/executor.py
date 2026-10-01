@@ -54,6 +54,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from code_check.config import default_path, load_sections
+from code_check.excludes import parse_excludes, resolve_excludes
 from code_check.file_size.config import ConfigError, validate
 from code_check.file_size.constants import Constants
 from code_check.file_size.file_analyzer import FileAnalyzer
@@ -164,7 +165,7 @@ class CheckFileSize:
     @staticmethod
     def _parse_excludes(raw: str) -> list[str]:
         """Split a comma-separated exclude list, dropping blank entries."""
-        return [e.strip() for e in raw.split(",") if e.strip()]
+        return parse_excludes(raw)
 
     @staticmethod
     def _resolve_excludes(extra: list[str], no_default_excludes: bool) -> list[str]:
@@ -172,8 +173,7 @@ class CheckFileSize:
 
         The defaults are dropped when `no_default_excludes` is set.
         """
-        base = [] if no_default_excludes else list(Constants.DEFAULT_EXCLUDES)
-        return list(dict.fromkeys(base + extra))
+        return resolve_excludes(Constants.DEFAULT_EXCLUDES, extra, no_default_excludes)
 
     @classmethod
     def _merge(cls, cli: dict, config: dict) -> dict:

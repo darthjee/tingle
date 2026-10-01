@@ -379,3 +379,52 @@ def test_collect_binary_check_false_still_applies_extension_filter(tmp_path):
     collector = FileCollector([], [".rb"], binary_check=False)
 
     assert collector.collect(tmp_path) == [tmp_path / "a.rb"]
+
+
+# --- outside_symlinks --------------------------------------------------------------
+
+
+def _symlink_tree(tmp_path):
+    project = tmp_path / "project"
+    _make_tree(tmp_path, "outside.py", "project/a.py")
+    (project / "in.py").symlink_to("a.py")
+    (project / "out.py").symlink_to(tmp_path / "outside.py")
+    (project / "dangling.py").symlink_to(tmp_path / "missing.py")
+    return project
+
+
+def test_collect_outside_symlinks_default_keeps_outside_links(tmp_path):
+    project = _symlink_tree(tmp_path)
+
+    results = FileCollector([], None, gitignore=False).collect(project)
+
+    assert _rel(project, results) == {"a.py", "in.py", "out.py"}
+
+
+def test_collect_outside_symlinks_false_drops_outside_and_dangling(tmp_path):
+    project = _symlink_tree(tmp_path)
+
+    collector = FileCollector([], None, gitignore=False, outside_symlinks=False)
+    results = collector.collect(project)
+
+    assert _rel(project, results) == {"a.py", "in.py"}
+    # The link path itself is returned, not its target.
+    assert project / "in.py" in results
+
+
+def test_collect_outside_symlinks_false_single_file(tmp_path):
+    project = _symlink_tree(tmp_path)
+    collector = FileCollector([], None, gitignore=False, outside_symlinks=False)
+
+    assert collector.collect(project / "out.py") == []
+    assert collector.collect(project / "in.py") == [project / "in.py"]
+    assert collector.collect(project / "a.py") == [project / "a.py"]
+
+
+def test_collect_outside_symlinks_false_filters_on_link_path(tmp_path):
+    project = _symlink_tree(tmp_path)
+    collector = FileCollector(
+        [], None, ignore=["a.py"], gitignore=False, outside_symlinks=False
+    )
+
+    assert _rel(project, collector.collect(project)) == {"in.py"}
