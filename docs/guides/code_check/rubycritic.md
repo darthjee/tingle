@@ -64,9 +64,11 @@ tingle code_check rubycritic <path> [options]
 | `--min-level LEVEL` | `ok` | Show only files at `LEVEL` or higher. `LEVEL` is `ok`, `warn`, `error` or `critical`. |
 | `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
 | `--image IMAGE` | `darthjee/tingle_rubycritic:<tingle version>` | Docker image to run. |
+| `--details [N]` | off | Under each shown file, list its `N` most complex methods. `--details` alone means `5`; `0` lists every method. |
 
 The thresholds accept decimals (`--warn 12.5`) and must be `0` or more.
-`--top` must be a whole number, `0` or more, and `--image` must not be empty.
+`--top` and `--details N` must be whole numbers, `0` or more, and `--image`
+must not be empty.
 The order of the thresholds is not checked: keep `warn` < `error` <
 `critical`, or the labels will not make sense.
 
@@ -111,6 +113,44 @@ analysis always exits `0`.
 - `⛔ PARSE` rows never trigger the gate: a file that cannot be parsed does
   not fail the build.
 - If there are no `.rb` files to analyse, the command exits `0`.
+
+### `--details`
+
+Drills down from a file to the methods that make it complex. Under each
+shown file row, the command lists the file's most complex methods, each with
+its own Flog score, its name and where it starts:
+
+```
+$ tingle code_check rubycritic fixture --warn 10 --error 50 --critical 100 --top 2 --details 2
+...
+Status           Complexity  Rating  Smells  Duplication  File
+──────────────── ──────────  ──────  ──────  ───────────  ──────────────────────────────────────────────────
+🔴 ERROR               72.25  B           14            0  fixture/complex.rb
+                      41.30  Complex#run  (fixture/complex.rb:2)
+                      18.45  Complex#normalize  (fixture/complex.rb:31)
+⚠️  WARN              15.11  C           11           39  fixture/dup_a.rb
+                       9.80  DupA#process  (fixture/dup_a.rb:3)
+                       5.31  DupA#report  (fixture/dup_a.rb:15)
+⛔ PARSE                   -  -            -            -  fixture/broken.rb
+...
+```
+
+- `--details` without a number shows up to **5** methods per file;
+  `--details N` shows up to `N`; `--details 0` shows **every** method.
+- Without `--details`, no method lines are printed.
+- Methods are sorted by score, highest first, then by name. A file with
+  fewer methods shows only those it has; a file with no methods (for example
+  one with only constants) gets no method lines.
+- Only the **shown** rows get method lines: `--min-level` and `--top` pick
+  the files first, then `--details` adds lines under each of them. `⛔ PARSE`
+  rows never get method lines.
+- Methods have **no level**: they are not labelled OK/WARN/ERROR/CRITICAL,
+  are not counted in the `Summary:` line, and never affect `--fail-on` or
+  the exit status. The gate stays based on each file's total complexity.
+
+`--details` needs an image that reports per-method scores. The default image
+always does; an older or custom image passed with `--image` may not, and
+then the command fails (see [Exit status and errors](#exit-status-and-errors)).
 
 ### `--image`
 
@@ -195,6 +235,24 @@ Before the report, a warning for `broken.rb` is printed on standard error
 - `Analyzing:` shows the target as an absolute path.
 - `Thresholds:` shows the `warn`, `error` and `critical` values in use.
 - `Image:` shows the Docker image that runs RubyCritic.
+
+### Method lines
+
+With [`--details`](#--details), indented lines follow some file rows, one per
+method, dimmed in a terminal:
+
+```
+                      41.30  Complex#run  (fixture/complex.rb:2)
+```
+
+- the method's own Flog score, aligned under the `Complexity` column;
+- the method's name, as `Class#method` for an instance method or
+  `Class::method` for a class method;
+- in parentheses, the file (as in the `File` column) and the line where the
+  method starts.
+
+A file's method scores usually do not add up to its total complexity: the
+total also counts code outside methods.
 
 ### Columns
 
@@ -295,6 +353,12 @@ Show only the 10 most complex files at WARN or higher:
 tingle code_check rubycritic ./app --top 10 --min-level warn
 ```
 
+Show the 5 most complex files, each with its 3 most complex methods:
+
+```
+tingle code_check rubycritic ./app --top 5 --details 3
+```
+
 Run a locally built image:
 
 ```
@@ -329,6 +393,7 @@ Errors are printed on **standard error** as `Error: <message>`.
 | Unknown option or invalid value (e.g. `--top abc`, `--fail-on foo`) | A usage error | `1` |
 | Negative threshold | `Error: --warn must be a number >= 0` (`--error`, `--critical` likewise) | `1` |
 | Negative `--top` | `Error: --top must be an integer >= 0` | `1` |
+| Negative `--details` | `Error: --details must be an integer >= 0` | `1` |
 | Empty `--image` | `Error: --image must not be empty` | `1` |
 | `<path>` does not exist | `Error: path not found: <absolute path>` | `1` |
 | `<path>` cannot be read | `Error: path not readable: <absolute path>` | `1` |
@@ -342,6 +407,7 @@ Errors are printed on **standard error** as `Error: <message>`.
 | Folder not shared with Docker Desktop | Docker's error, then `Error: Docker could not mount <folder>; on Docker Desktop, share it (or a parent folder) under Settings > Resources > File sharing, then retry` | `1` |
 | RubyCritic or the container failed | The container's error output, then `Error: RubyCritic failed in <image> (exit <status>)` | `1` |
 | Unexpected output from the container | The container's error output, then `Error: could not parse the RubyCritic output from <image>: <reason>` | `1` |
+| `--details` with an image too old to report per-method scores (e.g. an older custom `--image`) | `Error: the RubyCritic output from <image> has no per-method data; --details needs a newer tingle_rubycritic image` | `1` |
 | Analysis completed, no `--fail-on` | The report | `0` |
 | Analysis completed, `--fail-on` gate passed | The report | `0` |
 | Analysis completed, `--fail-on` gate failed | The report | `2` |
