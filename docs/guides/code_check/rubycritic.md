@@ -48,10 +48,15 @@ tingle code_check rubycritic <path> [options]
 `<path>` can be:
 
 - **a directory**: every `.rb` file below it is analysed, recursively,
-  except for the excluded directories (see [Skipped files](#skipped-files));
-- **a single `.rb` file**: only that file is analysed. Its parent directory
-  is mounted into the container. A file that does not end in `.rb` leaves
-  nothing to analyse.
+  except for the files left out by the selection filters: excluded
+  directories, files ignored by git, and the `--ignore` / `--include` globs
+  (see [File selection](#file-selection));
+- **a single `.rb` file**: only that file is analysed. If it is a symlink,
+  it is resolved first, and its target's parent directory is mounted into
+  the container; otherwise its own parent directory is. The directory
+  excludes do not apply, and the `--ignore` / `--include` globs are matched
+  against the file name (see [Single-file targets](#single-file-targets)).
+  A file that does not end in `.rb` leaves nothing to analyse.
 
 ## Options
 
@@ -65,12 +70,20 @@ tingle code_check rubycritic <path> [options]
 | `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
 | `--image IMAGE` | `darthjee/tingle_rubycritic:<tingle version>` | Docker image to run. |
 | `--details [N]` | off | Under each shown file, list its `N` most complex methods. `--details` alone means `5`; `0` lists every method. |
+| `--exclude LIST` | none | Extra directory names to skip (comma-separated), added to the [default excludes](#--exclude). |
+| `--no-default-excludes` | off | Do not skip the default directories; only `--exclude` names apply. |
+| `--no-gitignore` | off | Do not skip files ignored by git (`.gitignore`, `.git/info/exclude`, global excludes). |
+| `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches this glob. Can be repeated. |
+| `--include GLOB` | none | Only analyse `.rb` files whose path relative to `<path>` matches this glob. Can be repeated. |
 
 The thresholds accept decimals (`--warn 12.5`) and must be `0` or more.
 `--top` and `--details N` must be whole numbers, `0` or more, and `--image`
 must not be empty.
 The order of the thresholds is not checked: keep `warn` < `error` <
 `critical`, or the labels will not make sense.
+
+There is no `--ext` option: only `.rb` files are ever analysed. The file
+selection options are described in [File selection](#file-selection).
 
 ### `--min-level` and `--top`
 
@@ -171,19 +184,223 @@ and suggests `--image`:
 Error: cannot read the tingle version from /path/to/tingle/shell/linux/VERSION; use --image to choose the image
 ```
 
-## Skipped files
+## File selection
 
-When `<path>` is a directory, only files ending in `.rb` (in any case) are
-selected, and these directories are always skipped:
+The files to analyse are chosen on your machine, before Docker is called.
+Only the selected files are sent to the container. The options work as in
+[`tingle code_check file_size`](file_size.md#--exclude), except that the
+`.rb` filter is fixed (there is no `--ext`) and there is no binary check.
+
+### `--exclude`
+
+The default list is:
 
 ```
 node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,.cache,coverage,.nuxt,out,target,tmp,log,.bundle
 ```
 
 That is the [`file_size`](file_size.md#--exclude) default list plus `tmp`,
-`log` and `.bundle`. A file is skipped when any part of its path relative to
-`<path>` matches one of the names (case-insensitive, whole path component).
-The list does not apply to a single-file `<path>`.
+`log` and `.bundle`. These directories are always skipped unless you pass
+[`--no-default-excludes`](#--no-default-excludes). Passing `--exclude`
+**adds** names to this list:
+
+```
+tingle code_check rubycritic . --exclude spec,db
+```
+
+skips `spec` and `db` as well as `vendor`, `tmp`, `log` and the rest.
+
+A file is skipped when **any** part of its path **relative to `<path>`**
+matches one of the names. Matching is case-insensitive (`Spec` matches
+`spec`) and covers a whole path component: `spec` does not match `specs`.
+The directories *above* `<path>` are never checked, so a project living in
+`~/work/tmp/my-app` is analysed normally.
+
+The names are plain directory names, not globs. To skip files by pattern,
+use [`--ignore`](#--ignore-and---include).
+
+| Invocation | Excluded names |
+| --- | --- |
+| `tingle code_check rubycritic .` | The defaults |
+| `tingle code_check rubycritic . --exclude spec` | The defaults + `spec` |
+| `tingle code_check rubycritic . --no-default-excludes` | None (`.git/` and `vendor/` are walked too) |
+| `tingle code_check rubycritic . --no-default-excludes --exclude spec` | Only `spec` |
+
+`--exclude` is not repeatable: if you pass it more than once, only the last
+one counts. Put all the names in a single comma-separated list.
+
+Spaces around each name are trimmed and empty entries are dropped, so
+`--exclude ' spec, ,db'` adds `spec` and `db`, and `--exclude ''` adds
+nothing. A name that is already a default (`--exclude vendor`) has no extra
+effect and is not an error.
+
+### `--no-default-excludes`
+
+Drops the default list, so directories such as `vendor/`, `tmp/` and `.git/`
+are walked too. On its own, it skips no directory at all:
+
+```
+tingle code_check rubycritic . --no-default-excludes
+```
+
+Combine it with `--exclude` to choose exactly which names to skip:
+
+```
+tingle code_check rubycritic . --no-default-excludes --exclude .git,spec
+```
+
+`.gitignore` support does not skip `.git/`, because git never lists it as
+ignored. If you drop the defaults but still want to leave `.git/` out, add
+it back with `--exclude .git`.
+
+### .gitignore and `--no-gitignore`
+
+By default, when `<path>` (or, for a single file, its parent directory) is
+inside a git repository, files that git ignores are skipped, so the report
+only covers the files that belong to the project. Git's own rules are used:
+
+- `.gitignore` files, including nested ones in subdirectories;
+- the repository's `.git/info/exclude` file;
+- your global excludes file (`core.excludesFile`).
+
+Only **untracked** files are skipped. A tracked file is always analysed,
+even if it matches an ignore pattern (for example a file added with
+`git add -f`), just as git keeps tracking it. An ignored directory skips
+every file under it.
+
+To turn this step off and analyse ignored files too, pass `--no-gitignore`:
+
+```
+tingle code_check rubycritic . --no-gitignore
+```
+
+A few details:
+
+- If `git` is not installed, `<path>` is not inside a git repository, or the
+  git call fails for any reason, nothing is skipped by git. No warning is
+  shown and the exit status is unchanged.
+- When `<path>` is a subdirectory of a repository, rules from `.gitignore`
+  files in the parent directories still apply.
+- Only the repository that contains `<path>` is consulted. The ignore rules
+  of nested repositories and submodules are not used.
+- Git runs on your machine, not in the container: the
+  `darthjee/tingle_rubycritic` image has no git, and does not need it.
+
+### `--ignore` and `--include`
+
+These options filter files by a glob pattern, similar to a `.gitignore`
+line:
+
+- `--ignore GLOB` skips every file that matches the glob.
+- `--include GLOB` analyses **only** the `.rb` files that match the glob.
+  Without any `--include`, every `.rb` file is included.
+
+Both can be repeated. A file is skipped if it matches **any** `--ignore`
+glob, and kept if it matches **any** `--include` glob.
+
+The glob is matched against the file's path **relative to `<path>`**,
+always written with `/` (for example `app/models/user.rb` when `<path>` is
+the project root). The whole path must match, not just part of it. Matching
+is case-insensitive, so `*_spec.rb` also matches `user_SPEC.rb`.
+
+> **Quote your globs.** Write `--ignore 'db/migrate/**'`, not
+> `--ignore db/migrate/**`. Without quotes, your shell may expand the
+> pattern into file names before `tingle` sees it.
+
+The glob syntax is the same as for `file_size` (see
+[Glob syntax](file_size.md#glob-syntax) and
+[Where a pattern matches](file_size.md#where-a-pattern-matches)). In short:
+
+- `*` matches within one path segment, `**` spans directories;
+- a pattern with no `/` matches in any directory (`*_spec.rb` is the same as
+  `**/*_spec.rb`);
+- a pattern with a `/` is anchored at `<path>`, and a leading `/` only marks
+  the anchor (`/app/*.rb` is the same as `app/*.rb`);
+- a trailing `/` matches everything under that directory (`concerns/` is the
+  same as `**/concerns/**`).
+
+Combining filters:
+
+- `--ignore` wins over `--include`: a file that matches both is skipped.
+- `--include` and the `.rb` filter must **both** match: `--include '*.rake'`
+  leaves nothing to analyse.
+- Excluded directories (the defaults plus any `--exclude` names) are always
+  skipped, whatever the globs say.
+
+A glob that matches nothing is not an error, and an empty pattern
+(`--ignore ''`) is ignored.
+
+| Command | Effect |
+| --- | --- |
+| `tingle code_check rubycritic . --ignore 'db/migrate/**'` | Skips every migration. |
+| `tingle code_check rubycritic . --ignore '*_spec.rb'` | Skips every spec file, in any directory. |
+| `tingle code_check rubycritic . --include 'app/**'` | Analyses only the `.rb` files under `app/`. |
+| `tingle code_check rubycritic . --include 'app/**' --ignore 'app/admin/'` | Analyses the `.rb` files under `app/`, except those under `app/admin/`. |
+
+### Filter order
+
+For a directory `<path>`, every file found below it goes through these
+steps, in order. The first step that rejects a file drops it:
+
+1. the default excludes (skipped with `--no-default-excludes`);
+2. the `--exclude` names;
+3. `.gitignore` (skipped with `--no-gitignore`);
+4. the `--ignore` globs;
+5. the `--include` globs (when given) **and** the `.rb` suffix, in any case;
+6. the symlink rule (see [Symlinks](#symlinks)).
+
+### Single-file targets
+
+When `<path>` is a single file, the exclude list (the defaults, `--exclude`
+and `--no-default-excludes`) is ignored. The other filters still apply:
+
+- the file is skipped if git ignores it, unless you pass `--no-gitignore`;
+- `--ignore` and `--include` globs are matched against the file's **name**
+  (for example `user.rb`);
+- the file must end in `.rb`.
+
+If `<path>` is a symlink, it is resolved first: its target's parent
+directory is mounted, and the target's name is the one shown and matched.
+
+For example, this leaves nothing to analyse, so it prints
+`No Ruby files found for analysis.` and exits `0`:
+
+```
+tingle code_check rubycritic ./app/models/user.rb --ignore 'user.*'
+```
+
+### Symlinks
+
+The container only sees the folder that is mounted (`<path>` for a
+directory), read-only, so every file sent to it must be a real file inside
+that folder:
+
+- **Directory symlinks are not followed**: the files behind a symlinked
+  directory are not analysed.
+- A file symlink pointing **outside** `<path>`, or whose target does not
+  exist (a dangling symlink), is skipped silently.
+- A file symlink pointing **inside** `<path>` is analysed as its target: the
+  `File` column shows the target's path. If the target is selected too, the
+  file is counted only once.
+- Absolute symlinks that point inside `<path>` work too: they are sent as
+  the target's path inside the mounted folder.
+
+## Skipped files
+
+A file under `<path>` is left out of the analysis when:
+
+- it does not end in `.rb` (in any case);
+- it is under an excluded directory (the defaults or `--exclude`);
+- git ignores it (unless you pass `--no-gitignore`);
+- it matches an `--ignore` glob, or does not match any `--include` glob;
+- it is a symlink pointing outside `<path>`, or a dangling symlink.
+
+See [File selection](#file-selection) for the details. By default, these
+directories are skipped:
+
+```
+node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,.cache,coverage,.nuxt,out,target,tmp,log,.bundle
+```
 
 A few details:
 
@@ -198,7 +415,8 @@ A few details:
   Warning: skipping file whose name is not valid UTF-8: 'app/caf\udce9.rb'
   ```
 
-- If no `.rb` file is left, the command prints the header and
+- If no `.rb` file is left (none exist, or the filters leave none), the
+  command prints the header and
   `No Ruby files found for analysis.`, then exits `0` without calling Docker
   at all.
 
@@ -371,6 +589,36 @@ Analyse a single file:
 tingle code_check rubycritic ./app/models/user.rb
 ```
 
+Skip the `spec` and `db` directories, on top of the defaults:
+
+```
+tingle code_check rubycritic . --exclude spec,db
+```
+
+Skip every migration:
+
+```
+tingle code_check rubycritic . --ignore 'db/migrate/**'
+```
+
+Analyse only the Ruby files under `app/`:
+
+```
+tingle code_check rubycritic . --include 'app/**'
+```
+
+Also analyse the files git ignores:
+
+```
+tingle code_check rubycritic . --no-gitignore
+```
+
+Walk every directory except `.git/`, including `vendor/` and `tmp/`:
+
+```
+tingle code_check rubycritic . --no-default-excludes --exclude .git
+```
+
 ### Using in CI
 
 Fail the build when any Ruby file under `./app` reaches the ERROR threshold:
@@ -399,7 +647,7 @@ Errors are printed on **standard error** as `Error: <message>`.
 | `<path>` cannot be read | `Error: path not readable: <absolute path>` | `1` |
 | The folder to mount contains `:` | `Error: cannot mount <folder>: Docker volume paths cannot contain ':'` | `1` |
 | Tingle version unreadable and no `--image` | `Error: cannot read the tingle version from <file>; use --image to choose the image` | `1` |
-| No `.rb` files to analyse | The header, then `No Ruby files found for analysis.` | `0` |
+| No `.rb` files to analyse (or all filtered out) | The header, then `No Ruby files found for analysis.` | `0` |
 | `docker` not on `PATH` | `Error: docker not found on PATH; tingle code_check rubycritic needs Docker to run RubyCritic` | `1` |
 | Docker daemon not running (`docker info` failed or took over 30 seconds) | `Error: the Docker daemon is not responding (docker info failed); start Docker and retry` | `1` |
 | Image pull failed | `Pulling <image> ...` and Docker's output, then `Error: could not pull image <image>` | `1` |
@@ -429,9 +677,6 @@ report always goes to standard output and error messages to standard error.
   [`tingle linux`](../linux.md)) has no `docker` command, so running this
   subcommand inside it fails with `docker not found on PATH`. Run it on a
   host with Docker.
-- **No file filters yet.** The `--exclude`, `--no-default-excludes`,
-  `--ignore` and `--include` options, and `.gitignore` support, are not
-  available yet: only the [default excludes](#skipped-files) apply.
 - **No configuration file yet.** This subcommand does not read
   `~/.tingle/code_check/config.json`, and there is no `--no-config` option
   yet. Pass the options on the command line.
