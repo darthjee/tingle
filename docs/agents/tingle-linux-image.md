@@ -4,6 +4,8 @@ This is the implementation view of the image. For the user-facing view
 (prerequisites, what's inside the shell, host integration and `--isolated`),
 see the user guide [`docs/guides/linux.md`](../guides/linux.md), in
 particular [What's inside the shell](../guides/linux.md#whats-inside-the-shell).
+The `darthjee/tingle_rubycritic` image, released by the same script and
+workflow, is described in [tingle-rubycritic-image.md](tingle-rubycritic-image.md).
 
 - **Image**: `darthjee/tingle` on Docker Hub.
 - **Tag strategy**: the published Docker tag is exactly the plain semver
@@ -406,5 +408,9 @@ default in `install/bootstrap.sh`, and `shell/linux/VERSION`.
 `scripts/bump-version.sh` updates all three, so don't hand-edit `VERSION`
 alone. #235 did that (`0.0.3`), which left the three out of sync and
 `0.0.3` never tagged; #236 resynced them at `0.1.0`. A git tag `X.Y.Z`
-triggers both the image release (`build-and-publish-linux-image`,
-`update-description`) and the CLI release zip (`build-and-publish-release`).
+triggers the linux image release (`build-and-publish-linux-image`,
+`update-description`), the rubycritic image release
+(`build-and-publish-rubycritic-image`, `update-rubycritic-description`; see
+[tingle-rubycritic-image.md](tingle-rubycritic-image.md#release-pipeline))
+and the CLI release zip (`build-and-publish-release`), which waits for both
+`build-and-publish-linux-image` and `build-and-publish-rubycritic-image`.
