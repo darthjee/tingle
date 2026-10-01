@@ -41,7 +41,7 @@ TINGLE_VERSION=0.1.0 curl -fsSL https://raw.githubusercontent.com/darthjee/tingl
   prompt.
 
 Prerequisites: `curl`, `unzip`, `bash`; `jq` for `bin/tingle`; `docker` for
-`tingle linux`.
+`tingle linux` and `tingle code_check rubycritic`.
 
 The installer places everything under `~/.tingle`. Once it finishes, run
 `source ~/.bashrc` (or start a new shell) to pick up the `PATH` and
@@ -78,7 +78,7 @@ tingle/
 
 | Script | Language | Description |
 | --- | --- | --- |
-| [`code_check`](docs/guides/code_check.md) | Python | Code evaluation checks, run as `tingle code_check <subcommand>`. First subcommand: [`file_size`](docs/guides/code_check/file_size.md), token efficiency triage that lists source files by line count against configurable warn/error/critical thresholds. |
+| [`code_check`](docs/guides/code_check.md) | Python | Code evaluation checks, run as `tingle code_check <subcommand>`. Subcommands: [`file_size`](docs/guides/code_check/file_size.md), token efficiency triage that lists source files by line count against configurable warn/error/critical thresholds; [`rubycritic`](docs/guides/code_check/rubycritic.md), Ruby code complexity via RubyCritic (Docker). |
 | [`check_file_size`](docs/guides/check_file_size.md) | Python | Deprecated: moved to `code_check file_size`. Still works as an alias, but prints a deprecation warning on stderr. |
 | `kube` | Python | Kubernetes (EKS) helper with a scoped alias layer for switching contexts, listing namespaces/pods, and shelling into pods. |
 | `tingle` | Shell | CLI hub — dispatches `tingle <command> [args...]` to the matching script under `python/`, `node/`, or `shell/` via `commands/*.json` mappings. |
