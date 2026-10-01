@@ -132,12 +132,13 @@ by all `code_check` subcommands sit one level up in `python/code_check/`:
   stdin and the warnings for names that cannot be sent.
 - `docker_runner.py` — `DockerRunner`: preflight, pull, run and outcome check.
 - `output_parser.py` — checks the container's JSON and maps its paths back to
-  the sent lines (`OutputFormatError` on a contract break).
+  the sent lines (`OutputFormatError` on a contract break). The JSON shape is
+  pinned in
+  [tingle-rubycritic-image.md](tingle-rubycritic-image.md#rubycritic-json-contract).
 - `reporter.py` — the header, table, summary and `Score:` line.
 
-The Docker runner contract, in short (the full rules are in
-[specs/code_check/rubycritic/subcommand.md](specs/code_check/rubycritic/subcommand.md),
-sections 3 and 4):
+The Docker runner contract, in short (the code and its tests are the
+reference for the full rules):
 
 - Preflight: `shutil.which("docker")`, then `docker info` with a 30 s
   timeout.
