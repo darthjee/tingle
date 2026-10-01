@@ -8,6 +8,10 @@ The file-selection flags (`--exclude`, `--no-default-excludes`,
 `--no-gitignore`, `--ignore`, `--include`) mirror `file_size`'s; the `.rb`
 filter is fixed, so there is no `--ext`. Their parsing lives in
 `code_check.excludes` and `rubycritic.selection`, never here.
+
+`--no-config` skips the `rubycritic` section of
+`~/.tingle/code_check/config.json`. The file is read and validated by the
+executor (`rubycritic.config`), which this module never imports.
 """
 
 from __future__ import annotations
@@ -123,5 +127,10 @@ FLAGS: list[dict] = [
             "Only analyse .rb files whose path relative to <path> matches this glob "
             "(can be repeated)"
         ),
+    },
+    {
+        "name": "--no-config",
+        "action": "store_true",
+        "help": "Do not read ~/.tingle/code_check/config.json",
     },
 ]
