@@ -3,7 +3,8 @@
 The container prints RubyCritic's `report.json` plus a `parse_errors` key.
 `parse` checks its structure, maps every path back to a line tingle sent on
 stdin and returns one `FileResult` per sent file (a file missing from the
-output counts as complexity 0), the parse errors and the overall score.
+output counts as complexity 0), the parse errors, the overall score and,
+when the `methods` key is present, each file's per-method Flog scores.
 A structural problem raises `OutputFormatError` with the reason.
 """
 
@@ -35,6 +36,15 @@ class FileResult:
     duplication: float
 
 
+@dataclass(frozen=True)
+class MethodResult:
+    """Flog's score for one method of a file."""
+
+    name: str
+    line: int
+    score: float
+
+
 # Result for a sent file that RubyCritic left out of its report.
 MISSING_RESULT = FileResult(0.0, "-", 0, 0)
 
@@ -46,6 +56,7 @@ class ParsedOutput:
     results: dict[str, FileResult] = field(default_factory=dict)
     parse_errors: dict[str, str] = field(default_factory=dict)
     score: float | None = None
+    methods: dict[str, list[MethodResult]] | None = None
 
 
 def _is_number(value: Any) -> bool:
@@ -119,6 +130,42 @@ def _parse_errors(data: dict) -> list[dict]:
     return errors
 
 
+def _valid_method(entry: Any) -> bool:
+    """Return True when a `methods` entry has the fields with the right types."""
+    return (
+        isinstance(entry, dict)
+        and isinstance(entry.get("path"), str)
+        and isinstance(entry.get("name"), str)
+        and isinstance(entry.get("line"), int)
+        and not isinstance(entry.get("line"), bool)
+        and _is_number(entry.get("score"))
+    )
+
+
+def _methods(data: dict) -> list[dict] | None:
+    """Return the checked `methods` list (`None` when the key is absent)."""
+    if "methods" not in data:
+        return None
+    methods = data["methods"]
+    if not (isinstance(methods, list) and all(_valid_method(m) for m in methods)):
+        raise OutputFormatError("unexpected methods")
+    return methods
+
+
+def _group_methods(methods: list[dict], lines: set[str]) -> dict[str, list[MethodResult]]:
+    """Group `methods` by normalised path, keeping only `lines`; best score first."""
+    grouped: dict[str, list[MethodResult]] = {}
+    for entry in methods:
+        path = normalize_path(entry["path"])
+        if path in lines:
+            grouped.setdefault(path, []).append(
+                MethodResult(entry["name"], entry["line"], float(entry["score"]))
+            )
+    for results in grouped.values():
+        results.sort(key=lambda m: (-m.score, m.name))
+    return grouped
+
+
 def count_smells(smells: list) -> int:
     """Count the Reek smells: entries whose type is not a Flay or Flog one."""
     return sum(
@@ -137,6 +184,7 @@ def parse(stdout: str, sent_lines: list[str]) -> ParsedOutput:
     modules = _modules(data)
     score = _score(data)
     errors = _parse_errors(data)
+    methods = _methods(data)
 
     sent = set(sent_lines)
     parsed = ParsedOutput(score=score)
@@ -159,4 +207,6 @@ def parse(stdout: str, sent_lines: list[str]) -> ParsedOutput:
     for line in sent_lines:
         if line not in parsed.parse_errors:
             parsed.results[line] = found.get(line, MISSING_RESULT)
+    if methods is not None:
+        parsed.methods = _group_methods(methods, set(parsed.results))
     return parsed

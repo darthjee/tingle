@@ -82,12 +82,24 @@ single file. Tingle pulls the image beforehand when it is missing.
   UTF-8. Blank lines are ignored. Duplicates are kept once, at their first
   position. The entrypoint takes no arguments.
 - **stdout**: exactly one JSON object followed by `\n`: the object read from
-  RubyCritic's `/tmp/out/report.json`, with one extra top-level key,
-  `parse_errors`. Each `parse_errors` entry is
-  `{"path": <the line as received>, "message": <first line of the error>}`,
-  in input order. When no path survives the pre-parse (or stdin had no
-  paths), RubyCritic is not run and the entrypoint prints
-  `{"metadata":null,"analysed_modules":[],"score":null,"parse_errors":[...]}`.
+  RubyCritic's `/tmp/out/report.json`, with two extra top-level keys:
+  - `parse_errors`: each entry is
+    `{"path": <the line as received>, "message": <first line of the error>}`,
+    in input order.
+  - `methods`: Flog's per-method scores for the files passed to RubyCritic
+    (the pre-parse survivors). Each entry is
+    `{"path": <the line as received>, "name": <Flog's "Class#method" or "Class::method">, "line": <int, first line of the method>, "score": <number, rounded to 2 decimals>}`,
+    for example
+    `{"path": "complex.rb", "name": "Classifier#classify", "line": 5, "score": 82.06}`.
+    Order: `score` descending, then `path`, then `name`. Flog's non-method
+    buckets (names ending in `#none`) are left out, and so are methods Flog
+    gives no score (a method whose body has no call, like a plain string
+    interpolation). Flog keys methods by name, so a method reopened in two
+    files is one entry, attributed to the location Flog reports.
+
+  When no path survives the pre-parse (or stdin had no paths), RubyCritic is
+  not run and the entrypoint prints
+  `{"metadata":null,"analysed_modules":[],"score":null,"parse_errors":[...],"methods":[]}`.
   Nothing else is ever written to stdout.
 - **stderr**: everything else. RubyCritic prints its progress lines, the
   "Churn will not be calculated" notice and `Score: NN.NN` on stdout, so the
@@ -115,6 +127,13 @@ single file. Tingle pulls the image beforehand when it is missing.
   unreadable or missing files) puts the path in `parse_errors`, and that path
   is not passed to RubyCritic. A file with a syntax error is therefore not a
   failure.
+- **Per-method scores**: after RubyCritic, the entrypoint scores the same
+  paths in-process with the Flog API from the locked bundle (`flog` 4.9.4, a
+  RubyCritic dependency):
+  `Flog.new(all: true, methods: true, quiet: true).flog(*paths)`, then reads
+  `totals` (name to score) and `method_locations` (name to
+  `"<path>:<first>-<last>"`, split on the last `:`). If Flog raises, the run
+  fails with exit 1 like any other entrypoint failure.
 - The JSON field paths and meanings used by tingle are pinned in the
   `rubycritic` subcommand spec
   ([subcommand.md](specs/code_check/rubycritic/subcommand.md#5-rubycritic-json-contract)).
@@ -203,7 +222,7 @@ checks the JSON with `python3`. The fixture:
 | File | Content | Expected in the output |
 |------|---------|------------------------|
 | `simple.rb` | A class with one trivial method. | In `analysed_modules`, `complexity` below 5, `rating` `"A"`. |
-| `complex.rb` | One method with nested conditionals, loops and a `case`. | In `analysed_modules`, `complexity` above 50. |
+| `complex.rb` | One method with nested conditionals, loops and a `case`. | In `analysed_modules`, `complexity` above 50. In `methods` as `Classifier#classify`, `score` above 50, int `line`. |
 | `dup_a.rb`, `dup_b.rb` | Two classes with the same method body. | Both in `analysed_modules` with `duplication` above 0. |
 | `broken.rb` | A method with an unclosed parameter list. | Only in `parse_errors`. |
 | `empty.rb` | An empty file. | In `analysed_modules`, `complexity` `0.0`, `methods_count` `0`. |
@@ -217,9 +236,12 @@ It asserts that:
 - `parse_errors[].path` is exactly `["broken.rb"]`;
 - `score` is a number between 0 and 100;
 - the per-file expectations in the table hold;
+- `methods` is a list, with no entry for `broken.rb`, `empty.rb` or
+  `constants_only.rb` and no name ending in `#none`;
 - `command -v git` fails inside the image (with `--entrypoint sh`);
 - empty stdin prints the empty object (`metadata` null, empty
-  `analysed_modules`, `score` null, empty `parse_errors`) with exit 0.
+  `analysed_modules`, `score` null, empty `parse_errors`, empty `methods`)
+  with exit 0.
 
 Any failed check prints `<reason> on <platform>` on stderr and exits 1.
 

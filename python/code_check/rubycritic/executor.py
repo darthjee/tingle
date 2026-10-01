@@ -22,6 +22,8 @@ Examples
     tingle code_check rubycritic ./app --warn 50 --error 100 --critical 200
     tingle code_check rubycritic ./app --top 10 --min-level warn
     tingle code_check rubycritic ./app --fail-on error
+    tingle code_check rubycritic ./app --details
+    tingle code_check rubycritic ./app --details 0
     tingle code_check rubycritic ./app --image tingle_rubycritic:dev
 
 """
@@ -58,6 +60,7 @@ SINGLE_DEFAULTS: dict = {
     "fail_on": None,
     "min_level": "ok",
     "image": None,
+    "details": None,
 }
 
 # Threshold options validated as numbers >= 0.
@@ -105,13 +108,15 @@ class CheckRubycritic:
 
     @staticmethod
     def _validate(options: dict) -> dict:
-        """Reject negative (or NaN) thresholds, a negative `--top` and an empty `--image`."""
+        """Reject negative (or NaN) thresholds, a negative `--top`/`--details` and an empty `--image`."""
         for key in THRESHOLD_KEYS:
             value = options[key]
             if not (value >= 0):  # also rejects NaN
                 raise RubycriticError(f"--{key} must be a number >= 0")
         if options["top"] < 0:
             raise RubycriticError("--top must be an integer >= 0")
+        if options.get("details") is not None and options["details"] < 0:
+            raise RubycriticError("--details must be an integer >= 0")
         if options["image"] is not None and not options["image"]:
             raise RubycriticError("--image must not be empty")
         return options
@@ -175,6 +180,15 @@ class CheckRubycritic:
             ) from exc
 
     @staticmethod
+    def _check_methods(parsed: ParsedOutput, details: int | None, image: str) -> None:
+        """Fail when `--details` is set but the image printed no per-method data."""
+        if details is not None and parsed.methods is None:
+            raise RubycriticError(
+                f"the RubyCritic output from {image} has no per-method data; "
+                "--details needs a newer tingle_rubycritic image"
+            )
+
+    @staticmethod
     def _gate_failed(analyzer: FileAnalyzer, parsed: ParsedOutput, fail_on: str | None) -> bool:
         """Return True when `--fail-on` is set and any (non-PARSE) file reaches it."""
         if fail_on is None:
@@ -198,12 +212,13 @@ class CheckRubycritic:
         proc = runner.run(root, selection.lines)
         runner.check_outcome(proc, root)
         parsed = self._parse_output(proc, selection.lines, image)
+        self._check_methods(parsed, options["details"], image)
 
         analyzer = FileAnalyzer(options["warn"], options["error"], options["critical"])
         reporter = Reporter(analyzer, target, root, out)
         for line, message in sorted(parsed.parse_errors.items()):
             self._warn(f"cannot parse {reporter.display_path(line)}: {message}")
-        reporter.report(parsed, options["min_level"], options["top"])
+        reporter.report(parsed, options["min_level"], options["top"], options["details"])
         # The gate uses every file, not only the displayed rows.
         return 2 if self._gate_failed(analyzer, parsed, options["fail_on"]) else 0
 

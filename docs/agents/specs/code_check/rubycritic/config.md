@@ -38,6 +38,7 @@ and `python/code_check/config.py`.
 | `fail_on` | `"warn"`, `"error"`, `"critical"` or `null` | `'fail_on' must be one of warn, error, critical or null` |
 | `min_level` | `"ok"`, `"warn"`, `"error"` or `"critical"` | `'min_level' must be one of ok, warn, error or critical` |
 | `image` | a string that is not empty after trimming whitespace | `'image' must be a non-empty string` |
+| `details` | int ≥ 0 or `null`; booleans and floats rejected (added by #291) | `'details' must be an integer >= 0 or null` |
 
 - There is **no** `ext` key. `"ext": [".rb"]` is an unknown key.
 - Python's `json` accepts `NaN` and `Infinity`; they are rejected for
@@ -49,9 +50,11 @@ and `python/code_check/config.py`.
 The merge mirrors `CheckFileSize._merge`:
 
 - **Single values** (`warn`, `error`, `critical`, `top`, `fail_on`,
-  `min_level`, `image`): built-in default < config < CLI. A flag given on the
-  CLI always wins. The built-in defaults are `100`, `200`, `400`, `0`,
-  `null`, `"ok"` and `darthjee/tingle_rubycritic:<tingle version>`.
+  `min_level`, `image`, `details`): built-in default < config < CLI. A flag
+  given on the CLI always wins. The built-in defaults are `100`, `200`,
+  `400`, `0`, `null`, `"ok"`, `darthjee/tingle_rubycritic:<tingle version>`
+  and `null` (no detail lines). `"details": 0` means all methods, as
+  `--details 0` does.
 - The default image is only computed (and `shell/linux/VERSION` only read)
   when neither `--image` nor `image` is set, so a config `image` avoids the
   version-file error.
@@ -121,7 +124,8 @@ Error: /home/me/.tingle/code_check/config.json: 'warn' must be a number >= 0
     "gitignore": true,
     "fail_on": "error",
     "min_level": "warn",
-    "image": "darthjee/tingle_rubycritic:0.6.0"
+    "image": "darthjee/tingle_rubycritic:0.6.0",
+    "details": 5
   }
 }
 ```

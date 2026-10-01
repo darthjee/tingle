@@ -27,8 +27,10 @@ no churn.
   top-level `parse_errors` list. Files that can't be parsed (syntax errors,
   invalid UTF-8, missing files) are listed there as `{"path", "message"}`
   and are not analysed, so one broken file doesn't abort the whole run.
+  A top-level `methods` list holds Flog's per-method scores as
+  `{"path", "name", "line", "score"}`, most complex first.
   With no analysable file, it prints
-  `{"metadata":null,"analysed_modules":[],"score":null,"parse_errors":[...]}`.
+  `{"metadata":null,"analysed_modules":[],"score":null,"parse_errors":[...],"methods":[]}`.
 - **stderr:** RubyCritic's own output and any error message.
 - **exit status:** `0` when the JSON was printed (even with parse errors),
   non-zero otherwise.

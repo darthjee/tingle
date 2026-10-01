@@ -9,6 +9,7 @@ import pytest
 from code_check.rubycritic.output_parser import (
     MISSING_RESULT,
     FileResult,
+    MethodResult,
     OutputFormatError,
     count_smells,
     normalize_path,
@@ -226,6 +227,101 @@ def test_integer_complexity_becomes_float():
 
     assert parsed.results["a.rb"].complexity == 3.0
     assert isinstance(parsed.results["a.rb"].complexity, float)
+
+
+# --- methods -----------------------------------------------------------------------
+
+
+def _method(path, name="A#a", line=1, score=1.0):
+    return {"path": path, "name": name, "line": line, "score": score}
+
+
+def test_sample_methods():
+    parsed = parse(dumps(), SENT)
+
+    assert parsed.methods == {
+        "complex.rb": [MethodResult("Complex#run", 2, 72.25)],
+        "dup_a.rb": [MethodResult("DupA#a", 2, 15.11)],
+    }
+
+
+def test_absent_methods_key_is_none():
+    data = sample()
+    del data["methods"]
+
+    assert parse(dumps(data), SENT).methods is None
+
+
+def test_empty_methods_is_empty_dict():
+    assert parse(dumps(sample(methods=[])), SENT).methods == {}
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        {},
+        "x",
+        ["a.rb"],
+        [{"name": "A#a", "line": 1, "score": 1.0}],
+        [{"path": 1, "name": "A#a", "line": 1, "score": 1.0}],
+        [{"path": "a.rb", "line": 1, "score": 1.0}],
+        [{"path": "a.rb", "name": None, "line": 1, "score": 1.0}],
+        [{"path": "a.rb", "name": "A#a", "score": 1.0}],
+        [{"path": "a.rb", "name": "A#a", "line": "1", "score": 1.0}],
+        [{"path": "a.rb", "name": "A#a", "line": 1.0, "score": 1.0}],
+        [{"path": "a.rb", "name": "A#a", "line": True, "score": 1.0}],
+        [{"path": "a.rb", "name": "A#a", "line": 1}],
+        [{"path": "a.rb", "name": "A#a", "line": 1, "score": "1"}],
+        [{"path": "a.rb", "name": "A#a", "line": 1, "score": False}],
+    ],
+)
+def test_bad_methods(value):
+    assert _reason(dumps(sample(methods=value))) == "unexpected methods"
+
+
+def test_method_paths_are_normalised():
+    methods = [_method("./a.rb", "A#x"), _method("/src/lib/b.rb", "B#y")]
+    modules = [_module("a.rb"), _module("lib/b.rb")]
+
+    parsed = parse(dumps(sample(analysed_modules=modules, methods=methods,
+                                parse_errors=[])), ["a.rb", "lib/b.rb"])
+
+    assert parsed.methods == {
+        "a.rb": [MethodResult("A#x", 1, 1.0)],
+        "lib/b.rb": [MethodResult("B#y", 1, 1.0)],
+    }
+
+
+def test_methods_of_unknown_and_broken_files_are_dropped():
+    methods = [_method("other.rb"), _method("broken.rb"), _method("a.rb")]
+    errors = [{"path": "broken.rb", "message": "bad"}]
+
+    parsed = parse(dumps(sample(methods=methods, parse_errors=errors)),
+                   ["a.rb", "broken.rb"])
+
+    assert parsed.methods == {"a.rb": [MethodResult("A#a", 1, 1.0)]}
+
+
+def test_methods_are_grouped_and_sorted():
+    methods = [
+        _method("a.rb", "A#low", 9, 2),
+        _method("b.rb", "B#only", 3, 4.5),
+        _method("a.rb", "A#zeta", 5, 10.0),
+        _method("a.rb", "A#alpha", 1, 10.0),
+    ]
+
+    parsed = parse(dumps(sample(methods=methods, parse_errors=[])), ["a.rb", "b.rb"])
+
+    assert parsed.methods == {
+        "a.rb": [
+            MethodResult("A#alpha", 1, 10.0),
+            MethodResult("A#zeta", 5, 10.0),
+            MethodResult("A#low", 9, 2.0),
+        ],
+        "b.rb": [MethodResult("B#only", 3, 4.5)],
+    }
+    assert isinstance(parsed.methods["a.rb"][2].score, float)
 
 
 # --- smells ------------------------------------------------------------------------

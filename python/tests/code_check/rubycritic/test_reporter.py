@@ -8,7 +8,7 @@ import pytest
 
 from code_check.file_size.file_analyzer import FileAnalyzer
 from code_check.palette import Colors, Palette
-from code_check.rubycritic.output_parser import FileResult, ParsedOutput
+from code_check.rubycritic.output_parser import FileResult, MethodResult, ParsedOutput
 from code_check.rubycritic.reporter import Reporter
 
 # The header f-string from spec §6 (as in file_size's reporter).
@@ -155,6 +155,113 @@ def test_parse_rows_keep_the_table_when_no_level_row_is_left(target, capsys):
     out = _out(capsys)
     assert out[0] == HEADER
     assert out[2].startswith("⛔ PARSE")
+
+
+# --- method details ----------------------------------------------------------------
+
+
+def _detail(score, name, location):
+    return f"{'':<16} {score:>10.2f}  {name}  ({location})"
+
+
+def _with_methods(parse_errors=None):
+    parsed = _parsed(
+        {
+            "a.rb": FileResult(120.0, "F", 0, 0),
+            "b.rb": FileResult(20.0, "C", 0, 0),
+            "c.rb": FileResult(1.0, "A", 0, 0),
+        },
+        parse_errors,
+    )
+    parsed.methods = {
+        "a.rb": [
+            MethodResult("A#big", 3, 80.5),
+            MethodResult("A#mid", 10, 30.0),
+            MethodResult("A#small", 20, 9.5),
+        ],
+        "b.rb": [MethodResult("B#run", 7, 20.0)],
+    }
+    return parsed
+
+
+def _rows(capsys):
+    return _out(capsys)[2:-4]
+
+
+def test_no_details_by_default(target, capsys):
+    _reporter(target).report(_with_methods())
+
+    assert len(_rows(capsys)) == 3
+
+
+def test_details_limit(target, capsys):
+    _reporter(target).report(_with_methods(), details=2)
+
+    assert _rows(capsys) == [
+        "🟣 CRITICAL           120.00  F            0            0  fixture/a.rb",
+        _detail(80.5, "A#big", "fixture/a.rb:3"),
+        _detail(30.0, "A#mid", "fixture/a.rb:10"),
+        "⚠️  WARN              20.00  C            0            0  fixture/b.rb",
+        _detail(20.0, "B#run", "fixture/b.rb:7"),
+        "✅ OK                   1.00  A            0            0  fixture/c.rb",
+    ]
+
+
+def test_details_zero_shows_all(target, capsys):
+    _reporter(target).report(_with_methods(), details=0)
+
+    rows = _rows(capsys)
+    assert rows[1:4] == [
+        _detail(80.5, "A#big", "fixture/a.rb:3"),
+        _detail(30.0, "A#mid", "fixture/a.rb:10"),
+        _detail(9.5, "A#small", "fixture/a.rb:20"),
+    ]
+    assert len(rows) == 7
+
+
+def test_details_score_aligns_under_complexity(target, capsys):
+    _reporter(target).report(_with_methods(), details=1)
+
+    rows = _rows(capsys)
+    assert rows[1] == "                      80.50  A#big  (fixture/a.rb:3)"
+    assert HEADER.index("Complexity") + len("Complexity") == rows[1].index("80.50") + len("80.50")
+
+
+def test_details_skip_hidden_rows_and_parse_rows(target, capsys):
+    parsed = _with_methods({"z.rb": "bad"})
+    parsed.methods["z.rb"] = [MethodResult("Z#x", 1, 5.0)]
+
+    _reporter(target).report(parsed, top=1, details=0)
+
+    rows = _rows(capsys)
+    assert len(rows) == 5
+    assert rows[-1].startswith("⛔ PARSE")
+    assert "B#run" not in "\n".join(rows)
+    assert "Z#x" not in "\n".join(rows)
+
+
+def test_details_without_methods_data(target, capsys):
+    parsed = _with_methods()
+    parsed.methods = None
+
+    _reporter(target).report(parsed, details=5)
+
+    assert len(_rows(capsys)) == 3
+
+
+def test_details_dim_on_a_tty(target, capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    _reporter(target, palette=Palette(FakeTTY())).report(_with_methods(), details=1)
+
+    out = capsys.readouterr().out
+    assert f"{Colors.DIM}{_detail(80.5, 'A#big', 'fixture/a.rb:3')}{Colors.RESET}\n" in out
+
+
+def test_details_colourless_without_a_tty(target, capsys):
+    _reporter(target).report(_with_methods(), details=1)
+
+    assert "\033[" not in capsys.readouterr().out
 
 
 # --- summary -----------------------------------------------------------------------

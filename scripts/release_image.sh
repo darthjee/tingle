@@ -413,8 +413,8 @@ RUBYCRITIC_FIXTURE_FILES=(simple.rb complex.rb dup_a.rb dup_b.rb broken.rb empty
 # docs/agents/specs/code_check/rubycritic/image.md (section 6) against a local
 # tingle_rubycritic image, with the canonical run line (--network none,
 # read-only /src, foreign uid 501:20): the full fixture run (JSON checked with
-# python3), no git in the image, and the empty object on empty stdin. Any
-# failure prints "<reason> on <platform>" on stderr and exits 1.
+# python3, "methods" included), no git in the image, and the empty object on
+# empty stdin. Any failure prints "<reason> on <platform>" on stderr and exits 1.
 smoke_test_rubycritic() {
   local image="$1"
   local platform="$2"
@@ -482,6 +482,25 @@ for path in ("empty.rb", "constants_only.rb"):
         fail(f"{path} complexity is not 0.0")
     if number(path, "methods_count") != 0:
         fail(f"{path} methods_count is not 0")
+
+methods = report.get("methods")
+if not isinstance(methods, list) or not all(isinstance(m, dict) for m in methods):
+    fail(f"methods is {methods!r}, not a list of objects")
+complex_run = [m for m in methods if m.get("path") == "complex.rb" and m.get("name") == "Classifier#classify"]
+if len(complex_run) != 1:
+    fail("methods has no single complex.rb Classifier#classify entry")
+complex_score = complex_run[0].get("score")
+if isinstance(complex_score, bool) or not isinstance(complex_score, (int, float)) or not complex_score > 50:
+    fail(f"complex.rb Classifier#classify score is {complex_score!r}, not a number above 50")
+complex_line = complex_run[0].get("line")
+if isinstance(complex_line, bool) or not isinstance(complex_line, int):
+    fail(f"complex.rb Classifier#classify line is {complex_line!r}, not an int")
+for entry in methods:
+    entry_path, entry_name = entry.get("path"), str(entry.get("name"))
+    if entry_path in ("broken.rb", "empty.rb", "constants_only.rb"):
+        fail(f"methods has an entry for {entry_path}")
+    if entry_name.endswith("#none"):
+        fail(f"methods has the non-method entry {entry_name}")
 ' "$platform" <<< "$output"
 
   local git_check
@@ -501,7 +520,7 @@ for path in ("empty.rb", "constants_only.rb"):
 import json, sys
 
 platform = sys.argv[1]
-expected = {"metadata": None, "analysed_modules": [], "score": None, "parse_errors": []}
+expected = {"metadata": None, "analysed_modules": [], "score": None, "parse_errors": [], "methods": []}
 try:
     report = json.loads(sys.stdin.read())
 except ValueError:
