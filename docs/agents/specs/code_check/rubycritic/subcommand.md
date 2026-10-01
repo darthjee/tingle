@@ -388,6 +388,13 @@ body.
   [file-selection.md](file-selection.md#2-default-excludes));
 - for a single-file `<path>`: that file if its suffix is `.rb`, else nothing.
 
+`file_size`'s binary check must not apply: #295 adds the keyword-only
+argument `binary_check=True` to `FileCollector` and passes
+`binary_check=False` (see
+[file-selection.md](file-selection.md#5-filter-order-and-filecollector)), so
+a `.rb` file that is not valid UTF-8 reaches the image and becomes a `PARSE`
+row instead of vanishing.
+
 Files whose name cannot be sent on stdin are dropped with a warning
 (section 8.5). #296 adds `--exclude`, `--no-default-excludes`, `--ignore`,
 `--include`, `.gitignore`/`--no-gitignore` and the symlink rule.
