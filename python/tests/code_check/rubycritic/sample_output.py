@@ -74,6 +74,10 @@ SAMPLE: dict = {
     ],
     "score": 83.23,
     "parse_errors": [{"path": "broken.rb", "message": "unexpected token tSTRING"}],
+    "methods": [
+        {"path": "complex.rb", "name": "Complex#run", "line": 2, "score": 72.25},
+        {"path": "dup_a.rb", "name": "DupA#a", "line": 2, "score": 15.11},
+    ],
 }
 
 SENT = ["broken.rb", "complex.rb", "dup_a.rb", "empty.rb"]
