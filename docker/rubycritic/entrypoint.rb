@@ -9,8 +9,10 @@
 #         Blank lines are ignored; duplicates are kept once, at their first
 #         position. Arguments are ignored.
 # Output: stdout, exactly one JSON object followed by "\n": RubyCritic's
-#         report.json plus a top-level "parse_errors" key. Everything else
-#         (RubyCritic's own stdout and stderr included) goes to stderr.
+#         report.json plus two top-level keys, "parse_errors" and "methods"
+#         (Flog's per-method scores: path, name, line, score; sorted by score
+#         descending, then path, then name). Everything else (RubyCritic's
+#         own stdout and stderr included) goes to stderr.
 # Exit:   0 when the JSON was printed; RubyCritic's status when it fails;
 #         1 on any other failure (one-line reason on stderr).
 #
@@ -18,7 +20,7 @@
 # the first syntax error), so every path is pre-parsed with Reek's own parser
 # first. Failures go to "parse_errors" and are not passed to RubyCritic.
 #
-# Dependencies: the locked bundle (rubycritic 5.0.0, reek) from
+# Dependencies: the locked bundle (rubycritic 5.0.0, reek, flog) from
 # /opt/tingle_rubycritic/Gemfile.lock.
 #
 # Contract: docs/agents/specs/code_check/rubycritic/image.md (section 4).
@@ -30,6 +32,7 @@ $stdout = $stderr
 
 require "bundler/setup"
 require "fileutils"
+require "flog"
 require "json"
 require "reek"
 require "set"
@@ -88,6 +91,24 @@ rescue JSON::ParserError => e
   fail_with("#{REPORT_PATH} is not valid JSON: #{e.message}")
 end
 
+# Flog's per-method scores for the given paths, as
+# [{"path", "name", "line", "score"}], sorted by score descending, then path,
+# then name. Flog's non-method buckets ("...#none") are left out.
+def method_scores(paths)
+  flog = Flog.new(all: true, methods: true, quiet: true)
+  flog.flog(*paths)
+  methods = flog.totals.filter_map do |name, score|
+    next if name.end_with?("#none")
+
+    location = flog.method_locations[name]
+    next unless location
+
+    path, _, lines = location.rpartition(":")
+    { "path" => path, "name" => name, "line" => lines.split("-").first.to_i, "score" => score.round(2) }
+  end
+  methods.sort_by { |entry| [-entry["score"], entry["path"], entry["name"]] }
+end
+
 def emit(object)
   OUTPUT.write(JSON.generate(object), "\n")
   OUTPUT.flush
@@ -97,13 +118,15 @@ begin
   survivors, parse_errors = pre_parse(read_paths)
 
   if survivors.empty?
-    emit("metadata" => nil, "analysed_modules" => [], "score" => nil, "parse_errors" => parse_errors)
+    emit("metadata" => nil, "analysed_modules" => [], "score" => nil, "parse_errors" => parse_errors,
+         "methods" => [])
     exit(0)
   end
 
   run_rubycritic(survivors)
   report = read_report
   report["parse_errors"] = parse_errors
+  report["methods"] = method_scores(survivors)
   emit(report)
   exit(0)
 rescue SystemExit
