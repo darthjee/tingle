@@ -21,7 +21,7 @@ the folder to `.claude/agents/shell.md` and
 | `docker/rubycritic/Gemfile.lock` | The resolved lock (section 3), committed. |
 | `docker/rubycritic/entrypoint.rb` | The entrypoint wrapper (section 4). |
 | `docker/rubycritic/fixture/` | The smoke-test fixture (section 6). |
-| `docker/rubycritic/.dockerignore` | Excludes `fixture/` from the build context. |
+| `docker/rubycritic/.dockerignore` | Excludes `fixture/` (and, from #294, the Docker Hub description files) from the build context. |
 
 The build context is `docker/rubycritic/` itself, not the repo root:
 
