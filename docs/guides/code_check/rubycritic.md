@@ -75,6 +75,7 @@ tingle code_check rubycritic <path> [options]
 | `--no-gitignore` | off | Do not skip files ignored by git (`.gitignore`, `.git/info/exclude`, global excludes). |
 | `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches this glob. Can be repeated. |
 | `--include GLOB` | none | Only analyse `.rb` files whose path relative to `<path>` matches this glob. Can be repeated. |
+| `--no-config` | off | Do not read `~/.tingle/code_check/config.json` (see [Configuration file](#configuration-file)). |
 
 The thresholds accept decimals (`--warn 12.5`) and must be `0` or more.
 `--top` and `--details N` must be whole numbers, `0` or more, and `--image`
@@ -84,6 +85,11 @@ The order of the thresholds is not checked: keep `warn` < `error` <
 
 There is no `--ext` option: only `.rb` files are ever analysed. The file
 selection options are described in [File selection](#file-selection).
+
+The defaults in this table are the built-in ones. Every option except
+`--no-config` can also be set in the
+[configuration file](#configuration-file); an option given on the command
+line wins over it.
 
 ### `--min-level` and `--top`
 
@@ -177,8 +183,9 @@ tingle code_check rubycritic ./app --image tingle_rubycritic:dev
 ```
 
 The image is pulled only when it is not present locally. If tingle cannot
-read its version file (and you did not pass `--image`), the command fails
-and suggests `--image`:
+read its version file (and you did not pass `--image` or set `image` in the
+[configuration file](#configuration-file)), the command fails and suggests
+`--image`:
 
 ```
 Error: cannot read the tingle version from /path/to/tingle/shell/linux/VERSION; use --image to choose the image
@@ -385,6 +392,178 @@ that folder:
 - Absolute symlinks that point inside `<path>` work too: they are sent as
   the target's path inside the mounted folder.
 
+## Configuration file
+
+If you always pass the same options, store them once in a configuration
+file instead:
+
+```
+~/.tingle/code_check/config.json
+```
+
+This is the same file that [`file_size`](file_size.md#configuration-file)
+uses. It is looked up in your home directory (`$HOME`); its location cannot
+be changed, and there is no per-project configuration file. The file is
+optional: if it does not exist, the built-in defaults are used and nothing
+is printed about it.
+
+The file holds a JSON object. The options for this command go under the
+`rubycritic` key:
+
+```json
+{
+  "rubycritic": {
+    "warn": 50,
+    "top": 20,
+    "ignore": ["spec/fixtures/**"],
+    "fail_on": "error"
+  }
+}
+```
+
+Other top-level keys (such as `file_size`) are ignored: they belong to the
+other [`tingle code_check`](../code_check.md) subcommands that share this
+file. If the file exists but has no `rubycritic` key, the built-in defaults
+are used, as if the file did not exist. An empty section
+(`"rubycritic": {}`) is valid: it changes nothing, but it counts as loaded,
+so the header shows the `Config:` line (see [Header](#header)).
+
+### Keys
+
+Every key is optional and matches a command-line option:
+
+| Key | Type | Default | Option |
+| --- | --- | --- | --- |
+| `warn` | number >= 0 | `100` | `--warn` |
+| `error` | number >= 0 | `200` | `--error` |
+| `critical` | number >= 0 | `400` | `--critical` |
+| `top` | integer >= 0 | `0` | `--top` |
+| `fail_on` | `"warn"`, `"error"`, `"critical"` or `null` | `null` | `--fail-on` (`null` means no gate) |
+| `min_level` | `"ok"`, `"warn"`, `"error"` or `"critical"` | `"ok"` | `--min-level` |
+| `image` | non-empty string | `darthjee/tingle_rubycritic:<tingle version>` | `--image` |
+| `details` | integer >= 0 or `null` | `null` | `--details` (`0` lists every method, `null` prints no method lines) |
+| `exclude` | list of strings | `[]` | `--exclude` (comma-separated on the command line) |
+| `ignore` | list of strings | `[]` | `--ignore` |
+| `include` | list of strings | `[]` | `--include` |
+| `no_default_excludes` | `true` or `false` | `false` | `--no-default-excludes` |
+| `gitignore` | `true` or `false` | `true` | `--no-gitignore` (inverted: `"gitignore": false` is the same as `--no-gitignore`) |
+
+Notes:
+
+- The thresholds accept decimals (`"critical": 400.5`). Numbers must be
+  real, finite JSON numbers: `true`, `"100"`, `NaN` and `Infinity` are
+  errors. `top` and `details` must be whole numbers (`"top": 20.0` is an
+  error).
+- `image` must not be empty or only spaces. Setting it also means tingle
+  does not need to read its version file to pick the default image.
+- In lists, write each item as its own string: `"exclude": ["spec", "db"]`,
+  not `"spec,db"`. An empty list is valid and adds nothing.
+- There is **no `ext` key**: only `.rb` files are analysed, so `"ext"` is
+  reported as `unknown key 'ext'`. The path to analyse is not a config key
+  either: you always give it on the command line.
+- The order of the thresholds is not checked, as on the command line.
+
+### How the config and the command line combine
+
+- **Single values** (`warn`, `error`, `critical`, `top`, `fail_on`,
+  `min_level`, `image`, `details`): the command line wins over the config,
+  which wins over the built-in default.
+- **Lists** (`exclude`, `ignore`, `include`): the config values come first,
+  then the command-line values are **added**. Duplicates are dropped (the
+  first occurrence is kept). The command line never replaces a config list.
+  The [default excludes](#--exclude) are added on top, unless
+  `no_default_excludes` ends up true.
+- **`no_default_excludes` and `gitignore`**: the config can set either
+  value. `--no-default-excludes` and `--no-gitignore` can only turn the
+  behaviour off, and they win over the config.
+
+For example, with this file:
+
+```json
+{
+  "file_size": {
+    "warn": 250
+  },
+  "rubycritic": {
+    "warn": 100,
+    "error": 200,
+    "critical": 400.5,
+    "top": 20,
+    "exclude": ["db"],
+    "no_default_excludes": false,
+    "ignore": ["spec/fixtures/**"],
+    "include": ["app/**", "lib/**"],
+    "gitignore": true,
+    "fail_on": "error",
+    "min_level": "warn",
+    "image": "darthjee/tingle_rubycritic:0.6.0",
+    "details": 5
+  }
+}
+```
+
+this command:
+
+```
+tingle code_check rubycritic . --warn 50 --exclude tmp2 --ignore '**/legacy/**'
+```
+
+runs with:
+
+- `warn=50` (the command line wins), `error=200` and `critical=400.5` (from
+  the config);
+- the default excludes plus `db` and `tmp2`;
+- the ignore globs `spec/fixtures/**` and `**/legacy/**`;
+- the image `darthjee/tingle_rubycritic:0.6.0`, and the other values
+  (`top`, `include`, `fail_on`, `min_level`, `details`) from the config.
+
+The `file_size` section is ignored here.
+
+### Running without the config: `--no-config`
+
+Some config values cannot be undone from the command line. For example,
+there is no option to turn the gate off when the config sets `fail_on`, or
+to turn `.gitignore` back on when it sets `"gitignore": false`. Pass
+`--no-config` to ignore the file completely:
+
+```
+tingle code_check rubycritic . --no-config
+```
+
+With `--no-config`, the file is not read or checked at all (even an invalid
+one), and only the built-in defaults and the options you pass are used. No
+`Config:` line is printed.
+
+### Config errors
+
+The file is checked every time it is read, even when you pass every option
+on the command line. If something is wrong, the command prints one error
+line on standard error and exits with status `1`, before selecting any file
+or calling Docker:
+
+```
+Error: /home/me/.tingle/code_check/config.json: <reason>
+```
+
+| Problem | Reason |
+| --- | --- |
+| The file cannot be read | `cannot read file: <OS error>` |
+| The file is not valid JSON | `invalid JSON: <details>` |
+| The top level is not a JSON object | `top level must be an object` |
+| The `rubycritic` section is not a JSON object | `'rubycritic' must be an object` |
+| An unknown key, such as a typo or `ext` | `unknown key '<key>'` |
+| A wrong type or value | for example `'warn' must be a number >= 0`, `'top' must be an integer >= 0`, `'details' must be an integer >= 0 or null`, `'image' must be a non-empty string` or `'fail_on' must be one of warn, error, critical or null` |
+
+For example:
+
+```
+Error: /home/me/.tingle/code_check/config.json: unknown key 'ext'
+Error: /home/me/.tingle/code_check/config.json: 'warn' must be a number >= 0
+```
+
+Only the first problem is reported. Fix the file, or run with `--no-config`
+in the meantime.
+
 ## Skipped files
 
 A file under `<path>` is left out of the analysis when:
@@ -429,6 +608,7 @@ $ tingle code_check rubycritic fixture --warn 10 --error 50 --critical 100
 Analyzing: /home/me/fixture
 Thresholds: warn=10 | error=50 | critical=100
 Image: darthjee/tingle_rubycritic:0.5.0
+Config: /home/me/.tingle/code_check/config.json
 
 Status           Complexity  Rating  Smells  Duplication  File
 ──────────────── ──────────  ──────  ──────  ───────────  ──────────────────────────────────────────────────
@@ -453,6 +633,10 @@ Before the report, a warning for `broken.rb` is printed on standard error
 - `Analyzing:` shows the target as an absolute path.
 - `Thresholds:` shows the `warn`, `error` and `critical` values in use.
 - `Image:` shows the Docker image that runs RubyCritic.
+- `Config:` (dimmed) shows the path of the configuration file, when a
+  `rubycritic` section was loaded from it, even an empty one. It is not
+  printed when the file or the section does not exist, or with
+  `--no-config` (see [Configuration file](#configuration-file)).
 
 ### Method lines
 
@@ -619,6 +803,12 @@ Walk every directory except `.git/`, including `vendor/` and `tmp/`:
 tingle code_check rubycritic . --no-default-excludes --exclude .git
 ```
 
+Ignore your configuration file for one run:
+
+```
+tingle code_check rubycritic . --no-config
+```
+
 ### Using in CI
 
 Fail the build when any Ruby file under `./app` reaches the ERROR threshold:
@@ -646,7 +836,8 @@ Errors are printed on **standard error** as `Error: <message>`.
 | `<path>` does not exist | `Error: path not found: <absolute path>` | `1` |
 | `<path>` cannot be read | `Error: path not readable: <absolute path>` | `1` |
 | The folder to mount contains `:` | `Error: cannot mount <folder>: Docker volume paths cannot contain ':'` | `1` |
-| Tingle version unreadable and no `--image` | `Error: cannot read the tingle version from <file>; use --image to choose the image` | `1` |
+| Invalid configuration file (unreadable, bad JSON, unknown key, wrong value, ...) | `Error: <config file>: <reason>` (see [Config errors](#config-errors)) | `1` |
+| Tingle version unreadable and no `--image` or `image` | `Error: cannot read the tingle version from <file>; use --image to choose the image` | `1` |
 | No `.rb` files to analyse (or all filtered out) | The header, then `No Ruby files found for analysis.` | `0` |
 | `docker` not on `PATH` | `Error: docker not found on PATH; tingle code_check rubycritic needs Docker to run RubyCritic` | `1` |
 | Docker daemon not running (`docker info` failed or took over 30 seconds) | `Error: the Docker daemon is not responding (docker info failed); start Docker and retry` | `1` |
@@ -665,7 +856,7 @@ In short:
 | Code | Meaning |
 | --- | --- |
 | `0` | Success, or the complexity gate passed / was not requested |
-| `1` | Usage error, path problem, or Docker / RubyCritic failure |
+| `1` | Usage error, invalid configuration file, path problem, or Docker / RubyCritic failure |
 | `2` | The complexity gate failed (`--fail-on`) |
 
 Unparsable Ruby files (`⛔ PARSE` rows) never change the exit status. The
@@ -677,9 +868,6 @@ report always goes to standard output and error messages to standard error.
   [`tingle linux`](../linux.md)) has no `docker` command, so running this
   subcommand inside it fails with `docker not found on PATH`. Run it on a
   host with Docker.
-- **No configuration file yet.** This subcommand does not read
-  `~/.tingle/code_check/config.json`, and there is no `--no-config` option
-  yet. Pass the options on the command line.
 
 ## Quick help
 

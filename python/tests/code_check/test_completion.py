@@ -47,7 +47,8 @@ def test_completion_imports_no_heavy_module():
         "'code_check.file_size.config', 'code_check.file_size.reporter', "
         "'code_check.rubycritic.executor', 'code_check.rubycritic.docker_runner', "
         "'code_check.rubycritic.output_parser', 'code_check.rubycritic.reporter', "
-        "'code_check.rubycritic.selection') if m in sys.modules]; "
+        "'code_check.rubycritic.selection', 'code_check.rubycritic.config', "
+        "'code_check.validators') if m in sys.modules]; "
         "print(','.join(heavy))"
     )
     python_dir = Path(__file__).resolve().parents[2]
@@ -172,6 +173,7 @@ def test_rubycritic_flag_names():
     assert RUBYCRITIC_EXPECTED_FLAGS == [
         "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--details",
         "--image", "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
+        "--no-config",
     ]
 
 
@@ -229,4 +231,3 @@ def test_rubycritic_does_not_offer_file_size_only_flags():
     flags = complete(["rubycritic", "app", ""])
 
     assert "--ext" not in flags
-    assert "--no-config" not in flags

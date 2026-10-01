@@ -1,4 +1,9 @@
-"""Unit tests for code_check.rubycritic.executor.CheckRubycritic (parse, validate, resolve)."""
+"""Unit tests for code_check.rubycritic.executor.CheckRubycritic (parse, validate, resolve).
+
+HOME points at an empty temp dir (autouse fixture in tests/code_check/conftest.py),
+so no real ~/.tingle/code_check/config.json leaks in. The config file itself is
+covered by test_executor_config.py.
+"""
 
 from __future__ import annotations
 
@@ -98,14 +103,22 @@ def test_validate_accepts_zero_and_inf():
     assert CheckRubycritic._validate(options) is options
 
 
-def test_apply_defaults_fills_unset_values():
-    cli = {"path": "x", "warn": None, "error": 5.0, "critical": None, "top": None,
-           "min_level": None, "fail_on": None, "image": None}
+def _cli(**overrides):
+    cli = {"path": "x", "warn": None, "error": None, "critical": None, "top": None,
+           "min_level": None, "fail_on": None, "details": None, "image": None,
+           "exclude": None, "no_default_excludes": False, "no_gitignore": False,
+           "ignore": None, "include": None, "no_config": False}
+    cli.update(overrides)
+    return cli
 
-    options = CheckRubycritic._apply_defaults(cli)
+
+def test_merge_without_config_fills_unset_values():
+    options = CheckRubycritic._merge(_cli(error=5.0), {})
 
     assert options == {"path": "x", "warn": 100, "error": 5.0, "critical": 400, "top": 0,
-                       "min_level": "ok", "fail_on": None, "image": None, "details": None}
+                       "min_level": "ok", "fail_on": None, "image": None, "details": None,
+                       "ignore": [], "include": [], "exclude": [],
+                       "no_default_excludes": False, "gitignore": True}
 
 
 @pytest.mark.parametrize("details", [0, 5])
@@ -678,11 +691,11 @@ def test_selection_options_from_flags():
     from code_check.rubycritic.constants import Constants
 
     options = {
-        "exclude": " spec, ,tmp,db ",
+        "exclude": ["spec", "tmp", "db"],
         "no_default_excludes": False,
         "ignore": ["*_spec.rb"],
         "include": ["app/**"],
-        "no_gitignore": True,
+        "gitignore": False,
     }
 
     assert CheckRubycritic._selection_options(options) == {
@@ -694,7 +707,7 @@ def test_selection_options_from_flags():
 
 
 def test_selection_options_no_default_excludes():
-    options = {"exclude": "spec", "no_default_excludes": True}
+    options = {"exclude": ["spec"], "no_default_excludes": True}
 
     assert CheckRubycritic._selection_options(options)["excludes"] == ["spec"]
 

@@ -65,9 +65,7 @@ of each section are documented on the subcommand's page.
 | Subcommand | Section | Keys |
 |---|---|---|
 | `file_size` | `file_size` | [Configuration file](code_check/file_size.md#configuration-file) |
-
-`rubycritic` does not read the config file yet: pass its options on the
-command line.
+| `rubycritic` | `rubycritic` | [Configuration file](code_check/rubycritic.md#configuration-file) |
 
 For example:
 
@@ -76,9 +74,16 @@ For example:
   "file_size": {
     "warn": 200,
     "fail_on": "error"
+  },
+  "rubycritic": {
+    "top": 20,
+    "fail_on": "error"
   }
 }
 ```
+
+Options given on the command line win over the config file. Each
+subcommand also accepts `--no-config` to ignore the file for one run.
 
 ## Exit status
 

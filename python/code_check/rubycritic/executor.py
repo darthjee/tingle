@@ -10,10 +10,23 @@ File selection follows `file_size`: default and `--exclude` directory names,
 `.gitignore` (unless `--no-gitignore`), `--ignore` and `--include` globs and
 the fixed `.rb` filter. Symlinks resolving outside the mount root are skipped.
 
+Personal defaults are read from the `rubycritic` section of
+`~/.tingle/code_check/config.json` (keys: warn, error, critical, top, exclude,
+ignore, include, no_default_excludes, gitignore, fail_on, min_level, image,
+details; there is no `ext`). Single values given on the CLI win over the
+config, which wins over the built-in defaults; list values (exclude, ignore,
+include) are concatenated, config first, and deduplicated.
+`--no-default-excludes` and `--no-gitignore` win over the config. An invalid
+config prints `Error: <path>: <reason>` and exits with status 1 before any
+file selection or Docker call. `--no-config` skips the file entirely.
+
+Example config:
+    {"rubycritic": {"warn": 50, "ignore": ["spec/fixtures/**"], "fail_on": "error"}}
+
 Exit status: 0 on success (also when no `.rb` file is selected), 1 on errors
-(bad option, path missing or unreadable, Docker missing or failing, image pull
-failure, unparsable output) and 2 when `--fail-on` is set and any file
-reaches that level.
+(bad option, invalid config, path missing or unreadable, Docker missing or
+failing, image pull failure, unparsable output) and 2 when `--fail-on` is set
+and any file reaches that level.
 
 Dependencies: standard library only; Docker on the host at run time.
 
@@ -34,6 +47,7 @@ Examples
     tingle code_check rubycritic . --ignore 'db/migrate/**' --ignore '*_spec.rb'
     tingle code_check rubycritic . --include 'app/**' --include 'lib/**'
     tingle code_check rubycritic . --no-gitignore
+    tingle code_check rubycritic . --no-config
 
 """
 
@@ -45,9 +59,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from code_check.config import default_path, load_section
 from code_check.excludes import parse_excludes, resolve_excludes
 from code_check.file_size.file_analyzer import FileAnalyzer
 from code_check.palette import Palette
+from code_check.rubycritic.config import ConfigError, validate
 from code_check.rubycritic.constants import Constants
 from code_check.rubycritic.docker_runner import DockerRunner, decode, write_stderr
 from code_check.rubycritic.errors import RubycriticError
@@ -61,7 +77,10 @@ from common.arg_parser import ArgParser
 # Program name shown in the help usage line.
 PROG = "tingle code_check rubycritic"
 
-# Built-in defaults for single-value options, applied after parsing.
+# Section of the config file holding this command's options.
+CONFIG_SECTION = "rubycritic"
+
+# Built-in defaults for single-value options, applied after the config merge.
 SINGLE_DEFAULTS: dict = {
     "warn": Constants.DEFAULT_WARN,
     "error": Constants.DEFAULT_ERROR,
@@ -72,6 +91,9 @@ SINGLE_DEFAULTS: dict = {
     "image": None,
     "details": None,
 }
+
+# Glob-list options merged as config list then CLI list (deduplicated).
+LIST_KEYS = ("ignore", "include")
 
 # Threshold options validated as numbers >= 0.
 THRESHOLD_KEYS = ("warn", "error", "critical")
@@ -107,14 +129,50 @@ class CheckRubycritic:
         err = Palette(sys.stderr)
         print(f"{err.YELLOW}Warning: {message}{err.RESET}", file=sys.stderr)
 
+    @classmethod
+    def _load_config(cls, no_config: bool) -> tuple[dict, Path | None]:
+        """Load and validate the `rubycritic` config section.
+
+        Returns `(section, path)`; `path` is None when nothing was loaded
+        (`--no-config`, missing file or missing section). A `ConfigError`
+        prints `Error: <path>: <reason>` and exits with status 1.
+        """
+        if no_config:
+            return {}, None
+        path = default_path()
+        try:
+            section = load_section(CONFIG_SECTION, path)
+            if section is None:
+                return {}, None
+            return validate(section, path), path
+        except ConfigError as exc:
+            cls._fail(str(exc))
+            raise  # unreachable: _fail exits
+
     @staticmethod
-    def _apply_defaults(cli: dict) -> dict:
-        """Fill every unset single-value option with its built-in default."""
-        options = dict(cli)
+    def _merge(cli: dict, config: dict) -> dict:
+        """Resolve every option from the CLI args and the validated config section.
+
+        Single values: built-in default < config < CLI (a config `null` means
+        unset). Lists: config then CLI, concatenated and deduplicated.
+        `--no-default-excludes` and `--no-gitignore` only turn behaviour off
+        and win over the config.
+        """
+        merged = {"path": cli["path"]}
         for key, default in SINGLE_DEFAULTS.items():
-            if options.get(key) is None:
-                options[key] = default
-        return options
+            if cli.get(key) is not None:
+                merged[key] = cli[key]
+            else:
+                merged[key] = config.get(key, default)
+        for key in LIST_KEYS:
+            merged[key] = list(dict.fromkeys(config.get(key, []) + (cli.get(key) or [])))
+        excludes = config.get("exclude", []) + parse_excludes(cli.get("exclude"))
+        merged["exclude"] = list(dict.fromkeys(excludes))
+        merged["no_default_excludes"] = bool(cli.get("no_default_excludes")) or config.get(
+            "no_default_excludes", False
+        )
+        merged["gitignore"] = not cli.get("no_gitignore") and config.get("gitignore", True)
+        return merged
 
     @staticmethod
     def _validate(options: dict) -> dict:
@@ -153,33 +211,37 @@ class CheckRubycritic:
         return target, root
 
     @staticmethod
-    def _print_header(out: Palette, target: Path, options: dict, image: str) -> None:
-        """Print the analysis header (target, thresholds and image)."""
+    def _print_header(
+        out: Palette, target: Path, options: dict, image: str, config: Path | None = None
+    ) -> None:
+        """Print the analysis header (target, thresholds, image and loaded config file)."""
         thresholds = " | ".join(
             f"{key}={format(options[key], 'g')}" for key in THRESHOLD_KEYS
         )
         print(f"{out.CYAN}{out.BOLD}Analyzing:{out.RESET} {target}")
         print(f"{out.DIM}Thresholds: {thresholds}{out.RESET}")
         print(f"{out.DIM}Image: {image}{out.RESET}")
+        if config is not None:
+            print(f"{out.DIM}Config: {config}{out.RESET}")
         print()
 
     @staticmethod
     def _selection_options(options: dict) -> dict:
-        """Resolve the file-selection flags into `select_files` keyword arguments.
+        """Resolve the merged file-selection options into `select_files` keyword arguments.
 
-        `--exclude` names are added to the default excludes (dropped with
-        `--no-default-excludes`), `--ignore`/`--include` default to no globs and
-        `.gitignore` is on unless `--no-gitignore` is given.
+        The merged `exclude` names are added to the default excludes (dropped
+        when `no_default_excludes` is set), `ignore`/`include` default to no
+        globs and `gitignore` defaults to on.
         """
         return {
             "excludes": resolve_excludes(
                 Constants.DEFAULT_EXCLUDES,
-                parse_excludes(options.get("exclude")),
+                options.get("exclude") or [],
                 bool(options.get("no_default_excludes")),
             ),
             "ignore": options.get("ignore") or [],
             "include": options.get("include") or [],
-            "gitignore": not options.get("no_gitignore"),
+            "gitignore": options.get("gitignore", True),
         }
 
     @classmethod
@@ -224,15 +286,17 @@ class CheckRubycritic:
             return False
         return any(analyzer.reaches(r.complexity, fail_on) for r in parsed.results.values())
 
-    def _execute(self, options: dict) -> int:
+    def _execute(self, options: dict, config_file: Path | None = None) -> int:
         """Run the whole analysis for validated `options`; return the exit status.
+
+        `config_file` is the loaded config file shown in the header, if any.
 
         Every failure raises `RubycriticError`.
         """
         target, root = self._resolve_target(options["path"])
         image = resolve_image(options["image"])
         out = Palette(sys.stdout)
-        self._print_header(out, target, options, image)
+        self._print_header(out, target, options, image, config_file)
         selection = self._select(out, target, root, options)
 
         runner = DockerRunner(image)
@@ -261,8 +325,10 @@ class CheckRubycritic:
             sys.exit(0)
 
         cli = self._parse(arg_parser, args)
+        config, config_file = self._load_config(cli["no_config"])
         try:
-            status = self._execute(self._validate(self._apply_defaults(cli)))
+            options = self._validate(self._merge(cli, config))
+            status = self._execute(options, config_file)
         except RubycriticError as exc:
             self._fail(exc.message)
             raise  # unreachable: _fail exits
