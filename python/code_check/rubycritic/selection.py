@@ -3,6 +3,12 @@
 A `Selection` holds the mount root, the lines sent on the container's stdin
 (paths relative to the root, POSIX separators, sorted) and the warnings for
 the files whose name cannot be sent (a newline, or not valid UTF-8).
+
+Files are collected with `file_size`'s `FileCollector` (default and extra
+excludes, `.gitignore`, `--ignore`/`--include` globs, the fixed `.rb` filter),
+without its binary check and with symlink confinement: a file that resolves
+outside the mount root (or a dangling symlink) is dropped. A kept symlink is
+sent as its target's path, and a symlink and its target count once.
 """
 
 from __future__ import annotations
@@ -36,10 +42,20 @@ def unsendable_reason(rel: str) -> str | None:
 
 
 def build_selection(root: Path, files: Iterable[Path]) -> Selection:
-    """Turn collected `files` into stdin lines relative to `root`, dropping unsendable names."""
+    """Turn collected `files` into stdin lines relative to `root`, dropping unsendable names.
+
+    Each file is resolved first, so a symlink becomes its target's path
+    (`root` must be resolved too), and files resolving to the same path are
+    kept once.
+    """
     selection = Selection(root)
+    seen: set[Path] = set()
     for path in files:
-        rel = path.relative_to(root).as_posix()
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        rel = resolved.relative_to(root).as_posix()
         reason = unsendable_reason(rel)
         if reason is None:
             selection.lines.append(rel)
@@ -49,16 +65,30 @@ def build_selection(root: Path, files: Iterable[Path]) -> Selection:
     return selection
 
 
-def select_files(target: Path, root: Path) -> Selection:
+def select_files(
+    target: Path,
+    root: Path,
+    *,
+    excludes: list[str] | None = None,
+    ignore: list[str] | None = None,
+    include: list[str] | None = None,
+    gitignore: bool = True,
+) -> Selection:
     """Collect the `.rb` files under `target` (or `target` itself) for the mount `root`.
 
-    Uses the default excludes (not applied to a single file), no gitignore and
-    no binary check, so non-UTF-8 Ruby files still reach the image.
+    `excludes` are directory names (default: `Constants.DEFAULT_EXCLUDES`; not
+    applied to a single file), `ignore`/`include` are globs relative to
+    `target` and `gitignore` skips the untracked files git ignores. There is
+    no binary check, so non-UTF-8 Ruby files still reach the image, and files
+    resolving outside the mount root are dropped.
     """
     collector = FileCollector(
-        Constants.DEFAULT_EXCLUDES,
+        Constants.DEFAULT_EXCLUDES if excludes is None else excludes,
         Constants.EXTENSIONS,
-        gitignore=False,
+        ignore=ignore,
+        include=include,
+        gitignore=gitignore,
         binary_check=False,
+        outside_symlinks=False,
     )
     return build_selection(root, collector.collect(target))

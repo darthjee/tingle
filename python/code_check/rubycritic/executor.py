@@ -6,6 +6,10 @@ Flay and Reek) inside the `darthjee/tingle_rubycritic` Docker image and
 reports one row per file, classified by thresholds on the file's total Flog
 complexity, plus RubyCritic's overall score. The host needs Docker, not Ruby.
 
+File selection follows `file_size`: default and `--exclude` directory names,
+`.gitignore` (unless `--no-gitignore`), `--ignore` and `--include` globs and
+the fixed `.rb` filter. Symlinks resolving outside the mount root are skipped.
+
 Exit status: 0 on success (also when no `.rb` file is selected), 1 on errors
 (bad option, path missing or unreadable, Docker missing or failing, image pull
 failure, unparsable output) and 2 when `--fail-on` is set and any file
@@ -25,6 +29,11 @@ Examples
     tingle code_check rubycritic ./app --details
     tingle code_check rubycritic ./app --details 0
     tingle code_check rubycritic ./app --image tingle_rubycritic:dev
+    tingle code_check rubycritic . --exclude spec,db
+    tingle code_check rubycritic . --no-default-excludes --exclude vendor
+    tingle code_check rubycritic . --ignore 'db/migrate/**' --ignore '*_spec.rb'
+    tingle code_check rubycritic . --include 'app/**' --include 'lib/**'
+    tingle code_check rubycritic . --no-gitignore
 
 """
 
@@ -36,6 +45,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from code_check.excludes import parse_excludes, resolve_excludes
 from code_check.file_size.file_analyzer import FileAnalyzer
 from code_check.palette import Palette
 from code_check.rubycritic.constants import Constants
@@ -153,14 +163,33 @@ class CheckRubycritic:
         print(f"{out.DIM}Image: {image}{out.RESET}")
         print()
 
+    @staticmethod
+    def _selection_options(options: dict) -> dict:
+        """Resolve the file-selection flags into `select_files` keyword arguments.
+
+        `--exclude` names are added to the default excludes (dropped with
+        `--no-default-excludes`), `--ignore`/`--include` default to no globs and
+        `.gitignore` is on unless `--no-gitignore` is given.
+        """
+        return {
+            "excludes": resolve_excludes(
+                Constants.DEFAULT_EXCLUDES,
+                parse_excludes(options.get("exclude")),
+                bool(options.get("no_default_excludes")),
+            ),
+            "ignore": options.get("ignore") or [],
+            "include": options.get("include") or [],
+            "gitignore": not options.get("no_gitignore"),
+        }
+
     @classmethod
-    def _select(cls, out: Palette, target: Path, root: Path) -> Selection:
+    def _select(cls, out: Palette, target: Path, root: Path, options: dict) -> Selection:
         """Select the files, warning about unsendable names.
 
         Exits 0 with `No Ruby files found for analysis.` (before any Docker
         call) when nothing is left to send.
         """
-        selection = select_files(target, root)
+        selection = select_files(target, root, **cls._selection_options(options))
         for message in selection.skipped:
             cls._warn(message)
         if not selection.lines:
@@ -204,7 +233,7 @@ class CheckRubycritic:
         image = resolve_image(options["image"])
         out = Palette(sys.stdout)
         self._print_header(out, target, options, image)
-        selection = self._select(out, target, root)
+        selection = self._select(out, target, root, options)
 
         runner = DockerRunner(image)
         runner.preflight()
