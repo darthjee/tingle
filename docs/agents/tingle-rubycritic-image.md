@@ -134,9 +134,171 @@ single file. Tingle pulls the image beforehand when it is missing.
   `totals` (name to score) and `method_locations` (name to
   `"<path>:<first>-<last>"`, split on the last `:`). If Flog raises, the run
   fails with exit 1 like any other entrypoint failure.
-- The JSON field paths and meanings used by tingle are pinned in the
-  `rubycritic` subcommand spec
-  ([subcommand.md](specs/code_check/rubycritic/subcommand.md#5-rubycritic-json-contract)).
+- The JSON field paths and meanings used by tingle are pinned in
+  [RubyCritic JSON contract](#rubycritic-json-contract).
+
+## RubyCritic JSON contract
+
+The entrypoint prints RubyCritic's `report.json` plus a `parse_errors` key
+and a `methods` key (per-method Flog scores, added by #291; see
+[Contract](#contract)). This trimmed sample comes
+from a real run of `rubycritic 5.0.0` on the fixture (smell lists cut to one
+entry, `simple.rb`, `dup_b.rb` and `constants_only.rb` removed, the
+`broken.rb` entry from the entrypoint run):
+
+```json
+{
+  "metadata": {"rubycritic": {"version": "5.0.0"}},
+  "analysed_modules": [
+    {
+      "name": "Complex",
+      "path": "complex.rb",
+      "smells": [
+        {
+          "context": "Complex#run",
+          "cost": 0,
+          "locations": [{"path": "complex.rb", "line": 2}],
+          "message": "has a flog score of 72",
+          "score": 72,
+          "status": "new",
+          "type": "VeryHighComplexity"
+        }
+      ],
+      "churn": 0,
+      "committed_at": null,
+      "complexity": 72.25,
+      "duplication": 0,
+      "methods_count": 1,
+      "cost": 2.89,
+      "rating": "B"
+    },
+    {
+      "name": "DupA",
+      "path": "dup_a.rb",
+      "smells": [
+        {
+          "context": "Identical code",
+          "cost": 6,
+          "locations": [
+            {"path": "dup_a.rb", "line": 2},
+            {"path": "dup_b.rb", "line": 2}
+          ],
+          "message": "found in 2 nodes",
+          "score": 156,
+          "status": "new",
+          "type": "DuplicateCode"
+        }
+      ],
+      "churn": 0,
+      "committed_at": null,
+      "complexity": 15.11,
+      "duplication": 39,
+      "methods_count": 1,
+      "cost": 6.6044,
+      "rating": "C"
+    },
+    {
+      "name": "Empty",
+      "path": "empty.rb",
+      "smells": [],
+      "churn": 0,
+      "committed_at": null,
+      "complexity": 0.0,
+      "duplication": 0,
+      "methods_count": 0,
+      "cost": 0.0,
+      "rating": "A"
+    }
+  ],
+  "score": 83.23,
+  "parse_errors": [
+    {"path": "broken.rb", "message": "unexpected token tSTRING"}
+  ],
+  "methods": [
+    {"path": "complex.rb", "name": "Complex#run", "line": 2, "score": 72.25}
+  ]
+}
+```
+
+### Fields used
+
+`m` is one entry of `analysed_modules`.
+
+| Report item | JSON path | Type | Notes |
+|-------------|-----------|------|-------|
+| File | `m.path` | str | Mapped back as below. |
+| `Complexity` (and the level) | `m.complexity` | number | Flog's total score for the file, rounded to 2 decimals by RubyCritic. `0.0` for a file with no code. |
+| `Rating` | `m.rating` | str | One of `A`, `B`, `C`, `D`, `F` (RubyCritic has no `E`). From `m.cost`: ≤2 A, ≤4 B, ≤8 C, ≤16 D, else F. |
+| `Smells` | `m.smells` | list | Count of entries whose `type` is **not** `DuplicateCode` (Flay), `HighComplexity` or `VeryHighComplexity` (Flog). That is the Reek smell count. The JSON has no analyser field. |
+| `Duplication` | `m.duplication` | number | Flay mass for the file (integer in practice). |
+| `PARSE` rows | `parse_errors[].path`, `parse_errors[].message` | list of objects | Added by the entrypoint. |
+| `Score:` | `score` (top level) | number or `null` | RubyCritic's overall score, 0–100. `null` when RubyCritic did not run (every file failed to parse). |
+| `--details` lines | `methods[].path`, `methods[].name`, `methods[].line`, `methods[].score` | list of objects | Added by the entrypoint (#291). One entry per method Flog scored: `path` as sent on stdin, `name` as `Class#method` / `Class::method` (Flog's `#none` buckets excluded), `line` the method's first line (int), `score` rounded to 2 decimals. Sorted by score descending, then `path`, then `name`. `[]` when RubyCritic did not run. |
+
+Fields not used: `name` (derived from the file name, e.g. `Empty`),
+`churn` (always `0` without git), `committed_at` (`null`), `methods_count`,
+`cost`, `metadata`. Each file appears once in `analysed_modules`, even when it
+holds several classes.
+
+### Checks
+
+The output is unparsable (see [Contract](#contract)) when any of these fail; the
+`<reason>` names the first failure:
+
+- stdout is one JSON object (`invalid JSON: <error>` /
+  `expected a JSON object`);
+- `analysed_modules` is present and a list (`unexpected analysed_modules`),
+  and each entry has `path` (str),
+  `complexity` (number), `rating` (str), `smells` (list) and `duplication`
+  (number) (`unexpected analysed_modules entry: <path or index>`);
+- `score` is a number or `null` (`unexpected score`); a missing `score`
+  counts as `null`;
+- `parse_errors` is a list of objects with `path` and `message` strings
+  (`unexpected parse_errors`); a missing `parse_errors` counts as an empty
+  list;
+- `methods`, when present, is a list of objects with `path` (str), `name`
+  (str), `line` (int) and `score` (number) (`unexpected methods`). A present
+  but malformed `methods` key always fails, whether or not `--details` is
+  set. A missing `methods` key is ignored without `--details`; with
+  `--details` it is an error (see below).
+
+JSON booleans are not numbers here.
+
+### Path mapping
+
+The entrypoint passes the stdin paths to RubyCritic as
+they are, so `m.path` is the sent path, relative to `/src` (RubyCritic only
+removes a leading `./`; an absolute path would stay absolute). Tingle:
+
+1. removes a leading `/src/`, then any leading `./`, from `m.path` and
+   `parse_errors[].path`;
+2. matches the result exactly against the lines it sent;
+3. ignores entries that match no sent line, and keeps only the first entry
+   for a path given twice;
+4. turns each sent line back into its host path (`<root>/<line>`) for the
+   report.
+
+`methods[].path` is mapped the same way; entries whose path matches no sent
+line (or a `PARSE` file) are ignored.
+
+### Per-method details (`--details [N]`, #291)
+
+`--details` alone means 5,
+`--details 0` means all methods, and an absent flag (with no `details` config
+key) prints no detail lines. Under each shown level row (never under `PARSE`
+rows), the report prints up to N lines, in dim/gray, for that file's methods,
+sorted by score descending then name:
+
+```
+{'':<16} {score:>10.2f}  {name}  ({display_path}:{line})
+```
+
+The score is aligned under the `Complexity` column; `display_path` is the
+row's file display path. A file with no methods gets no lines. Method scores
+are informative only: levels, `--fail-on`, the summary and the exit codes stay
+file-based. If `--details` is set and the output has no `methods` key (an
+older image), the run fails with exit 1 (the messages live in the code, under
+`python/code_check/rubycritic/`).
 
 ## Runtime user and hardening
 
@@ -318,9 +480,8 @@ deliberate change:
    doc.
 3. Re-run the smoke test on both platforms (`scripts/release_image.sh build
    rubycritic` then `smoke-test rubycritic`). If the JSON shape changed,
-   update the JSON contract (the subcommand spec, or this doc once the specs
-   are removed), the Python parser and the smoke-test checks in the same
-   change.
+   update the [RubyCritic JSON contract](#rubycritic-json-contract), the
+   Python parser and the smoke-test checks in the same change.
 4. Release as usual: bump with `scripts/bump-version.sh X.Y.Z` and push git
    tag `X.Y.Z`. The rubycritic image is published on every release tag,
    whether or not `docker/rubycritic/` changed.
