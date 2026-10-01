@@ -15,7 +15,7 @@ def _flag(name):
 def test_flag_names_in_order():
     assert [f["name"] for f in FLAGS] == [
         "path", "--warn", "--error", "--critical", "--top",
-        "--min-level", "--fail-on", "--image",
+        "--min-level", "--fail-on", "--details", "--image",
     ]
 
 
@@ -30,6 +30,7 @@ def test_single_value_flags_default_to_none():
         "top": None,
         "min_level": None,
         "fail_on": None,
+        "details": None,
         "image": None,
     }
 
@@ -58,8 +59,29 @@ def test_choices():
         ("--top", "Show only the top N most complex files (default: 0 = all)"),
         ("--min-level", "Show only files at this level or higher (default: ok)"),
         ("--fail-on", "Exit with status 2 if any file reaches this level or higher"),
+        (
+            "--details",
+            (
+                "Show the N most complex methods under each file "
+                "(default when given without N: 5; 0 = all)"
+            ),
+        ),
         ("--image", "Docker image to run (default: darthjee/tingle_rubycritic:<tingle version>)"),
     ],
 )
 def test_help_texts_match_spec(name, text):
     assert _flag(name)["help"] == text
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (["app"], None),
+        (["app", "--details"], 5),
+        (["app", "--details", "3"], 3),
+        (["app", "--details", "0"], 0),
+        (["--details", "2", "app"], 2),
+    ],
+)
+def test_details_values(args, expected):
+    assert ArgParser(FLAGS).parse(args)["details"] == expected

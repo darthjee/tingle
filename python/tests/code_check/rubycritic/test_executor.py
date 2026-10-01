@@ -43,6 +43,7 @@ def test_run_help_exits_zero(capsys):
     [
         [".", "--warn", "x"],
         [".", "--top", "1.5"],
+        [".", "--details", "x"],
         [".", "--min-level", "bad"],
         [".", "--fail-on", "ok"],
         [".", "--unknown"],
@@ -62,6 +63,7 @@ def test_run_argparse_usage_errors_exit_one(capsys, args):
         (["--critical", "-3"], "Error: --critical must be a number >= 0"),
         (["--warn", "nan"], "Error: --warn must be a number >= 0"),
         (["--top", "-1"], "Error: --top must be an integer >= 0"),
+        (["--details", "-1"], "Error: --details must be an integer >= 0"),
         (["--image", ""], "Error: --image must not be empty"),
     ],
 )
@@ -89,7 +91,15 @@ def test_apply_defaults_fills_unset_values():
     options = CheckRubycritic._apply_defaults(cli)
 
     assert options == {"path": "x", "warn": 100, "error": 5.0, "critical": 400, "top": 0,
-                       "min_level": "ok", "fail_on": None, "image": None}
+                       "min_level": "ok", "fail_on": None, "image": None, "details": None}
+
+
+@pytest.mark.parametrize("details", [0, 5])
+def test_validate_accepts_details(details):
+    options = {"warn": 0.0, "error": 0.0, "critical": 0.0, "top": 0, "image": None,
+               "details": details}
+
+    assert CheckRubycritic._validate(options) is options
 
 
 # --- path resolution ---------------------------------------------------------------
@@ -579,3 +589,40 @@ def test_end_to_end_unsendable_name_is_skipped(fixture_dir, capsys, docker):
     captured = capsys.readouterr()
     assert "Warning: skipping file with a newline in its name: 'new\\nline.rb'\n" in captured.err
     assert "Summary: 7 file(s) |" in captured.out
+
+
+def _without_methods():
+    data = sample(analysed_modules=FIXTURE_OUTPUT["analysed_modules"])
+    del data["methods"]
+    return json.dumps(data)
+
+
+def test_end_to_end_missing_methods_with_details_fails(fixture_dir, capsys, docker):
+    docker.configure(stdout=_without_methods())
+
+    assert _run_status([str(fixture_dir), "--image", "img", "--details"]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.err.endswith(
+        "Error: the RubyCritic output from img has no per-method data; "
+        "--details needs a newer tingle_rubycritic image\n"
+    )
+    assert "Summary:" not in captured.out
+
+
+def test_end_to_end_missing_methods_without_details_is_fine(fixture_dir, capsys, docker):
+    docker.configure(stdout=_without_methods())
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 0
+
+    assert "Summary: 7 file(s)" in capsys.readouterr().out
+
+
+def test_end_to_end_malformed_methods_fails_without_details(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(sample(methods="x")))
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 1
+
+    assert capsys.readouterr().err == (
+        "Error: could not parse the RubyCritic output from img: unexpected methods\n"
+    )

@@ -65,6 +65,17 @@ FLAGS: list[dict] = [
         "help": "Exit with status 2 if any file reaches this level or higher",
     },
     {
+        "name": "--details",
+        "type": int,
+        "nargs": "?",
+        "const": Constants.DEFAULT_DETAILS,
+        "default": None,
+        "help": (
+            "Show the N most complex methods under each file "
+            f"(default when given without N: {Constants.DEFAULT_DETAILS}; 0 = all)"
+        ),
+    },
+    {
         "name": "--image",
         "type": str,
         "default": None,

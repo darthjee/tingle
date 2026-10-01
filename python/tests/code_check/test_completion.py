@@ -170,7 +170,8 @@ RUBYCRITIC_EXPECTED_FLAGS = [f["name"] for f in RUBYCRITIC_FLAGS if f["name"].st
 
 def test_rubycritic_flag_names():
     assert RUBYCRITIC_EXPECTED_FLAGS == [
-        "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--image",
+        "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--details",
+        "--image",
     ]
 
 
@@ -203,7 +204,9 @@ def test_rubycritic_choice_flags_return_choices(flag, choices):
     assert complete(["rubycritic", "app", flag, ""]) == choices
 
 
-@pytest.mark.parametrize("flag", ["--warn", "--error", "--critical", "--top", "--image"])
+@pytest.mark.parametrize(
+    "flag", ["--warn", "--error", "--critical", "--top", "--details", "--image"],
+)
 def test_rubycritic_free_value_flags_return_nothing(flag):
     assert complete(["rubycritic", "app", flag, ""]) == []
 
