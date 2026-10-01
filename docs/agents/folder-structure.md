@@ -7,6 +7,7 @@
 | `bin/`          | Callable entry points meant to be on `PATH`; each thin wrapper dispatches into the matching script under `shell/`, `python/`, or `node/`. |
 | `scripts/`      | CI/release tooling scripts (not user-facing commands — see `bin/` for those). Holds `scripts/release_image.sh`, the `tingle-linux` Docker image build/publish/description script, and `scripts/release_cli.sh`, the `tingle` release-zip build/publish script — see [tingle-release-zip.md](tingle-release-zip.md) — both invoked by `.circleci/config.yml`. |
 | `dist/`         | Git-ignored build-output directory for `scripts/release_cli.sh` (`tingle-<tag>.zip` + `.sha256` sidecar). Not committed, not packaged into the release zip. |
+| `docker/`       | Docker images for `tingle code_check` checks, one sub-folder per image (`docker/rubycritic/` builds `tingle_rubycritic`). Owned by the `shell` agent. |
 | `shell/`        | Bash/Shell utility scripts. |
 | `python/`       | Python utility scripts. |
 | `node/`         | Node.js utility scripts. |
