@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import os
+from types import SimpleNamespace
 
 import pytest
 
 from code_check.palette import Palette
+from code_check.rubycritic import docker_runner
 from code_check.rubycritic.errors import RubycriticError
 from code_check.rubycritic.executor import CheckRubycritic
+from tests.code_check.rubycritic.sample_output import sample
 
 
 def _run(args):
@@ -281,3 +285,297 @@ def test_select_warns_about_unsendable_names(tmp_path, capsys, monkeypatch):
     captured = capsys.readouterr()
     assert captured.err == "Warning: skipping file with a newline in its name: 'a'\n"
     assert captured.out == "No Ruby files found for analysis.\n"
+
+
+# --- end to end (Docker mocked) ----------------------------------------------------
+
+FIXTURE_FILES = (
+    "complex.rb", "dup_a.rb", "dup_b.rb", "constants_only.rb", "empty.rb", "simple.rb", "broken.rb",
+)
+
+
+def _module(path, complexity, rating, smells, duplication):
+    return {"path": path, "complexity": complexity, "rating": rating,
+            "smells": [{"type": "TooManyStatements"}] * smells + [{"type": "DuplicateCode"}],
+            "duplication": duplication}
+
+
+FIXTURE_OUTPUT = sample(
+    analysed_modules=[
+        _module("complex.rb", 72.25, "B", 14, 0),
+        _module("dup_a.rb", 15.11, "C", 11, 39),
+        _module("dup_b.rb", 15.11, "C", 11, 39),
+        _module("constants_only.rb", 0.0, "A", 0, 0),
+        _module("empty.rb", 0.0, "A", 0, 0),
+        _module("simple.rb", 0.0, "A", 1, 0),
+    ],
+)
+
+
+class FakeDocker:
+    """Scripted `docker`: answers info, image inspect, pull and run by sub-command."""
+
+    def __init__(self, stdout="", run_status=0, stderr=b"", info=0, inspect=0, pull=0):
+        self.calls = []
+        self.stdout = stdout.encode() if isinstance(stdout, str) else stdout
+        self.statuses = {"info": info, "image": inspect, "pull": pull, "run": run_status}
+        self.stderr = stderr
+
+    def __call__(self, args, **kwargs):
+        self.calls.append((args, kwargs))
+        status = self.statuses[args[1]]
+        if args[1] == "run":
+            return SimpleNamespace(returncode=status, stdout=self.stdout, stderr=self.stderr)
+        return SimpleNamespace(returncode=status, stdout=b"", stderr=b"")
+
+    @property
+    def subcommands(self):
+        return [args[1] for args, _ in self.calls]
+
+    def run_call(self):
+        return next((a, k) for a, k in self.calls if a[1] == "run")
+
+
+@pytest.fixture
+def fixture_dir(tmp_path):
+    root = tmp_path / "fixture"
+    root.mkdir()
+    for name in FIXTURE_FILES:
+        (root / name).write_text("x = 1\n")
+    return root
+
+
+@pytest.fixture
+def docker(monkeypatch):
+    """Install a FakeDocker (configure it through `docker.configure(...)`)."""
+    state = {"fake": FakeDocker(json.dumps(FIXTURE_OUTPUT))}
+
+    def configure(**kwargs):
+        state["fake"] = FakeDocker(**kwargs)
+        return state["fake"]
+
+    monkeypatch.setattr(docker_runner.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(docker_runner.subprocess, "run", lambda *a, **k: state["fake"](*a, **k))
+    return SimpleNamespace(configure=configure, get=lambda: state["fake"])
+
+
+def _run_status(args):
+    try:
+        CheckRubycritic().run(args)
+    except SystemExit as exc:
+        return exc.code
+    return 0
+
+
+def test_end_to_end_full_example(fixture_dir, capsys, docker, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    status = _run_status([
+        str(fixture_dir), "--warn", "10", "--error", "50", "--critical", "100",
+        "--image", "darthjee/tingle_rubycritic:0.6.0",
+    ])
+
+    assert status == 0
+    captured = capsys.readouterr()
+    assert captured.out.splitlines() == [
+        f"Analyzing: {fixture_dir.resolve()}",
+        "Thresholds: warn=10 | error=50 | critical=100",
+        "Image: darthjee/tingle_rubycritic:0.6.0",
+        "",
+        "Status           Complexity  Rating  Smells  Duplication  File",
+        f"{'─' * 16} {'─' * 10}  {'─' * 6}  {'─' * 6}  {'─' * 11}  {'─' * 50}",
+        "🔴 ERROR               72.25  B           14            0  fixture/complex.rb",
+        "⚠️  WARN              15.11  C           11           39  fixture/dup_a.rb",
+        "⚠️  WARN              15.11  C           11           39  fixture/dup_b.rb",
+        "✅ OK                   0.00  A            0            0  fixture/constants_only.rb",
+        "✅ OK                   0.00  A            0            0  fixture/empty.rb",
+        "✅ OK                   0.00  A            1            0  fixture/simple.rb",
+        "⛔ PARSE                   -  -            -            -  fixture/broken.rb",
+        "",
+        "─" * 78,
+        "Summary: 7 file(s) | 3 OK | 2 WARN | 1 ERROR | 0 CRITICAL | 1 skipped (parse error)",
+        "Score: 83.23/100 (RubyCritic)",
+    ]
+    assert captured.err == "Warning: cannot parse fixture/broken.rb: unexpected token tSTRING\n"
+
+
+def test_end_to_end_docker_calls_and_stdin(fixture_dir, capsys, docker):
+    _run_status([str(fixture_dir), "--image", "img:dev"])
+
+    fake = docker.get()
+    assert fake.subcommands == ["info", "image", "run"]
+    args, kwargs = fake.run_call()
+    assert args[-1] == "img:dev"
+    assert f"{fixture_dir.resolve()}:/src:ro" in args
+    assert kwargs["input"] == "".join(f"{n}\n" for n in sorted(FIXTURE_FILES)).encode()
+
+
+def test_end_to_end_single_file_mounts_parent(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(sample(
+        analysed_modules=[_module("complex.rb", 72.25, "B", 2, 0)], parse_errors=[],
+    )))
+
+    status = _run_status([str(fixture_dir / "complex.rb"), "--image", "img:dev"])
+
+    assert status == 0
+    args, kwargs = docker.get().run_call()
+    assert f"{fixture_dir.resolve()}:/src:ro" in args
+    assert kwargs["input"] == b"complex.rb\n"
+    out = capsys.readouterr().out
+    assert "  complex.rb\n" in out
+    assert "Summary: 1 file(s) | 1 OK | 0 WARN | 0 ERROR | 0 CRITICAL\n" in out
+
+
+def test_end_to_end_default_image_from_version(fixture_dir, capsys, docker, monkeypatch, tmp_path):
+    from code_check.rubycritic.constants import Constants
+
+    version = tmp_path / "VERSION"
+    version.write_text(" 9.8.7\n")
+    monkeypatch.setattr(Constants, "VERSION_FILE", version)
+
+    _run_status([str(fixture_dir)])
+
+    assert docker.get().run_call()[0][-1] == "darthjee/tingle_rubycritic:9.8.7"
+    assert "Image: darthjee/tingle_rubycritic:9.8.7" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(("fail_on", "expected"), [("warn", 2), ("error", 2), ("critical", 0)])
+def test_end_to_end_fail_on(fixture_dir, capsys, docker, fail_on, expected):
+    status = _run_status([
+        str(fixture_dir), "--image", "img", "--warn", "10", "--error", "50",
+        "--critical", "100", "--fail-on", fail_on,
+    ])
+
+    assert status == expected
+
+
+def test_end_to_end_fail_on_uses_hidden_rows(fixture_dir, capsys, docker):
+    status = _run_status([
+        str(fixture_dir), "--image", "img", "--warn", "10", "--error", "50",
+        "--min-level", "critical", "--top", "1", "--fail-on", "error",
+    ])
+
+    assert status == 2
+    assert "No files at or above CRITICAL." not in capsys.readouterr().out  # PARSE row shown
+
+
+def test_end_to_end_parse_rows_never_fail_the_gate(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(sample(
+        analysed_modules=[],
+        parse_errors=[{"path": n, "message": "bad"} for n in FIXTURE_FILES],
+        score=None,
+    )))
+
+    status = _run_status([str(fixture_dir), "--image", "img", "--warn", "0", "--fail-on", "warn"])
+
+    assert status == 0
+    out = capsys.readouterr().out
+    assert "Summary: 7 file(s) | 0 OK | 0 WARN | 0 ERROR | 0 CRITICAL | 7 skipped" in out
+    assert "Score: n/a (RubyCritic)" in out
+
+
+def test_end_to_end_dropped_files_count_for_the_gate(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(sample(analysed_modules=[], parse_errors=[])))
+
+    status = _run_status([str(fixture_dir), "--image", "img", "--warn", "0", "--fail-on", "warn"])
+
+    assert status == 2
+    assert "Summary: 7 file(s) | 0 OK | 7 WARN" in capsys.readouterr().out
+
+
+def test_end_to_end_invalid_json(fixture_dir, capsys, docker):
+    docker.configure(stdout="Score: 80\n", stderr=b"progress\n")
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 1
+
+    err = capsys.readouterr().err
+    assert err.startswith("progress\nError: could not parse the RubyCritic output from img: ")
+    assert "invalid JSON: " in err
+
+
+def test_end_to_end_structural_failure(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(sample(score="x")))
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 1
+
+    assert capsys.readouterr().err == (
+        "Error: could not parse the RubyCritic output from img: unexpected score\n"
+    )
+
+
+def test_end_to_end_success_discards_container_stderr(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(FIXTURE_OUTPUT), stderr=b"rubycritic progress\n")
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 0
+
+    assert "rubycritic progress" not in capsys.readouterr().err
+
+
+def test_end_to_end_container_failure(fixture_dir, capsys, docker):
+    docker.configure(run_status=1, stderr=b"boom\n")
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.err == "boom\nError: RubyCritic failed in img (exit 1)\n"
+    assert "Summary:" not in captured.out
+
+
+def test_end_to_end_mount_failure(fixture_dir, capsys, docker):
+    docker.configure(run_status=125, stderr=b"docker: mounts denied: nope\n")
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 1
+
+    assert capsys.readouterr().err == (
+        "docker: mounts denied: nope\n"
+        f"Error: Docker could not mount {fixture_dir.resolve()}; on Docker Desktop, share it "
+        "(or a parent folder) under Settings > Resources > File sharing, then retry\n"
+    )
+
+
+def test_end_to_end_docker_missing(fixture_dir, capsys, docker, monkeypatch):
+    monkeypatch.setattr(docker_runner.shutil, "which", lambda name: None)
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 1
+
+    assert "Error: docker not found on PATH" in capsys.readouterr().err
+    assert docker.get().calls == []
+
+
+def test_end_to_end_daemon_down(fixture_dir, capsys, docker):
+    fake = docker.configure(info=1)
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 1
+
+    assert "Error: the Docker daemon is not responding" in capsys.readouterr().err
+    assert fake.subcommands == ["info"]
+
+
+def test_end_to_end_pull_when_missing(fixture_dir, capsys, docker):
+    fake = docker.configure(stdout=json.dumps(FIXTURE_OUTPUT), inspect=1)
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 0
+
+    assert fake.subcommands == ["info", "image", "pull", "run"]
+    assert "Pulling img ...\n" in capsys.readouterr().err
+
+
+def test_end_to_end_pull_failure(fixture_dir, capsys, docker):
+    fake = docker.configure(inspect=1, pull=1)
+
+    assert _run_status([str(fixture_dir), "--image", "img"]) == 1
+
+    assert capsys.readouterr().err.endswith("Error: could not pull image img\n")
+    assert "run" not in fake.subcommands
+
+
+def test_end_to_end_unsendable_name_is_skipped(fixture_dir, capsys, docker):
+    (fixture_dir / "new\nline.rb").write_text("x\n")
+
+    _run_status([str(fixture_dir), "--image", "img"])
+
+    _args, kwargs = docker.get().run_call()
+    assert b"line.rb" not in kwargs["input"]
+    captured = capsys.readouterr()
+    assert "Warning: skipping file with a newline in its name: 'new\\nline.rb'\n" in captured.err
+    assert "Summary: 7 file(s) |" in captured.out

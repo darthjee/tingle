@@ -34,12 +34,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from code_check.file_size.file_analyzer import FileAnalyzer
 from code_check.palette import Palette
 from code_check.rubycritic.constants import Constants
-from code_check.rubycritic.docker_runner import DockerRunner
+from code_check.rubycritic.docker_runner import DockerRunner, decode, write_stderr
 from code_check.rubycritic.errors import RubycriticError
 from code_check.rubycritic.flags import FLAGS
 from code_check.rubycritic.image import resolve_image
+from code_check.rubycritic.output_parser import OutputFormatError, ParsedOutput, parse
+from code_check.rubycritic.reporter import Reporter
 from code_check.rubycritic.selection import Selection, select_files
 from common.arg_parser import ArgParser
 
@@ -160,6 +163,50 @@ class CheckRubycritic:
             sys.exit(0)
         return selection
 
+    @staticmethod
+    def _parse_output(proc, lines: list[str], image: str) -> ParsedOutput:
+        """Parse the container stdout; on a contract break pass its stderr through and fail."""
+        try:
+            return parse(decode(proc.stdout), lines)
+        except OutputFormatError as exc:
+            write_stderr(proc)
+            raise RubycriticError(
+                f"could not parse the RubyCritic output from {image}: {exc.reason}"
+            ) from exc
+
+    @staticmethod
+    def _gate_failed(analyzer: FileAnalyzer, parsed: ParsedOutput, fail_on: str | None) -> bool:
+        """Return True when `--fail-on` is set and any (non-PARSE) file reaches it."""
+        if fail_on is None:
+            return False
+        return any(analyzer.reaches(r.complexity, fail_on) for r in parsed.results.values())
+
+    def _execute(self, options: dict) -> int:
+        """Run the whole analysis for validated `options`; return the exit status.
+
+        Every failure raises `RubycriticError`.
+        """
+        target, root = self._resolve_target(options["path"])
+        image = resolve_image(options["image"])
+        out = Palette(sys.stdout)
+        self._print_header(out, target, options, image)
+        selection = self._select(out, target, root)
+
+        runner = DockerRunner(image)
+        runner.preflight()
+        runner.ensure_image()
+        proc = runner.run(root, selection.lines)
+        runner.check_outcome(proc, root)
+        parsed = self._parse_output(proc, selection.lines, image)
+
+        analyzer = FileAnalyzer(options["warn"], options["error"], options["critical"])
+        reporter = Reporter(analyzer, target, root, out)
+        for line, message in sorted(parsed.parse_errors.items()):
+            self._warn(f"cannot parse {reporter.display_path(line)}: {message}")
+        reporter.report(parsed, options["min_level"], options["top"])
+        # The gate uses every file, not only the displayed rows.
+        return 2 if self._gate_failed(analyzer, parsed, options["fail_on"]) else 0
+
     def run(self, args: list[str]) -> None:
         """Entry point for the subcommand."""
         arg_parser = ArgParser(FLAGS, prog=PROG)
@@ -171,16 +218,9 @@ class CheckRubycritic:
 
         cli = self._parse(arg_parser, args)
         try:
-            options = self._validate(self._apply_defaults(cli))
-            target, root = self._resolve_target(options["path"])
-            image = resolve_image(options["image"])
-            out = Palette(sys.stdout)
-            self._print_header(out, target, options, image)
-            selection = self._select(out, target, root)
-            runner = DockerRunner(image)
-            runner.preflight()
-            runner.ensure_image()
-            proc = runner.run(root, selection.lines)
-            runner.check_outcome(proc, root)
+            status = self._execute(self._validate(self._apply_defaults(cli)))
         except RubycriticError as exc:
             self._fail(exc.message)
+            raise  # unreachable: _fail exits
+        if status:
+            sys.exit(status)
