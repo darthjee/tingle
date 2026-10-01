@@ -218,7 +218,7 @@ class CheckRubycritic:
         reporter = Reporter(analyzer, target, root, out)
         for line, message in sorted(parsed.parse_errors.items()):
             self._warn(f"cannot parse {reporter.display_path(line)}: {message}")
-        reporter.report(parsed, options["min_level"], options["top"])
+        reporter.report(parsed, options["min_level"], options["top"], options["details"])
         # The gate uses every file, not only the displayed rows.
         return 2 if self._gate_failed(analyzer, parsed, options["fail_on"]) else 0
 

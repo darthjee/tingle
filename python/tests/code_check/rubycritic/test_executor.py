@@ -626,3 +626,19 @@ def test_end_to_end_malformed_methods_fails_without_details(fixture_dir, capsys,
     assert capsys.readouterr().err == (
         "Error: could not parse the RubyCritic output from img: unexpected methods\n"
     )
+
+
+def test_end_to_end_details(fixture_dir, capsys, docker, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    status = _run_status([
+        str(fixture_dir), "--image", "img", "--warn", "10", "--error", "50", "--details", "1",
+    ])
+
+    assert status == 0
+    out = capsys.readouterr().out.splitlines()
+    index = out.index("🔴 ERROR               72.25  B           14            0  fixture/complex.rb")
+    assert out[index + 1] == f"{'':<16} {72.25:>10.2f}  Complex#run  (fixture/complex.rb:2)"
+    assert out[index + 2].startswith("⚠️  WARN")
+    assert "  DupA#a  (fixture/dup_a.rb:2)" in out[index + 3]
+    assert out[index + 4].endswith("fixture/dup_b.rb")

@@ -4,6 +4,8 @@ Mirrors `code_check.file_size.reporter.Reporter`: one row per file, coloured
 by level, sorted by complexity (highest first, ties by path), then the
 `⛔ PARSE` rows for the files that could not be parsed. `--min-level` and
 `--top` only filter the level rows; the summary always counts every file.
+With `details` set, each shown level row is followed by dim lines for its
+most complex methods (never under PARSE rows).
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from pathlib import Path
 
 from code_check.file_size.file_analyzer import FileAnalyzer
 from code_check.palette import Palette
-from code_check.rubycritic.output_parser import FileResult, ParsedOutput
+from code_check.rubycritic.output_parser import FileResult, MethodResult, ParsedOutput
 
 PARSE_LABEL = "⛔ PARSE"
 
@@ -51,21 +53,53 @@ class Reporter:
         shown = [r for r in rows if self._analyzer.reaches(r[1].complexity, min_level)]
         return shown[:top] if top > 0 else shown
 
-    def report(self, parsed: ParsedOutput, min_level: str = "ok", top: int = 0) -> None:
-        """Print the table (or the empty-filter note) and the summary."""
+    def report(
+        self,
+        parsed: ParsedOutput,
+        min_level: str = "ok",
+        top: int = 0,
+        details: int | None = None,
+    ) -> None:
+        """Print the table (or the empty-filter note) and the summary.
+
+        `details` is the number of methods listed under each shown level row
+        (`0` = all, `None` = no method lines).
+        """
         rows = self.sort_rows(parsed.results)
         shown = self.select_shown(rows, min_level, top)
         parse_rows = sorted(parsed.parse_errors)
 
         if shown or parse_rows:
-            self._print_table(shown, parse_rows)
+            methods = None if details is None else (parsed.methods or {})
+            self._print_table(shown, parse_rows, methods, details)
         else:
             print(f"No files at or above {min_level.upper()}.")
 
         self._print_summary(rows, len(parse_rows), parsed.score)
 
-    def _print_table(self, rows: list[tuple[str, FileResult]], parse_rows: list[str]) -> None:
-        """Print the header, the level rows and the PARSE rows."""
+    @staticmethod
+    def select_methods(methods: list[MethodResult], details: int) -> list[MethodResult]:
+        """Keep the first `details` methods (all of them when `details` is 0)."""
+        return methods[:details] if details > 0 else methods
+
+    def _print_methods(self, line: str, methods: list[MethodResult]) -> None:
+        """Print one dim line per method, the score under the Complexity column."""
+        c = self._palette
+        path = self.display_path(line)
+        for method in methods:
+            print(
+                f"{c.DIM}{'':<16} {method.score:>10.2f}  {method.name}  "
+                f"({path}:{method.line}){c.RESET}"
+            )
+
+    def _print_table(
+        self,
+        rows: list[tuple[str, FileResult]],
+        parse_rows: list[str],
+        methods: dict[str, list[MethodResult]] | None = None,
+        details: int | None = None,
+    ) -> None:
+        """Print the header, the level rows (with their method lines) and the PARSE rows."""
         c = self._palette
         print(
             f"{'Status':<16} {'Complexity':>10}  {'Rating':<6}  {'Smells':>6}  "
@@ -80,6 +114,8 @@ class Reporter:
                 f"{result.complexity:>10.2f}  {result.rating:<6}  {result.smells:>6}  "
                 f"{round(result.duplication):>11}  {self.display_path(line)}"
             )
+            if methods is not None and details is not None:
+                self._print_methods(line, self.select_methods(methods.get(line, []), details))
         for line in parse_rows:
             print(
                 f"{c.GRAY}{PARSE_LABEL:<16}{c.RESET} "
