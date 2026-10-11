@@ -23,7 +23,7 @@ def _config(contexts=None, namespaces=None, pods=None, pass_through=False):
 def test_no_subcommand_returns_top_level_verbs(mock_config_cls, mock_detect):
     mock_config_cls.return_value = _config()
 
-    assert complete([""]) == ["switch", "list", "shell", "configure"]
+    assert complete([""]) == ["switch", "list", "shell", "configure", "example"]
     mock_config_cls.assert_not_called()
     mock_detect.assert_not_called()
 
@@ -33,7 +33,7 @@ def test_no_subcommand_returns_top_level_verbs(mock_config_cls, mock_detect):
 def test_partial_subcommand_still_returns_top_level_verbs(mock_config_cls, mock_detect):
     mock_config_cls.return_value = _config()
 
-    assert complete(["sw"]) == ["switch", "list", "shell", "configure"]
+    assert complete(["sw"]) == ["switch", "list", "shell", "configure", "example"]
 
 
 @patch("kube.completion.scope.detect_active_scope")
@@ -167,3 +167,17 @@ def test_missing_kubectl_degrades_to_static_only(mock_config_cls, mock_detect):
 
     assert complete(["shell", ""]) == []
     assert complete(["list", ""]) == ["namespace", "pods", "--json"]
+
+
+@patch("kube.completion.scope.detect_active_scope")
+@patch("kube.completion.KubeConfig")
+def test_top_level_verbs_include_example(mock_config_cls, mock_detect):
+    assert "example" in complete([""])
+
+
+@patch("kube.completion.scope.detect_active_scope")
+@patch("kube.completion.KubeConfig")
+def test_example_has_no_further_completion_and_skips_config(mock_config_cls, mock_detect):
+    assert complete(["example", ""]) == []
+    mock_config_cls.assert_not_called()
+    mock_detect.assert_not_called()

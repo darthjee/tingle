@@ -18,6 +18,9 @@ Only `KubeConfig()` (a local file read) and `scope.detect_active_scope()`
 (a single local `kubectl config current-context` call) are used for dynamic
 candidates — never `inventory.list_namespaces()`/`inventory.list_pods()`
 (live cluster/API queries), keeping every keystroke fast and side-effect-free.
+`configure` and `example` are config-free: their candidates are static (and
+`example` takes no arguments at all), so they return before `KubeConfig()`
+is ever constructed.
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from __future__ import annotations
 from kube import scope
 from kube.config import KubeConfig
 
-SUBCOMMANDS = ["switch", "list", "shell", "configure"]
+SUBCOMMANDS = ["switch", "list", "shell", "configure", "example"]
 LIST_TARGETS = ["namespace", "pods", "--json"]
 CONFIGURE_TARGETS = ["context", "namespace", "pod"]
 
@@ -39,6 +42,8 @@ def complete(argv: list[str]) -> list[str]:
         return list(SUBCOMMANDS)
     if subcommand == "configure":
         return _complete_configure(positionals)
+    if subcommand == "example":
+        return []
 
     config = KubeConfig()
     active_scope = _active_scope(config)
