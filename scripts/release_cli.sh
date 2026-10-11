@@ -32,7 +32,7 @@ set -euo pipefail
 
 REPO_API="https://api.github.com/repos/darthjee/tingle"
 REPO_UPLOADS="https://uploads.github.com/repos/darthjee/tingle"
-INCLUDES="bin commands completions install shell python node README.md LICENSE"
+INCLUDES="bin commands completions examples install shell python node README.md LICENSE"
 PRUNE_PATTERN='^python/(tests/|Dockerfile$|pyproject\.toml$|requirements-dev\.txt$)'
 GITKEEP_PATTERN='(^|/)\.gitkeep$'
 SENSITIVE_PATTERN='(^|/)(\.env|\.netrc|\.npmrc|id_[a-z0-9_]+|.*\.pem|.*\.key|.*\.p12|.*\.pfx)$'
