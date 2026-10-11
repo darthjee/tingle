@@ -240,6 +240,21 @@ still the only AWS setting in kube's config. It is ignored when the
 environment already has full credentials. See [flow.md](flow.md#kube-aws-credential-pre-check)
 for the runtime sequence.
 
+#### kube example subcommand
+
+`tingle kube example` takes no arguments or flags and parses to
+`{"subcommand": "example"}`. It prints `examples/kube/end_to_end.txt`
+verbatim to stdout. That is a plain-ASCII end-to-end walkthrough owned by
+the `examples` agent. The file is found from the tingle install root
+(`Path(__file__).resolve().parents[2] / "examples" / "kube" / "end_to_end.txt"`),
+never from the cwd. The release zip uses the same layout, because `examples`
+is in the `INCLUDES` allowlist (see
+[tingle-release-zip.md](tingle-release-zip.md)).
+
+`example` is dispatched before `KubeConfig()` is loaded. It never reads the
+kube config, runs the AWS credential pre-check, or touches the cluster. Its
+shell completion follows the same rule.
+
 #### Test folder location
 
 Tests for `python/` live under `python/tests/`, mirroring the package layout
