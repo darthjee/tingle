@@ -1,6 +1,6 @@
 # Project Instructions
 
-Last updated: 2026-09-28
+Last updated: 2026-10-11
 
 You are an assistant helping maintain Tingle, a personal collection of small,
 independent utility scripts.
@@ -67,6 +67,8 @@ full descriptions. Delegate work to the agent that owns the area:
   structure, contributing, issues, plans, specs).
 - `guide` — content under `docs/guides/` (end-user guides, one per `tingle`
   command, and the guides index).
+- `examples` — content under `examples/` (shipped, terminal-printed
+  walkthroughs, one folder per `tingle` command).
 
 ## Documentation
 
