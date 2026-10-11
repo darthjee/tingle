@@ -87,3 +87,15 @@ def test_build_returns_usable_argument_parser():
     assert isinstance(parser, argparse.ArgumentParser)
     # Should not raise.
     parser.print_help()
+
+
+def test_parse_example_identifies_subcommand():
+    result = KubeArgParser().parse(["example"])
+
+    assert result == {"subcommand": "example"}
+
+
+@pytest.mark.parametrize("extra", [["foo"], ["--json"]])
+def test_parse_example_rejects_extra_arguments(extra):
+    with pytest.raises(SystemExit):
+        KubeArgParser().parse(["example", *extra])
