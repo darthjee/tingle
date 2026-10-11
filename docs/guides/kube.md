@@ -25,6 +25,22 @@ and open a shell in a pod with short commands such as
 your AWS credentials work, so you get a clear message instead of a confusing
 `kubectl` error.
 
+## Step-by-step example
+
+For a complete walkthrough, from configuring your aliases to opening a shell
+in a pod, run:
+
+```
+tingle kube example
+```
+
+It just prints the walkthrough: it works without any config file, AWS
+credentials or cluster access. It is long, so you may want to page it:
+
+```
+tingle kube example | less
+```
+
 ## Prerequisites
 
 These tools must be installed and on your `PATH`:
@@ -48,6 +64,7 @@ tingle kube shell <namespace_alias> <pod_alias>
 tingle kube configure context
 tingle kube configure namespace
 tingle kube configure pod
+tingle kube example
 ```
 
 Note the argument order for `list`: `--json` goes right after `list`, before
@@ -63,6 +80,7 @@ tingle kube list pods --namespace web
 tingle kube list --json pods --namespace web
 tingle kube shell web api
 tingle kube configure context
+tingle kube example
 ```
 
 If you enabled bash completion with `tingle install`, pressing Tab completes
