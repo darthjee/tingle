@@ -1,0 +1,160 @@
+tingle kube - end-to-end example
+================================
+
+This walkthrough takes you from an empty configuration to a shell inside a
+pod. Every name below is fictional; replace it with your own values.
+
+Setup used in this example:
+  account   123456789012 (AWS documentation placeholder), region us-east-1
+  context   demo -> arn:aws:eks:us-east-1:123456789012:cluster/demo-cluster
+  namespace shop -> shop-backend        (belongs to context demo)
+  pod       api  -> prefix "shop-api-"  (lives in namespace shop)
+  pods      shop-api-5f7c9d8b6a-k3m8p, shop-api-5f7c9d8b6a-q7n2w
+
+Lines starting with "$" are commands you type. In the configure steps, the
+text after each prompt is the answer you type.
+
+
+0. Before you start
+-------------------
+  - aws, kubectx and kubectl must be on your PATH.
+  - The EKS context must already be in your kubeconfig, e.g.:
+      $ aws eks update-kubeconfig --region us-east-1 --name demo-cluster
+  - AWS credentials: either export them (export AWS_ACCESS_KEY_ID=... and
+    export AWS_SECRET_ACCESS_KEY=...) or rely on an aws_profile (default:
+    "default").
+
+
+1. Create the context alias
+---------------------------
+  Purpose: give the EKS context a short alias, "demo".
+
+  $ tingle kube configure context
+  kube: created new config at /home/you/.tingle/kube/config.json
+  No context aliases configured yet.
+  What would you like to do?
+  1) create
+  2) edit
+  3) remove
+  Select an action: 1
+  Alias: demo
+  Real context name/ARN: arn:aws:eks:us-east-1:123456789012:cluster/demo-cluster
+  kube configure: context alias 'demo' saved.
+
+  Hint: the real name/ARN must match `kubectl config current-context`
+  exactly, otherwise namespace and pod aliases are not resolved.
+  (The "created new config" line only appears the first time.)
+
+
+2. Create the namespace alias
+-----------------------------
+  Purpose: inside context demo, alias namespace "shop-backend" as "shop".
+
+  $ tingle kube configure namespace
+  Configured context aliases:
+  1) demo
+  Select a context alias: 1
+  No namespace aliases configured yet for 'demo'.
+  What would you like to do?
+  1) create
+  2) edit
+  3) remove
+  Select an action: 1
+  Alias: shop
+  Real namespace name: shop-backend
+  kube configure: namespace alias 'shop' saved under 'demo'.
+
+
+3. Create the pod alias
+-----------------------
+  Purpose: inside context demo, alias pods named "shop-api-..." as "api".
+
+  $ tingle kube configure pod
+  Configured context aliases:
+  1) demo
+  Select a context alias: 1
+  No pod aliases configured yet for 'demo'.
+  What would you like to do?
+  1) create
+  2) edit
+  3) remove
+  Select an action: 1
+  Alias: api
+  prefix: shop-api-
+  id_pattern (optional, regex): ^[a-z0-9]{9,10}-[a-z0-9]{5}$
+  Configured namespace aliases for 'demo':
+    - shop
+  namespace alias (optional): shop
+  kube configure: pod alias 'api' saved under 'demo'.
+
+  Hint: id_pattern is set explicitly because Deployment pod names
+  (<hash>-<5 chars>) do not match the default pod_id_pattern
+  (^[a-z0-9]{10}$); leaving it empty uses that default.
+
+  Resulting ~/.tingle/kube/config.json:
+
+  {
+    "version": 1,
+    "contexts": {
+      "demo": "arn:aws:eks:us-east-1:123456789012:cluster/demo-cluster"
+    },
+    "namespaces": {
+      "demo": {
+        "shop": "shop-backend"
+      }
+    },
+    "pods": {
+      "demo": {
+        "api": {
+          "prefix": "shop-api-",
+          "id_pattern": "^[a-z0-9]{9,10}-[a-z0-9]{5}$",
+          "namespace": "shop"
+        }
+      }
+    }
+  }
+
+
+4. Switch to the context
+------------------------
+  Purpose: make demo the active context (runs kubectx, then checks it).
+
+  $ tingle kube switch demo
+  kube switch: now using context 'demo'
+    (arn:aws:eks:us-east-1:123456789012:cluster/demo-cluster)
+
+  (The message is printed on one line; it is wrapped here to fit.)
+
+
+5. List namespaces
+------------------
+  Purpose: list the cluster's namespaces, showing the aliases you set.
+
+  $ tingle kube list namespace
+  default
+  kube-system
+  shop -> shop-backend
+
+
+6. List pods
+------------
+  Purpose: list the pods matched by each pod alias in namespace shop.
+
+  $ tingle kube list pods --namespace shop
+  api:
+    - shop-api-5f7c9d8b6a-k3m8p
+    - shop-api-5f7c9d8b6a-q7n2w
+
+
+7. Open a shell
+---------------
+  Purpose: open an interactive shell in an "api" pod in namespace shop.
+
+  $ tingle kube shell shop api
+  1) shop-api-5f7c9d8b6a-k3m8p
+  2) shop-api-5f7c9d8b6a-q7n2w
+  Select a pod: 1
+  root@shop-api-5f7c9d8b6a-k3m8p:/#
+
+  When more than one pod matches you pick one; with a single match the
+  shell opens directly. Type `exit` to leave the pod.

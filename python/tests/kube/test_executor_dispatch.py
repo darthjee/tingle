@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from kube.executor import Kube
 
 
@@ -72,3 +74,31 @@ def test_run_prints_notice_when_set_without_pass_through(
 
     out = capsys.readouterr().out
     assert "kube: created new config at /some/path" in out
+
+
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.KubeConfig")
+def test_run_example_does_not_load_config_or_check_aws(
+    mock_config_cls, mock_check_aws, capsys
+):
+    Kube().run(["example"])
+
+    mock_config_cls.assert_not_called()
+    mock_check_aws.assert_not_called()
+    assert capsys.readouterr().out
+
+
+@patch("kube.executor.check_aws_credentials")
+@patch("kube.executor.KubeConfig")
+def test_run_example_exits_quietly_on_broken_pipe(
+    mock_config_cls, mock_check_aws, capsys
+):
+    with patch("sys.stdout") as mock_stdout:
+        mock_stdout.write.side_effect = BrokenPipeError
+        mock_stdout.fileno.side_effect = OSError
+        with pytest.raises(SystemExit):
+            Kube().run(["example"])
+
+    mock_config_cls.assert_not_called()
+    mock_check_aws.assert_not_called()
+    assert "Traceback" not in capsys.readouterr().err

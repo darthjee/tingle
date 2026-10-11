@@ -1,6 +1,6 @@
 """parser.py — Subcommand-aware argument parser for kube.
 
-`switch`, `list`, `shell`, and `configure` each take a different argument
+`switch`, `list`, `shell`, `configure`, and `example` each take a different argument
 shape, so this wraps `argparse.ArgumentParser` with `add_subparsers()`
 directly rather than the flat flag-list `python/common/arg_parser.py`
 supports (which stays scoped to `code_check file_size`).
@@ -11,6 +11,7 @@ Usage:
     tingle kube list pods --namespace <alias>
     tingle kube shell <namespace_alias> <pod_alias>
     tingle kube configure context|namespace|pod
+    tingle kube example
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ class KubeArgParser:
         self._build_list(subparsers)
         self._build_shell(subparsers)
         self._build_configure(subparsers)
+        self._build_example(subparsers)
 
         return parser
 
@@ -78,3 +80,10 @@ class KubeArgParser:
         configure_subparsers.add_parser("context", help="Configure a context alias")
         configure_subparsers.add_parser("namespace", help="Configure a namespace alias")
         configure_subparsers.add_parser("pod", help="Configure a pod alias")
+
+    @staticmethod
+    def _build_example(subparsers) -> None:
+        subparsers.add_parser(
+            "example",
+            help="Print an end-to-end walkthrough of configuring and using kube",
+        )

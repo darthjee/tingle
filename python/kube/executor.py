@@ -12,6 +12,7 @@ Usage:
     tingle kube configure context
     tingle kube configure namespace
     tingle kube configure pod
+    tingle kube example
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from kube.auth import check_aws_credentials, detect_credential_source
 from kube.config import KubeConfig
 from kube.configure import configure_context, configure_namespace, configure_pod
 from kube.constants import Constants
+from kube.example import print_example
 from kube.exec import exec_shell, prompt_pod_choice
 from kube.inventory import get_pod, list_namespaces, list_pods
 from kube.matching import match_pods
@@ -37,11 +39,18 @@ from kube.scope import (
 
 
 class Kube:
-    """Orchestrate the kube subcommands: switch, list, shell, configure."""
+    """Orchestrate the kube subcommands: switch, list, shell, configure, example."""
 
     def run(self, args: list[str]) -> None:
         """Entry point for the script."""
         parsed = KubeArgParser().parse(args)
+
+        # `example` is static help text: never load/create the config or
+        # touch AWS/kubectl.
+        if parsed["subcommand"] == "example":
+            print_example()
+            return
+
         config = KubeConfig()
 
         if config.notice:

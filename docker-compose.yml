@@ -5,3 +5,7 @@ services:
       dockerfile: python/Dockerfile
     volumes:
       - ./python:/app
+      # python/ is mounted at /app, so the install root resolves to `/`:
+      # expose the shipped examples and the release script there too.
+      - ./examples:/examples:ro
+      - ./scripts:/scripts:ro

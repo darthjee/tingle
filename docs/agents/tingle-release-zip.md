@@ -10,7 +10,7 @@ contract as its authoritative spec.
 - **Zip name**: `tingle-<tag>.zip`, where `<tag>` is the plain semver tag
   (`X.Y.Z`, no `v` prefix — per #49).
 - **`INCLUDES` allowlist** (fail-closed): top-level `bin commands completions
-  install shell python node README.md LICENSE`, resolved via `git ls-files` (tracked
+  examples install shell python node README.md LICENSE`, resolved via `git ls-files` (tracked
   files only), then pruned of:
   - `python/tests/`
   - `python/Dockerfile`
