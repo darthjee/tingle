@@ -58,6 +58,7 @@ FROM ${BASE_IMAGE}
 COPY --from=fta /opt/fta/bin/fta /usr/local/bin/fta
 COPY --from=deps /opt/tingle_js_complexity/ /opt/tingle_js_complexity/
 COPY entrypoint.js /opt/tingle_js_complexity/
+COPY lib/ /opt/tingle_js_complexity/lib/
 
 USER 1000:1000
 
