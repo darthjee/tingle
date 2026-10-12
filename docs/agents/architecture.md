@@ -116,26 +116,59 @@ by all `code_check` subcommands sit one level up in `python/code_check/`:
 (`default_path`, `load_section`, `ConfigError`) and `subcommands.py`
 (`SUBCOMMAND_NAMES`, import-light so completion can read it).
 
-`python/code_check/rubycritic/` follows the same layout:
+`python/code_check/docker_check/` is the base for Docker-backed checks. It
+holds the tool-agnostic plumbing (originally extracted from `rubycritic`), so
+a new check only supplies a parser, a reporter, a config schema, flags, an
+image repository and an error subclass:
 
-- `executor.py` — `CheckRubycritic` (`PROG = "tingle code_check rubycritic"`).
-  `run` calls `_execute(options)` and catches `RubycriticError` in one place,
-  printing it and exiting 1.
-- `constants.py` — thresholds, default excludes, the image repository, the
-  `VERSION` file path, the `docker info` timeout, the mount-error markers
-  and the smell types that are not counted.
-- `errors.py` — `RubycriticError`, the user-facing error.
-- `flags.py` — the import-light `FLAGS` list (shared by the parser and
-  completion).
-- `image.py` — `resolve_image`: `--image`, or the default image.
-- `selection.py` — `Selection`: the mount root, the `.rb` paths sent on
-  stdin and the warnings for names that cannot be sent.
-- `docker_runner.py` — `DockerRunner`: preflight, pull, run and outcome check.
-- `output_parser.py` — checks the container's JSON and maps its paths back to
-  the sent lines (`OutputFormatError` on a contract break). The JSON shape is
-  pinned in
-  [tingle-rubycritic-image.md](tingle-rubycritic-image.md#rubycritic-json-contract).
-- `reporter.py` — the header, table, summary and `Score:` line.
+- `constants.py` — `Constants.DOCKER_INFO_TIMEOUT` (`30`),
+  `MOUNT_ERROR_MARKERS` and `VERSION_FILE` (`shell/linux/VERSION`, located
+  relative to the module path, not the working directory).
+- `errors.py` — `DockerCheckError(message)`, the base user-facing error
+  (stores `.message`); each check subclasses it.
+- `docker_runner.py` — `DockerRunner(image, *, error_class, command, tool)`:
+  `preflight`, `ensure_image`, `run`, `run_args` and `check_outcome`, plus
+  the `DOCKER`, `decode` and `write_stderr` helpers.
+- `image.py` — `resolve_image(cli_image, repo, version_file, *,
+  error_class)`: `--image` when given, else `<repo>:<version>`.
+- `selection.py` — `Selection` (the mount root, the paths sent on stdin and
+  the warnings for names that cannot be sent), `unsendable_reason`,
+  `build_selection` and `select_files(target, root, *, extensions, excludes,
+  ignore=None, include=None, gitignore=True, skip=None)`.
+- `executor.py` — `DockerCheck`, the base class for each check's executor
+  (`CheckRubycritic`, and later `CheckJsComplexity`).
+
+How the check-specific parts are passed in:
+
+- `error_class` — every shared function or class that raises takes the
+  check's `DockerCheckError` subclass, so each check keeps its own error
+  type (`RubycriticError` for `rubycritic`).
+- `command` and `tool` — used only in the two tool-specific runner
+  messages: `docker not found on PATH; {command} needs Docker to run {tool}`
+  and `{tool} failed in {image} (exit {status})`. Every other message is
+  shared as is.
+- `repo` and `version_file` — the image repository, and the `VERSION` file
+  passed **at call time** from the check's own `Constants.VERSION_FILE`
+  (never captured at import time, so tests can patch it).
+- `extensions` and `skip` — the file extensions to collect, and an optional
+  predicate called on each collected path (before symlink resolution); a
+  path for which it returns `True` is dropped silently. `skip=None` keeps
+  every collected path.
+- `DockerCheck` class attributes and hooks — `FLAGS`, `PROG`,
+  `CONFIG_SECTION`, `SINGLE_DEFAULTS`, `LIST_KEYS`, `THRESHOLD_KEYS`, the
+  error class, the config validator, the check's `select_files`, its "no
+  files" message, the value the `--fail-on` gate classifies, and
+  `_execute`. The base class owns the shared flow: argparse (exit 2 mapped
+  to 1), config load and merge, validation (the `--details` check runs only
+  when the check has a `details` option), target resolution, the
+  `Analyzing:` / `Thresholds:` / `Image:` / `Config:` header, file selection,
+  the `--fail-on` gate and `run` (no args prints help and exits 0; the
+  check's error prints `Error: ...` and exits 1). It never reads a
+  subcommand module's globals directly: a subclass reaches `select_files`
+  and `load_section` through its own module, so tests can keep patching
+  them there.
+- Display filtering (`--min-level` then `--top`) stays in each reporter:
+  the column layout and the row type differ, so only the rule is shared.
 
 The Docker runner contract, in short (the code and its tests are the
 reference for the full rules):
@@ -148,19 +181,55 @@ reference for the full rules):
   no-new-privileges --user <uid>:<gid> -v <root>:/src:ro -w /src <image>`,
   with the selected paths (relative to `<root>`) on stdin, one per line. All
   commands are list-form, never through a shell.
-- Default image: `darthjee/tingle_rubycritic:<version>`, where `<version>` is
-  read from `shell/linux/VERSION`, located relative to the module path (not
-  the working directory).
+- Default image: `<repo>:<version>`, where `<version>` is read from
+  `shell/linux/VERSION` with all whitespace removed; a missing or empty file
+  raises the check's error, asking for `--image`.
 - No Docker-in-Docker: tingle calls the host's `docker`, it never runs
   inside a container itself.
 
-**`FileCollector` reuse.** `rubycritic` imports `FileCollector` straight
-from `code_check.file_size.file_collector` and passes the keyword-only
-`binary_check=False` (the default `True` keeps `file_size`'s binary skip).
-This is an intentional exception to the "move a helper up once a second
-consumer needs it" rule below: the collector stays in `file_size/` until a
-third consumer, or a change that only one side needs, makes the move worth
-it.
+`python/code_check/rubycritic/` follows the same layout, built on
+`docker_check`:
+
+- `executor.py` — `CheckRubycritic(DockerCheck)`
+  (`PROG = "tingle code_check rubycritic"`), with `_parse_output` (and its
+  `could not parse the RubyCritic output` message), `_check_methods` and
+  `_execute`. `run` comes from `DockerCheck`, which catches
+  `RubycriticError` in one place, printing it and exiting 1.
+- `constants.py` — thresholds, default details, default excludes,
+  `EXTENSIONS` (`.rb`), the image repository (`darthjee/tingle_rubycritic`)
+  and the smell types that are not counted. It keeps `VERSION_FILE`,
+  `DOCKER_INFO_TIMEOUT` and `MOUNT_ERROR_MARKERS`, assigned from
+  `docker_check`.
+- `errors.py` — `RubycriticError(DockerCheckError)`, the user-facing error.
+- `config.py` — the `rubycritic` config section schema and `validate`.
+- `flags.py` — the import-light `FLAGS` list (shared by the parser and
+  completion).
+- `image.py` — thin wrapper: `resolve_image(cli_image, version_file=None)`
+  binds the rubycritic repository, `Constants.VERSION_FILE` and
+  `RubycriticError`. The default image stays
+  `darthjee/tingle_rubycritic:<version>`.
+- `selection.py` — thin wrapper: `select_files(target, root, *,
+  excludes=None, ignore=None, include=None, gitignore=True)` binds the `.rb`
+  extension and the default excludes; it re-exports `Selection`,
+  `unsendable_reason` and `build_selection`.
+- `docker_runner.py` — thin wrapper: a `DockerRunner(image)` subclass that
+  binds `RubycriticError`, `"tingle code_check rubycritic"` and
+  `"RubyCritic"`; it re-exports `decode` and `write_stderr`.
+- `output_parser.py` — checks the container's JSON and maps its paths back to
+  the sent lines (`OutputFormatError` on a contract break). The JSON shape is
+  pinned in
+  [tingle-rubycritic-image.md](tingle-rubycritic-image.md#rubycritic-json-contract).
+- `reporter.py` — the header, table, summary and `Score:` line, plus its
+  display filtering.
+
+**`FileCollector` reuse.** `docker_check.selection` imports `FileCollector`
+straight from `code_check.file_size.file_collector` and passes the
+keyword-only `binary_check=False` and `outside_symlinks=False` (the defaults
+keep `file_size`'s behaviour). Every Docker-backed check reaches the
+collector through `docker_check`, never directly. This is an intentional
+exception to the "move a helper up once a second consumer needs it" rule
+below: the collector stays in `file_size/` until a change that only one side
+needs makes the move worth it.
 
 #### Subcommand dispatch
 
@@ -199,7 +268,7 @@ subcommand in its own sub-package. `python/code_check/` is the reference:
 - Code used by a single subcommand stays in that subcommand's package. Move
   a helper up to the parent package (or to `python/common/`) only once a
   second consumer needs it. The one current exception is `FileCollector`,
-  shared by `file_size` and `rubycritic` (see above).
+  shared by `file_size` and `docker_check` (see above).
 - When an existing command becomes a subcommand, its old entry point stays
   as a thin shim so existing callers keep working. `python/check_file_size/`
   (`__init__.py`, `main.py`) is that shim: it forwards to
@@ -263,8 +332,10 @@ under `python/` (e.g. `python/tests/code_check/file_size/`,
 a top-level `tests/`. Future Python commands under this repo should follow
 the same pattern.
 
-The `rubycritic` tests mock `shutil.which` and `subprocess.run`, so Docker
-never runs in the test suite; a shared container output sample lives in
+The `docker_check` tests (`python/tests/code_check/docker_check/`, one file
+per module, driving `DockerCheck` through a minimal fake check) and the
+`rubycritic` tests mock `shutil.which` and `subprocess.run`, so Docker never
+runs in the test suite; a shared container output sample lives in
 `python/tests/code_check/rubycritic/sample_output.py`.
 
 ### `bin/`
