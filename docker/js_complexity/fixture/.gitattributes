@@ -1,0 +1,3 @@
+# Keep the fixture bytes as written: crlf.js has CRLF endings, bom.ts a
+# UTF-8 BOM and latin1.js ISO-8859-1 bytes.
+* -text
