@@ -1,0 +1,8 @@
+{
+  "name": "tingle_js_complexity",
+  "private": true,
+  "description": "Pinned npm tools for the tingle_js_complexity image (tingle code_check js_complexity).",
+  "engines": {
+    "node": "24.21.0"
+  }
+}
