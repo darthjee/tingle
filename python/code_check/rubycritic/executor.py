@@ -53,26 +53,24 @@ Examples
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from code_check.config import default_path, load_section
-from code_check.excludes import parse_excludes, resolve_excludes
+from code_check.config import load_section
+from code_check.docker_check.executor import DockerCheck
 from code_check.file_size.file_analyzer import FileAnalyzer
 from code_check.palette import Palette
-from code_check.rubycritic.config import ConfigError, validate
+from code_check.rubycritic.config import validate
 from code_check.rubycritic.constants import Constants
 from code_check.rubycritic.docker_runner import DockerRunner, decode, write_stderr
 from code_check.rubycritic.errors import RubycriticError
 from code_check.rubycritic.flags import FLAGS
 from code_check.rubycritic.image import resolve_image
-from code_check.rubycritic.output_parser import OutputFormatError, ParsedOutput, parse
+from code_check.rubycritic.output_parser import FileResult, OutputFormatError, ParsedOutput, parse
 from code_check.rubycritic.reporter import Reporter
 from code_check.rubycritic.selection import Selection, select_files
-from common.arg_parser import ArgParser
 
 # Program name shown in the help usage line.
 PROG = "tingle code_check rubycritic"
@@ -99,165 +97,35 @@ LIST_KEYS = ("ignore", "include")
 THRESHOLD_KEYS = ("warn", "error", "critical")
 
 
-class CheckRubycritic:
+class CheckRubycritic(DockerCheck):
     """Orchestrate the flow: parse → validate → resolve → select → run → report."""
 
-    @staticmethod
-    def _parse(arg_parser: ArgParser, args: list[str]) -> dict:
-        """Parse args, remapping argparse usage errors (exit 2) to exit 1.
+    PROG = PROG
+    FLAGS = FLAGS
+    CONFIG_SECTION = CONFIG_SECTION
+    SINGLE_DEFAULTS = SINGLE_DEFAULTS
+    LIST_KEYS = LIST_KEYS
+    THRESHOLD_KEYS = THRESHOLD_KEYS
+    DEFAULT_EXCLUDES = Constants.DEFAULT_EXCLUDES
+    NO_FILES_MESSAGE = "No Ruby files found for analysis."
+    error_class = RubycriticError
 
-        Exit status 2 is reserved for a failed `--fail-on` gate; `--help`
-        still exits 0.
-        """
-        try:
-            return arg_parser.parse(args)
-        except SystemExit as exc:
-            if exc.code not in (0, None):
-                raise SystemExit(1) from exc
-            raise
+    validate_config = staticmethod(validate)
 
     @staticmethod
-    def _fail(message: str) -> None:
-        """Print `Error: <message>` in red on stderr and exit with status 1."""
-        err = Palette(sys.stderr)
-        print(f"{err.RED}Error: {message}{err.RESET}", file=sys.stderr)
-        sys.exit(1)
+    def _load_section(name: str, path: Path | None = None) -> dict | None:
+        """Read the config section through this module's `load_section`."""
+        return load_section(name, path)
 
     @staticmethod
-    def _warn(message: str) -> None:
-        """Print `Warning: <message>` in yellow on stderr."""
-        err = Palette(sys.stderr)
-        print(f"{err.YELLOW}Warning: {message}{err.RESET}", file=sys.stderr)
-
-    @classmethod
-    def _load_config(cls, no_config: bool) -> tuple[dict, Path | None]:
-        """Load and validate the `rubycritic` config section.
-
-        Returns `(section, path)`; `path` is None when nothing was loaded
-        (`--no-config`, missing file or missing section). A `ConfigError`
-        prints `Error: <path>: <reason>` and exits with status 1.
-        """
-        if no_config:
-            return {}, None
-        path = default_path()
-        try:
-            section = load_section(CONFIG_SECTION, path)
-            if section is None:
-                return {}, None
-            return validate(section, path), path
-        except ConfigError as exc:
-            cls._fail(str(exc))
-            raise  # unreachable: _fail exits
+    def _select_files(target: Path, root: Path, **kwargs) -> Selection:
+        """Select the `.rb` files through this module's `select_files`."""
+        return select_files(target, root, **kwargs)
 
     @staticmethod
-    def _merge(cli: dict, config: dict) -> dict:
-        """Resolve every option from the CLI args and the validated config section.
-
-        Single values: built-in default < config < CLI (a config `null` means
-        unset). Lists: config then CLI, concatenated and deduplicated.
-        `--no-default-excludes` and `--no-gitignore` only turn behaviour off
-        and win over the config.
-        """
-        merged = {"path": cli["path"]}
-        for key, default in SINGLE_DEFAULTS.items():
-            if cli.get(key) is not None:
-                merged[key] = cli[key]
-            else:
-                merged[key] = config.get(key, default)
-        for key in LIST_KEYS:
-            merged[key] = list(dict.fromkeys(config.get(key, []) + (cli.get(key) or [])))
-        excludes = config.get("exclude", []) + parse_excludes(cli.get("exclude"))
-        merged["exclude"] = list(dict.fromkeys(excludes))
-        merged["no_default_excludes"] = bool(cli.get("no_default_excludes")) or config.get(
-            "no_default_excludes", False
-        )
-        merged["gitignore"] = not cli.get("no_gitignore") and config.get("gitignore", True)
-        return merged
-
-    @staticmethod
-    def _validate(options: dict) -> dict:
-        """Reject negative (or NaN) thresholds, a negative `--top`/`--details` and an empty `--image`."""
-        for key in THRESHOLD_KEYS:
-            value = options[key]
-            if not (value >= 0):  # also rejects NaN
-                raise RubycriticError(f"--{key} must be a number >= 0")
-        if options["top"] < 0:
-            raise RubycriticError("--top must be an integer >= 0")
-        if options.get("details") is not None and options["details"] < 0:
-            raise RubycriticError("--details must be an integer >= 0")
-        if options["image"] is not None and not options["image"]:
-            raise RubycriticError("--image must not be empty")
-        return options
-
-    @staticmethod
-    def _resolve_target(path: str) -> tuple[Path, Path]:
-        """Resolve `path` and its mount root (the directory, or a file's parent).
-
-        Raises `RubycriticError` when the path is missing or unreadable, or
-        when the mount root holds a `:` (Docker's `-v` cannot express it).
-        """
-        target = Path(path).resolve()
-        if not target.exists():
-            raise RubycriticError(f"path not found: {target}")
-        is_dir = target.is_dir()
-        mode = os.R_OK | os.X_OK if is_dir else os.R_OK
-        if not os.access(target, mode):
-            raise RubycriticError(f"path not readable: {target}")
-        root = target if is_dir else target.parent
-        if ":" in str(root):
-            raise RubycriticError(
-                f"cannot mount {root}: Docker volume paths cannot contain ':'"
-            )
-        return target, root
-
-    @staticmethod
-    def _print_header(
-        out: Palette, target: Path, options: dict, image: str, config: Path | None = None
-    ) -> None:
-        """Print the analysis header (target, thresholds, image and loaded config file)."""
-        thresholds = " | ".join(
-            f"{key}={format(options[key], 'g')}" for key in THRESHOLD_KEYS
-        )
-        print(f"{out.CYAN}{out.BOLD}Analyzing:{out.RESET} {target}")
-        print(f"{out.DIM}Thresholds: {thresholds}{out.RESET}")
-        print(f"{out.DIM}Image: {image}{out.RESET}")
-        if config is not None:
-            print(f"{out.DIM}Config: {config}{out.RESET}")
-        print()
-
-    @staticmethod
-    def _selection_options(options: dict) -> dict:
-        """Resolve the merged file-selection options into `select_files` keyword arguments.
-
-        The merged `exclude` names are added to the default excludes (dropped
-        when `no_default_excludes` is set), `ignore`/`include` default to no
-        globs and `gitignore` defaults to on.
-        """
-        return {
-            "excludes": resolve_excludes(
-                Constants.DEFAULT_EXCLUDES,
-                options.get("exclude") or [],
-                bool(options.get("no_default_excludes")),
-            ),
-            "ignore": options.get("ignore") or [],
-            "include": options.get("include") or [],
-            "gitignore": options.get("gitignore", True),
-        }
-
-    @classmethod
-    def _select(cls, out: Palette, target: Path, root: Path, options: dict) -> Selection:
-        """Select the files, warning about unsendable names.
-
-        Exits 0 with `No Ruby files found for analysis.` (before any Docker
-        call) when nothing is left to send.
-        """
-        selection = select_files(target, root, **cls._selection_options(options))
-        for message in selection.skipped:
-            cls._warn(message)
-        if not selection.lines:
-            print(f"{out.YELLOW}No Ruby files found for analysis.{out.RESET}")
-            sys.exit(0)
-        return selection
+    def _gate_value(result: FileResult) -> float:
+        """Classify a file for the `--fail-on` gate by its total Flog complexity."""
+        return result.complexity
 
     @staticmethod
     def _parse_output(proc, lines: list[str], image: str) -> ParsedOutput:
@@ -278,13 +146,6 @@ class CheckRubycritic:
                 f"the RubyCritic output from {image} has no per-method data; "
                 "--details needs a newer tingle_rubycritic image"
             )
-
-    @staticmethod
-    def _gate_failed(analyzer: FileAnalyzer, parsed: ParsedOutput, fail_on: str | None) -> bool:
-        """Return True when `--fail-on` is set and any (non-PARSE) file reaches it."""
-        if fail_on is None:
-            return False
-        return any(analyzer.reaches(r.complexity, fail_on) for r in parsed.results.values())
 
     def _execute(self, options: dict, config_file: Path | None = None) -> int:
         """Run the whole analysis for validated `options`; return the exit status.
@@ -313,24 +174,5 @@ class CheckRubycritic:
             self._warn(f"cannot parse {reporter.display_path(line)}: {message}")
         reporter.report(parsed, options["min_level"], options["top"], options["details"])
         # The gate uses every file, not only the displayed rows.
-        return 2 if self._gate_failed(analyzer, parsed, options["fail_on"]) else 0
-
-    def run(self, args: list[str]) -> None:
-        """Entry point for the subcommand."""
-        arg_parser = ArgParser(FLAGS, prog=PROG)
-
-        # No arguments → show help and exit
-        if len(args) == 0:
-            arg_parser.build().print_help()
-            sys.exit(0)
-
-        cli = self._parse(arg_parser, args)
-        config, config_file = self._load_config(cli["no_config"])
-        try:
-            options = self._validate(self._merge(cli, config))
-            status = self._execute(options, config_file)
-        except RubycriticError as exc:
-            self._fail(exc.message)
-            raise  # unreachable: _fail exits
-        if status:
-            sys.exit(status)
+        failed = self._gate_failed(analyzer, parsed.results.values(), options["fail_on"])
+        return 2 if failed else 0

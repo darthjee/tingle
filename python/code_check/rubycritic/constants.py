@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import ClassVar
 
+from code_check.docker_check.constants import Constants as DockerCheckConstants
 from code_check.file_size.constants import Constants as FileSizeConstants
 
 
@@ -31,12 +32,10 @@ class Constants:
     IMAGE_REPO: ClassVar[str] = "darthjee/tingle_rubycritic"
 
     # Runtime source of truth for the tingle version (from the repo root)
-    VERSION_FILE: ClassVar[Path] = (
-        Path(__file__).resolve().parents[3] / "shell" / "linux" / "VERSION"
-    )
+    VERSION_FILE: ClassVar[Path] = DockerCheckConstants.VERSION_FILE
 
     # Seconds to wait for `docker info`
-    DOCKER_INFO_TIMEOUT: ClassVar[int] = 30
+    DOCKER_INFO_TIMEOUT: ClassVar[int] = DockerCheckConstants.DOCKER_INFO_TIMEOUT
 
     # Smell types that come from Flay/Flog, not Reek (not counted as smells)
     NON_REEK_SMELL_TYPES: ClassVar[tuple[str, ...]] = (
@@ -44,6 +43,4 @@ class Constants:
     )
 
     # Container stderr fragments (lower-case) that mean a Docker mount failure
-    MOUNT_ERROR_MARKERS: ClassVar[tuple[str, ...]] = (
-        "mounts denied", "not shared from the host",
-    )
+    MOUNT_ERROR_MARKERS: ClassVar[tuple[str, ...]] = DockerCheckConstants.MOUNT_ERROR_MARKERS
