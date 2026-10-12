@@ -41,5 +41,4 @@ folder.
 
 | Topic | Specs | Parent issue | Sub-issues |
 |---|---|---|---|
-
-None currently.
+| `code_check js_complexity` | [code_check/js_complexity/](specs/code_check/js_complexity/README.md) | #315 | #316 #317 #318 #319 #320 #321 #322 #323 #324 #325 #326 #327 |
