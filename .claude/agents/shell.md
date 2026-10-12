@@ -14,13 +14,21 @@ You own everything inside `shell/` and `docker/`:
 - Bash/Shell scripts for simple file/OS-level operations and gluing together
   other CLI tools.
 - Docker images for `tingle code_check` checks, one sub-folder per image
-  (`docker/rubycritic/` builds `tingle_rubycritic`). Owned by the `shell` agent.
+  (`docker/rubycritic/` builds `tingle_rubycritic`, `docker/js_complexity/`
+  builds `tingle_js_complexity`). Owned by the `shell` agent.
 
 The `tingle_rubycritic` build context is `docker/rubycritic/`. Build it
 locally with `make rubycritic-image`, which produces `tingle_rubycritic:dev`.
 Version bumps (Ruby base image tag and digest, RubyCritic gem) follow the
 "Bumping versions" section of
 [`docs/agents/tingle-rubycritic-image.md`](../../docs/agents/tingle-rubycritic-image.md#bumping-versions).
+
+The `tingle_js_complexity` build context is `docker/js_complexity/`. Build it
+locally with `make js-complexity-image`, which produces
+`tingle_js_complexity:dev`. Version bumps (Node base image, Rust build image,
+FTA crate, npm tools) follow the "Bumping versions" section of
+[`docs/agents/specs/code_check/js_complexity/image.md`](../../docs/agents/specs/code_check/js_complexity/image.md#13-bumping-versions)
+(moving to `docs/agents/tingle-js-complexity-image.md` in #319).
 
 Do NOT touch `python/`, `node/`, `bin/`, or `docs/agents/`.
 
