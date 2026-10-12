@@ -1,0 +1,102 @@
+"""selection.py — Select the files sent to a Docker-backed check's container.
+
+A `Selection` holds the mount root, the lines sent on the container's stdin
+(paths relative to the root, POSIX separators, sorted) and the warnings for
+the files whose name cannot be sent (a newline, or not valid UTF-8).
+
+Files are collected with `file_size`'s `FileCollector` (default and extra
+excludes, `.gitignore`, `--ignore`/`--include` globs, the check's extension
+filter), without its binary check and with symlink confinement: a file that
+resolves outside the mount root (or a dangling symlink) is dropped. An
+optional `skip` predicate drops further walked paths silently. A kept symlink
+is sent as its target's path, and a symlink and its target count once.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from code_check.file_size.file_collector import FileCollector
+
+
+@dataclass
+class Selection:
+    """The files to analyse: mount `root`, stdin `lines` and `skipped` warnings."""
+
+    root: Path
+    lines: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+
+
+def unsendable_reason(rel: str) -> str | None:
+    """Return the warning for a relative path that cannot be sent on stdin, else None."""
+    if "\n" in rel:
+        return f"skipping file with a newline in its name: {rel!r}"
+    try:
+        rel.encode("utf-8")
+    except UnicodeEncodeError:
+        return f"skipping file whose name is not valid UTF-8: {rel!r}"
+    return None
+
+
+def build_selection(root: Path, files: Iterable[Path]) -> Selection:
+    """Turn collected `files` into stdin lines relative to `root`, dropping unsendable names.
+
+    Each file is resolved first, so a symlink becomes its target's path
+    relative to the resolved `root`), and files resolving to the same path
+    are kept once.
+    """
+    selection = Selection(root)
+    base = root.resolve()
+    seen: set[Path] = set()
+    for path in files:
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        rel = resolved.relative_to(base).as_posix()
+        reason = unsendable_reason(rel)
+        if reason is None:
+            selection.lines.append(rel)
+        else:
+            selection.skipped.append(reason)
+    selection.lines.sort()
+    return selection
+
+
+def select_files(
+    target: Path,
+    root: Path,
+    *,
+    extensions: list[str],
+    excludes: list[str],
+    ignore: list[str] | None = None,
+    include: list[str] | None = None,
+    gitignore: bool = True,
+    skip: Callable[[Path], bool] | None = None,
+) -> Selection:
+    """Collect the `extensions` files under `target` (or `target` itself) for the mount `root`.
+
+    `excludes` are directory names (not applied to a single file),
+    `ignore`/`include` are globs relative to `target` and `gitignore` skips
+    the untracked files git ignores. There is no binary check, so non-UTF-8
+    source files still reach the image, and files resolving outside the mount
+    root are dropped. `skip`, when given, is called on each walked path
+    (before resolving a symlink); a path for which it returns True is dropped
+    silently.
+    """
+    collector = FileCollector(
+        excludes,
+        extensions,
+        ignore=ignore,
+        include=include,
+        gitignore=gitignore,
+        binary_check=False,
+        outside_symlinks=False,
+    )
+    files = collector.collect(target)
+    if skip is not None:
+        files = [path for path in files if not skip(path)]
+    return build_selection(root, files)

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
+from code_check.docker_check.errors import DockerCheckError
 
-class RubycriticError(Exception):
+
+class RubycriticError(DockerCheckError):
     """A failure carrying the user-facing message (printed as `Error: <message>`)."""
-
-    def __init__(self, message: str):
-        """Store the user-facing `message`."""
-        super().__init__(message)
-        self.message = message
