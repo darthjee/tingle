@@ -12,6 +12,7 @@ from code_check.js_complexity.selection import (
     Selection,
     build_selection,
     is_declaration,
+    is_minified,
     select_files,
     unsendable_reason,
 )
@@ -99,6 +100,83 @@ def test_declaration_single_file_selects_nothing(tmp_path, name):
 )
 def test_is_declaration(name, expected):
     assert is_declaration(Path("dir") / name) is expected
+
+
+# --- minified bundles --------------------------------------------------------------
+
+
+def test_minified_suffixes():
+    assert Constants.MINIFIED_SUFFIXES == (".min.js", ".min.mjs", ".min.cjs")
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("a.min.js", True),
+        ("a.min.mjs", True),
+        ("a.min.cjs", True),
+        ("A.MIN.JS", True),
+        ("A.MIN.MJS", True),
+        ("A.MIN.CJS", True),
+        ("a.Min.Js", True),
+        ("a.mIn.mJS", True),
+        ("a.MiN.cjS", True),
+        ("a.min.ts", False),
+        ("app.js", False),
+        ("min.js", False),
+    ],
+)
+def test_is_minified(name, expected):
+    assert is_minified(Path("dir") / name) is expected
+
+
+@pytest.mark.parametrize(
+    "name", ["app.min.js", "a.min.mjs", "b.min.cjs", "C.MIN.JS", "d.Min.Mjs"]
+)
+def test_minified_files_are_skipped_in_a_directory_by_default(tmp_path, name):
+    _touch(tmp_path, f"ext/{name}", "keep.js")
+
+    assert select_files(tmp_path, tmp_path) == Selection(tmp_path, ["keep.js"], [])
+
+
+def test_minified_files_are_kept_when_skip_minified_is_false(tmp_path):
+    _touch(tmp_path, "app.min.js", "lib/B.MIN.MJS", "c.min.cjs", "keep.js")
+
+    selection = select_files(tmp_path, tmp_path, skip_minified=False)
+
+    assert selection.lines == ["app.min.js", "c.min.cjs", "keep.js", "lib/B.MIN.MJS"]
+
+
+def test_skip_minified_false_still_skips_declaration_files(tmp_path):
+    _touch(tmp_path, "app.min.js", "types.d.ts")
+
+    assert select_files(tmp_path, tmp_path, skip_minified=False).lines == ["app.min.js"]
+
+
+def test_min_ts_is_not_minified(tmp_path):
+    _touch(tmp_path, "a.min.ts", "b.min.js")
+
+    assert select_files(tmp_path, tmp_path).lines == ["a.min.ts"]
+
+
+def test_include_does_not_rescue_minified_files(tmp_path):
+    _touch(tmp_path, "app.min.js", "lib/b.min.js", "keep.js")
+
+    assert select_files(tmp_path, tmp_path, include=["**/*.min.js"]).lines == []
+
+
+def test_minified_single_file_selects_nothing_by_default(tmp_path):
+    _touch(tmp_path, "bundle.min.js")
+
+    assert select_files(tmp_path / "bundle.min.js", tmp_path).lines == []
+
+
+def test_minified_single_file_is_kept_when_skip_minified_is_false(tmp_path):
+    _touch(tmp_path, "bundle.min.js")
+
+    selection = select_files(tmp_path / "bundle.min.js", tmp_path, skip_minified=False)
+
+    assert selection.lines == ["bundle.min.js"]
 
 
 # --- default excludes --------------------------------------------------------------

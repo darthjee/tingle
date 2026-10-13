@@ -8,10 +8,13 @@ Files are collected with `file_size`'s `FileCollector` (default excludes, the
 fixed core extension filter, matched case-insensitively), without its binary
 check and with symlink confinement: a file that resolves outside the mount
 root (or a dangling symlink) is dropped. Declaration files (`.d.ts`,
-`.d.mts`, `.d.cts`) are always dropped silently.
+`.d.mts`, `.d.cts`) are always dropped silently; minified bundles
+(`.min.js`, `.min.mjs`, `.min.cjs`) are dropped silently too unless
+`skip_minified` is false (`--no-default-excludes`).
 
 The logic lives in `code_check.docker_check.selection`; `select_files` here
-binds the extensions, the default excludes and the declaration-file skip.
+binds the extensions, the default excludes, the declaration-file skip and
+the minified-bundle skip.
 """
 
 from __future__ import annotations
@@ -22,12 +25,24 @@ from code_check.docker_check import selection as docker_check_selection
 from code_check.docker_check.selection import Selection, build_selection, unsendable_reason
 from code_check.js_complexity.constants import Constants
 
-__all__ = ["Selection", "build_selection", "is_declaration", "select_files", "unsendable_reason"]
+__all__ = [
+    "Selection",
+    "build_selection",
+    "is_declaration",
+    "is_minified",
+    "select_files",
+    "unsendable_reason",
+]
 
 
 def is_declaration(path: Path) -> bool:
     """Return True for a TypeScript declaration file (by name, case-insensitively)."""
     return path.name.lower().endswith(Constants.DECLARATION_SUFFIXES)
+
+
+def is_minified(path: Path) -> bool:
+    """Return True for a minified bundle (by name, case-insensitively)."""
+    return path.name.lower().endswith(Constants.MINIFIED_SUFFIXES)
 
 
 def select_files(
@@ -38,6 +53,7 @@ def select_files(
     ignore: list[str] | None = None,
     include: list[str] | None = None,
     gitignore: bool = False,
+    skip_minified: bool = True,
 ) -> Selection:
     """Collect the JS/TS files under `target` (or `target` itself) for the mount `root`.
 
@@ -47,8 +63,16 @@ def select_files(
     here; the executor always passes it, on unless `--no-gitignore`). There
     is no binary check, so non-UTF-8 files still reach the image, and files
     resolving outside the mount root are dropped. Declaration files are
-    always skipped.
+    always skipped; minified bundles are skipped when `skip_minified` is
+    true (the default), for a directory and a single-file `target` alike,
+    and `include` never brings them back.
     """
+
+    def skip(path: Path) -> bool:
+        if is_declaration(path):
+            return True
+        return skip_minified and is_minified(path)
+
     return docker_check_selection.select_files(
         target,
         root,
@@ -57,5 +81,5 @@ def select_files(
         ignore=ignore,
         include=include,
         gitignore=gitignore,
-        skip=is_declaration,
+        skip=skip,
     )

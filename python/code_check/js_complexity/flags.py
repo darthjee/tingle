@@ -95,7 +95,10 @@ FLAGS: list[dict] = [
     {
         "name": "--no-default-excludes",
         "action": "store_true",
-        "help": "Do not skip the default directories; only --exclude names apply",
+        "help": (
+            "Do not skip the default directories or minified bundles; "
+            "only --exclude names apply"
+        ),
     },
     {
         "name": "--no-gitignore",

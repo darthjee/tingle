@@ -31,6 +31,10 @@ class Constants:
     # TypeScript declaration files, always skipped (matched on the lower-case name)
     DECLARATION_SUFFIXES: ClassVar[tuple[str, ...]] = (".d.ts", ".d.mts", ".d.cts")
 
+    # Minified bundles, skipped by default unless no_default_excludes
+    # (matched on the lower-case name)
+    MINIFIED_SUFFIXES: ClassVar[tuple[str, ...]] = (".min.js", ".min.mjs", ".min.cjs")
+
     # Docker image repository; the default tag is the tingle version
     IMAGE_REPO: ClassVar[str] = "darthjee/tingle_js_complexity"
 

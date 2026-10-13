@@ -187,6 +187,7 @@ def test_config_lists_reach_file_selection(project, capsys, selection_spy):
         "ignore": ["**/*.test.ts", "**/legacy/**"],
         "include": ["src/**"],
         "gitignore": True,
+        "skip_minified": True,
     }
 
 

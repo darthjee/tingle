@@ -56,8 +56,9 @@ tingle code_check js_complexity <path> [options]
 - **a single file**: only that file is analysed. If it is a symlink, it is
   resolved first, and its target's parent directory is mounted into the
   container; otherwise its own parent directory is. A file without a
-  supported extension, a declaration file (`.d.ts`, ...), or a file left out
-  by the selection options leaves nothing to analyse (see
+  supported extension, a declaration file (`.d.ts`, ...), a minified bundle
+  (`.min.js`, ...) without `--no-default-excludes`, or a file left out by the
+  selection options leaves nothing to analyse (see
   [Single-file targets](#single-file-targets)).
 
 The file list is sent to the container on its standard input, so there is no
@@ -75,7 +76,7 @@ limit on the number of files, and the run has no timeout.
 | `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
 | `--image IMAGE` | `darthjee/tingle_js_complexity:<tingle version>` | Docker image to run. |
 | `--exclude a,b` | none | Extra directory names to skip (comma-separated), **added** to the [default excludes](#--exclude). |
-| `--no-default-excludes` | off | Do not skip the default directories; only `--exclude` names apply. |
+| `--no-default-excludes` | off | Do not skip the default directories or minified bundles; only `--exclude` names apply. |
 | `--no-gitignore` | off | Do not skip files ignored by git (`.gitignore`, `.git/info/exclude`, global excludes). |
 | `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches `GLOB`. Can be repeated. |
 | `--include GLOB` | all | Only analyse JavaScript/TypeScript files whose path relative to `<path>` matches `GLOB`. Can be repeated. |
@@ -180,6 +181,23 @@ hold only types, so they are always skipped, even with
 `--no-default-excludes` or a matching `--include`. Other files, such as
 `.vue`, `.svelte` or `.json`, are not analysed.
 
+**Minified bundles** (names ending in `.min.js`, `.min.mjs` or `.min.cjs`, in
+any case, such as `app.min.js` or `VENDOR.MIN.JS`) are skipped by default,
+silently. Minified code always gets a very high score, so it would only
+crowd the report with CRITICAL rows nobody will refactor. To analyse them,
+pass [`--no-default-excludes`](#--no-default-excludes) (or set
+`"no_default_excludes": true` in the
+[configuration file](#configuration-file)); there is no separate option for
+this. `--include` does **not** bring them back: `--include '**/*.min.js'` on
+its own leaves nothing to analyse.
+
+Only the `.min` suffix counts:
+
+- `app.min.ts` is not a minified bundle, so it is analysed;
+- a minified file without `.min` in its name (for example `bundle.js`) is
+  analysed too, and usually shows up as CRITICAL. Skip it with
+  [`--ignore`](#--ignore-and---include), for example `--ignore 'bundle.js'`.
+
 ### `--exclude`
 
 The default list is:
@@ -240,8 +258,10 @@ Combine it with `--exclude` to choose exactly which names to skip:
 tingle code_check js_complexity . --no-default-excludes --exclude .git,node_modules
 ```
 
-Declaration files stay skipped: `--no-default-excludes` only affects the
-directory names.
+It also stops skipping [minified bundles](#extensions) (`*.min.js`,
+`*.min.mjs`, `*.min.cjs`), so they are analysed like any other file.
+Declaration files stay skipped: `--no-default-excludes` does not affect
+them.
 
 `.gitignore` support does not skip `.git/`, because git never lists it as
 ignored. If you drop the defaults but still want to leave `.git/` out, add
@@ -320,7 +340,7 @@ Combining filters:
 - `--ignore` wins over `--include`: a file that matches both is skipped.
 - `--include` and the extension list must **both** match:
   `--include '*.json'` leaves nothing to analyse.
-- `--include` never brings back a declaration file.
+- `--include` never brings back a declaration file or a minified bundle.
 - Excluded directories (the defaults plus any `--exclude` names) are always
   skipped, whatever the globs say.
 
@@ -346,7 +366,9 @@ steps, in order. The first step that rejects a file drops it:
 4. the `--ignore` globs;
 5. the `--include` globs (when given) **and** the
    [extension list](#extensions), in any case;
-6. declaration files (`.d.ts`, `.d.mts`, `.d.cts`), always;
+6. declaration files (`.d.ts`, `.d.mts`, `.d.cts`), always; then minified
+   bundles (`.min.js`, `.min.mjs`, `.min.cjs`), unless
+   `--no-default-excludes`;
 7. the symlink rule (see [Symlinks](#symlinks)).
 
 A file dropped by any of these steps is not counted anywhere and no message
@@ -354,14 +376,17 @@ is printed.
 
 ### Single-file targets
 
-When `<path>` is a single file, the exclude list (the defaults, `--exclude`
-and `--no-default-excludes`) is ignored. The other filters still apply:
+When `<path>` is a single file, the directory exclude list (the defaults
+and `--exclude`) is ignored. The other filters still apply:
 
 - the file is skipped if git ignores it, unless you pass `--no-gitignore`;
 - `--ignore` and `--include` globs are matched against the file's **name**
   (for example `app.ts`);
 - the file must have a supported extension and must not be a declaration
-  file.
+  file;
+- a minified bundle (such as `app.min.js`) is skipped, unless you pass
+  `--no-default-excludes`. Unlike the directory excludes, this rule applies
+  to a single file too.
 
 If `<path>` is a symlink, it is resolved first: its target's parent
 directory is mounted, and the target's name is the one shown and matched.
@@ -371,6 +396,14 @@ For example, this leaves nothing to analyse, so it prints
 
 ```
 tingle code_check js_complexity ./src/app.test.ts --ignore '*.test.ts'
+```
+
+and so does this one, while adding `--no-default-excludes` analyses the
+bundle:
+
+```
+tingle code_check js_complexity ./public/app.min.js
+tingle code_check js_complexity ./public/app.min.js --no-default-excludes
 ```
 
 ### Symlinks
@@ -463,7 +496,7 @@ Every key is optional and matches a command-line option:
 | `exclude` | list of strings | `[]` | `--exclude` (comma-separated on the command line) |
 | `ignore` | list of strings | `[]` | `--ignore` |
 | `include` | list of strings | `[]` | `--include` |
-| `no_default_excludes` | `true` or `false` | `false` | `--no-default-excludes` |
+| `no_default_excludes` | `true` or `false` | `false` | `--no-default-excludes` (`true` drops the default directories and analyses minified bundles) |
 | `gitignore` | `true` or `false` | `true` | `--no-gitignore` (inverted: `"gitignore": false` is the same as `--no-gitignore`) |
 
 Notes:
@@ -636,19 +669,19 @@ Status             FTA  Cyclo  Lines  Assessment         File
 ✅ OK               7.3      2      6  OK                 fixture/ext/b.cjs
 ✅ OK               7.3      2      6  OK                 fixture/ext/c.mts
 ✅ OK               7.3      2      6  OK                 fixture/ext/d.cts
-✅ OK               6.2      5      1  OK                 fixture/bundle.min.js
 ✅ OK               3.5      1      1  OK                 fixture/short.js
 ✅ OK               0.0      -      -  -                  fixture/empty.js
 ⛔ PARSE              -      -      -  -                  fixture/broken.js
 ⛔ PARSE              -      -      -  -                  fixture/latin1.js
 
 ──────────────────────────────────────────────────────────────────────────────
-Summary: 18 file(s) | 15 OK | 0 WARN | 1 ERROR | 0 CRITICAL | 2 skipped (parse error)
-FTA score: avg 17.39 | max 71.30
+Summary: 17 file(s) | 14 OK | 0 WARN | 1 ERROR | 0 CRITICAL | 2 skipped (parse error)
+FTA score: avg 18.14 | max 71.30
 ```
 
-In this project, the files under `build/` are skipped (a default exclude)
-and `ext/types.d.ts` is skipped (a declaration file). Before the report, a
+In this project, the files under `build/` are skipped (a default exclude),
+`ext/types.d.ts` is skipped (a declaration file) and `bundle.min.js` is
+skipped (a minified bundle). Before the report, a
 warning for each of `broken.js` and `latin1.js` is printed on standard error
 (see [Parse warnings](#parse-warnings)).
 
@@ -858,12 +891,12 @@ error messages to standard error.
   [`tingle linux`](../linux.md)) has no `docker` command, so running this
   subcommand inside it fails with `docker not found on PATH`. Run it on a
   host with Docker.
-- **Minified bundles are analysed.** A minified bundle (`app.min.js`, or
-  one without `.min` in its name) usually gets a very high score and shows
-  up as CRITICAL. Bundles under a default-excluded directory such as
-  `dist/` or `build/`, or ignored by git, are already skipped; for the
-  others, use `--ignore` (for example `--ignore '*.min.js'`). A default
-  skip for `*.min.js` bundles is planned (#323).
+- **Minified bundles are detected by name only.** `*.min.js`-style bundles
+  (`.min.js`, `.min.mjs`, `.min.cjs`) are skipped by default (see
+  [Extensions](#extensions)). A minified file without `.min` in its name is
+  still analysed and gets a high score, usually CRITICAL: skip it with
+  `--ignore` (for example `--ignore 'public/bundle.js'`), or keep it under a
+  default-excluded directory such as `dist/` or in `.gitignore`.
 - **Generated code is analysed** unless it is skipped by the selection
   rules. Keep it out with `.gitignore`, `--exclude` or `--ignore` (for
   example `--ignore '*.generated.ts'`).

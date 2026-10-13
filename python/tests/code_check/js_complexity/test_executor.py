@@ -136,6 +136,7 @@ def test_selection_options_defaults():
         "ignore": [],
         "include": [],
         "gitignore": True,
+        "skip_minified": True,
     }
 
 
@@ -148,13 +149,17 @@ def test_selection_options_from_flags():
         "ignore": ["a"],
         "include": ["b"],
         "gitignore": False,
+        "skip_minified": True,
     }
 
 
 def test_selection_options_no_default_excludes():
     options = {"exclude": ["vendor"], "no_default_excludes": True}
 
-    assert CheckJsComplexity._selection_options(options)["excludes"] == ["vendor"]
+    selection_options = CheckJsComplexity._selection_options(options)
+
+    assert selection_options["excludes"] == ["vendor"]
+    assert selection_options["skip_minified"] is False
 
 
 # --- path and image ----------------------------------------------------------------

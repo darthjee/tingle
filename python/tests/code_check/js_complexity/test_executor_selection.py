@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -135,6 +136,67 @@ def test_no_default_excludes_still_skips_declaration_files(tmp_path, capsys, doc
     _run(str(tmp_path), "--no-default-excludes")
 
     assert docker.stdin() == ["dist/b.ts", "keep.ts"]
+
+
+# --- minified bundles --------------------------------------------------------------
+
+
+def _write_config(content: dict) -> None:
+    # HOME is pointed at a fresh temp dir by the autouse fixture in conftest.py.
+    path = Path.home() / ".tingle" / "code_check" / "config.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(content))
+
+
+def test_minified_bundles_are_skipped_by_default(tmp_path, capsys, docker):
+    _touch(tmp_path, "keep.js", "app.min.js", "lib/B.MIN.MJS", "c.Min.Cjs", "d.min.ts")
+
+    assert _run(str(tmp_path)) == 0
+
+    assert docker.stdin() == ["d.min.ts", "keep.js"]
+
+
+def test_no_default_excludes_keeps_minified_bundles(tmp_path, capsys, docker):
+    _touch(tmp_path, "keep.js", "app.min.js", "lib/B.MIN.MJS", "types.d.ts")
+
+    assert _run(str(tmp_path), "--no-default-excludes") == 0
+
+    assert docker.stdin() == ["app.min.js", "keep.js", "lib/B.MIN.MJS"]
+
+
+def test_config_no_default_excludes_keeps_minified_bundles(tmp_path, capsys, docker):
+    _write_config({"js_complexity": {"no_default_excludes": True}})
+    _touch(tmp_path, "keep.js", "app.min.js")
+
+    assert _run(str(tmp_path)) == 0
+
+    assert docker.stdin() == ["app.min.js", "keep.js"]
+
+
+def test_include_does_not_rescue_minified_bundles(tmp_path, capsys, docker):
+    _touch(tmp_path, "keep.js", "app.min.js", "lib/b.min.js")
+
+    assert _run(str(tmp_path), "--include", "**/*.min.js") == 0
+
+    assert docker.stdin() is None
+    assert CheckJsComplexity.NO_FILES_MESSAGE in capsys.readouterr().out
+
+
+def test_minified_single_file_is_skipped(tmp_path, capsys, docker):
+    _touch(tmp_path, "bundle.min.js")
+
+    assert _run(str(tmp_path / "bundle.min.js")) == 0
+
+    assert docker.calls == []
+    assert CheckJsComplexity.NO_FILES_MESSAGE in capsys.readouterr().out
+
+
+def test_minified_single_file_with_no_default_excludes_is_analysed(tmp_path, capsys, docker):
+    _touch(tmp_path, "bundle.min.js")
+
+    assert _run(str(tmp_path / "bundle.min.js"), "--no-default-excludes") == 0
+
+    assert docker.stdin() == ["bundle.min.js"]
 
 
 # --- --ignore and --include --------------------------------------------------------
