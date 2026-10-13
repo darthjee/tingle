@@ -18,6 +18,7 @@ def test_flag_names_in_order():
         "path", "--warn", "--error", "--critical", "--top",
         "--min-level", "--fail-on", "--image",
         "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
+        "--no-config",
     ]
 
 
@@ -38,6 +39,7 @@ def test_single_value_flags_default_to_none():
         "no_gitignore": False,
         "ignore": None,
         "include": None,
+        "no_config": False,
     }
 
 
@@ -95,6 +97,7 @@ def test_choices():
             "--no-gitignore",
             "Do not skip files ignored by git (.gitignore, .git/info/exclude, global excludes)",
         ),
+        ("--no-config", "Do not read ~/.tingle/code_check/config.json"),
         ("--ignore", "Skip files whose path relative to <path> matches this glob (can be repeated)"),
         (
             "--include",
@@ -149,7 +152,14 @@ def test_store_true_flags():
     assert parsed["no_gitignore"] is True
 
 
-@pytest.mark.parametrize("name", ["--no-config", "--details", "--ext"])
+def test_no_config_flag():
+    assert _flag("--no-config")["action"] == "store_true"
+    assert FLAGS[-1]["name"] == "--no-config"
+    assert ArgParser(FLAGS).parse(["src", "--no-config"])["no_config"] is True
+    assert ArgParser(FLAGS).parse(["src"])["no_config"] is False
+
+
+@pytest.mark.parametrize("name", ["--details", "--ext"])
 def test_later_flags_are_absent(name):
     assert all(f["name"] != name for f in FLAGS)
 
