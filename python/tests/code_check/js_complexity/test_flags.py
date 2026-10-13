@@ -92,7 +92,10 @@ def test_choices():
                 ".parcel-cache,storybook-static"
             ),
         ),
-        ("--no-default-excludes", "Do not skip the default directories or minified bundles; only --exclude names apply"),
+        (
+            "--no-default-excludes",
+            "Do not skip the default directories or minified bundles; only --exclude names apply",
+        ),
         (
             "--no-gitignore",
             "Do not skip files ignored by git (.gitignore, .git/info/exclude, global excludes)",
