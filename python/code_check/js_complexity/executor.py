@@ -4,8 +4,12 @@
 Selects the JavaScript/TypeScript files under `<path>` on the host, runs FTA
 inside the `darthjee/tingle_js_complexity` Docker image and reports one row
 per file, classified by thresholds on the file's FTA score rounded to one
-decimal. `Cyclo`, `Lines` and `Assessment` are information only. The host
-needs Docker, not Node.js.
+decimal. `Cyclo`, `Lines`, `Dup` and `Assessment` are information only.
+`Dup` is the number of lines of the file in exact clones that jscpd found
+among the selected files (`0`: checked, no clone; `-`: no data, for example
+a parse error or a jscpd failure). It never sets a level and never changes
+the exit code. When jscpd fails, a warning is printed and the run goes on.
+The host needs Docker, not Node.js.
 
 File selection follows `file_size`, applied in this order: default and
 `--exclude` directory names (`--no-default-excludes` drops the defaults),
@@ -158,12 +162,21 @@ class CheckJsComplexity(DockerCheck):
             ) from exc
 
     @classmethod
-    def _print_warnings(cls, parsed: ParsedOutput, reporter: Reporter) -> None:
-        """Warn about the refused lines (warnings order), then the unparsable files."""
+    def _print_warnings(cls, parsed: ParsedOutput, reporter: Reporter, image: str) -> None:
+        """Warn about the refused lines (warnings order), the unparsable files, then jscpd.
+
+        A path-less `jscpd` warning means jscpd failed: no duplication data.
+        """
         for line, message in parsed.refused:
             cls._warn(f"the image skipped {line}: {message}")
         for line, message in sorted(parsed.parse_errors.items()):
             cls._warn(f"cannot parse {reporter.display_path(line)}: {message}")
+        for warning in parsed.warnings:
+            if warning["tool"] == "jscpd" and "path" not in warning:
+                cls._warn(
+                    f"jscpd failed in {image}; duplication data is not available: "
+                    f"{warning['message']}"
+                )
 
     def _execute(self, options: dict, config_file: Path | None = None) -> int:
         """Run the whole analysis for validated `options`; return the exit status.
@@ -185,7 +198,7 @@ class CheckJsComplexity(DockerCheck):
 
         analyzer = FileAnalyzer(options["warn"], options["error"], options["critical"])
         reporter = Reporter(analyzer, target, root, out)
-        self._print_warnings(parsed, reporter)
+        self._print_warnings(parsed, reporter, image)
         reporter.report(parsed, options["min_level"], options["top"])
         # The gate uses every level row (never PARSE files), not only the displayed ones.
         failed = self._gate_failed(analyzer, parsed.results.values(), options["fail_on"])

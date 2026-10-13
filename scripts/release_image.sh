@@ -563,8 +563,12 @@ JS_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.js simple.js missing.js)
 # with the canonical run line (--network none, read-only /src, foreign uid
 # 501:20): the fixture list plus the hostile lines on stdin (exit 0, one JSON
 # object checked with python3: tool versions, one files[] entry per input line
-# in order, the FTA expectations per fixture, refused hostile lines), no git in
-# the image, and empty files/warnings on empty stdin. Cart.vue is refused as
+# in order, the FTA expectations per fixture, the jscpd duplication
+# expectations from docs/agents/specs/code_check/js_complexity/duplication.md
+# (section 6: the dup_a.js/dup_b.js clone, 0 for simple.js and empty.js, null
+# for broken.js, latin1.js and the hostile lines, no jscpd warning), refused
+# hostile lines), no git in the image, and empty files/warnings on empty
+# stdin. Cart.vue is refused as
 # "unsupported extension" until SFC support lands (#326). Any failure prints
 # "<reason> on <platform>" on stderr and exits 1.
 smoke_test_js_complexity() {
@@ -602,9 +606,12 @@ versions = report.get("tool_versions") or {}
 fta_version = versions.get("fta")
 if fta_version != "3.1.0":
     fail(f"tool_versions.fta is {fta_version!r}, not \"3.1.0\"")
-for tool in ("jscpd", "escomplex"):
-    if versions.get(tool) is not None:
-        fail(f"tool_versions.{tool} is {versions.get(tool)!r}, not null")
+jscpd_version = versions.get("jscpd")
+if jscpd_version != "5.4.1":
+    fail(f"tool_versions.jscpd is {jscpd_version!r}, not \"5.4.1\"")
+escomplex_version = versions.get("escomplex")
+if escomplex_version is not None:
+    fail(f"tool_versions.escomplex is {escomplex_version!r}, not null")
 
 files = report.get("files")
 if not isinstance(files, list) or not all(isinstance(f, dict) for f in files):
@@ -699,9 +706,34 @@ if normal("bom.ts")["score"] != normal("ext/c.mts")["score"]:
 parse_error("latin1.js", "file is not valid UTF-8")
 refused(entries["Cart.vue"], "unsupported extension")
 
+jscpd_warnings = [w for w in warnings if w.get("tool") == "jscpd"]
+if jscpd_warnings:
+    fail(f"jscpd warnings {jscpd_warnings}")
+
+def duplicated_lines(path):
+    duplication = entries[path].get("duplication")
+    lines_count = duplication.get("lines") if isinstance(duplication, dict) else None
+    if isinstance(lines_count, bool) or not isinstance(lines_count, int):
+        fail(f"{path} duplication is {duplication!r}, not {{\"lines\": <int>}}")
+    return lines_count
+
+for path in ("dup_a.js", "dup_b.js"):
+    if not duplicated_lines(path) >= 20:
+        fail(f"{path} duplication.lines is {duplicated_lines(path)}, not >= 20")
+for path in ("simple.js", "empty.js"):
+    if duplicated_lines(path) != 0:
+        fail(f"{path} duplication.lines is {duplicated_lines(path)}, not 0")
+for path in ("broken.js", "latin1.js"):
+    duplication = entries[path].get("duplication")
+    if duplication is not None:
+        fail(f"{path} duplication is {duplication!r}, not null")
+
 fixture_count = len(lines) - len(hostile)
 for entry in files[fixture_count:]:
     refused(entry, hostile[entry["path"]])
+    path, duplication = entry.get("path"), entry.get("duplication")
+    if duplication is not None:
+        fail(f"refused line {path!r} duplication is {duplication!r}, not null")
 ' "$platform" "${lines[@]}" <<< "$output"
 
   local git_check

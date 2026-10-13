@@ -28,4 +28,19 @@ function stagedNumber(relativePath) {
   return match ? Number(match[1]) : null;
 }
 
-module.exports = { STAGE_DIR, stageFile, stagedNumber };
+// Map: input line number -> byte size of its staged copy, for every file
+// under STAGE_DIR.
+function stagedSizes() {
+  const sizes = new Map();
+  for (const sub of ["plain", "sfc"]) {
+    const dir = path.join(STAGE_DIR, sub);
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir)) {
+      const number = stagedNumber(`${sub}/${name}`);
+      if (number !== null) sizes.set(number, fs.statSync(path.join(dir, name)).size);
+    }
+  }
+  return sizes;
+}
+
+module.exports = { STAGE_DIR, stageFile, stagedNumber, stagedSizes };

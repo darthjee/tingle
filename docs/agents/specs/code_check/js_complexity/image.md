@@ -455,8 +455,8 @@ the pinned options; Functions = escomplex entries):
 | `complex.ts` | 71.25 | Needs improvement | 136 | 245 | no | no | 0 | 20 |
 | `component.tsx` | 37.43 | OK | 3 | 18 | no | no | 0 | 3 |
 | `widget.jsx` | 31.02 | OK | 3 | 11 | no | no | 0 | 1 |
-| `dup_a.js` | 35.03 | OK | 9 | 23 | no | no | 22 | 3 |
-| `dup_b.js` | 35.10 | OK | 9 | 23 | no | no | 22 | 3 |
+| `dup_a.js` | 35.03 | OK | 9 | 23 | no | no | 23 | 3 |
+| `dup_b.js` | 35.10 | OK | 9 | 23 | no | no | 23 | 3 |
 | `broken.js` | – | – | – | – | yes (FTA warning) | – | 0 | escomplex error |
 | `empty.js` | – | – | – | – | no | yes | 0 | 0 |
 | `short.js` | 3.48 | OK | 1 | 1 | no | no | 0 | 0 |

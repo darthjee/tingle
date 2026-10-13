@@ -11,32 +11,34 @@ from code_check.js_complexity.output_parser import FileResult, ParsedOutput
 from code_check.js_complexity.reporter import Reporter
 from code_check.palette import Colors, Palette
 
-HEADER = f"{'Status':<16} {'FTA':>5}  {'Cyclo':>5}  {'Lines':>5}  {'Assessment':<17}  File"
-SEPARATOR = f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 17}  {'─' * 50}"
+HEADER = (
+    f"{'Status':<16} {'FTA':>5}  {'Cyclo':>5}  {'Lines':>5}  {'Dup':>5}  {'Assessment':<17}  File"
+)
+SEPARATOR = f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 17}  {'─' * 50}"
 RULE = "─" * 78
 
-# Spec §6 full example (#320 only).
+# Spec duplication.md §4 full example (#320 with #324).
 FULL_EXAMPLE = """\
-Status             FTA  Cyclo  Lines  Assessment         File
-──────────────── ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
-🔴 ERROR           71.3    136    245  Needs improvement  fixture/complex.ts
-✅ OK              37.4      3     18  OK                 fixture/component.tsx
-✅ OK              35.1      9     23  OK                 fixture/dup_b.js
-✅ OK              35.0      9     23  OK                 fixture/dup_a.js
-✅ OK              31.0      3     11  OK                 fixture/widget.jsx
-✅ OK               7.7      1      6  OK                 fixture/simple.js
-✅ OK               7.3      2      6  OK                 fixture/bom.ts
-✅ OK               7.3      2      6  OK                 fixture/crlf.js
-✅ OK               7.3      2      6  OK                 fixture/ext/UPPER.JS
-✅ OK               7.3      2      6  OK                 fixture/ext/a.mjs
-✅ OK               7.3      2      6  OK                 fixture/ext/b.cjs
-✅ OK               7.3      2      6  OK                 fixture/ext/c.mts
-✅ OK               7.3      2      6  OK                 fixture/ext/d.cts
-✅ OK               6.2      5      1  OK                 fixture/bundle.min.js
-✅ OK               3.5      1      1  OK                 fixture/short.js
-✅ OK               0.0      -      -  -                  fixture/empty.js
-⛔ PARSE              -      -      -  -                  fixture/broken.js
-⛔ PARSE              -      -      -  -                  fixture/latin1.js
+Status             FTA  Cyclo  Lines    Dup  Assessment         File
+──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
+🔴 ERROR           71.3    136    245      0  Needs improvement  fixture/complex.ts
+✅ OK              37.4      3     18      0  OK                 fixture/component.tsx
+✅ OK              35.1      9     23     22  OK                 fixture/dup_b.js
+✅ OK              35.0      9     23     22  OK                 fixture/dup_a.js
+✅ OK              31.0      3     11      0  OK                 fixture/widget.jsx
+✅ OK               7.7      1      6      0  OK                 fixture/simple.js
+✅ OK               7.3      2      6      0  OK                 fixture/bom.ts
+✅ OK               7.3      2      6      0  OK                 fixture/crlf.js
+✅ OK               7.3      2      6      0  OK                 fixture/ext/UPPER.JS
+✅ OK               7.3      2      6      0  OK                 fixture/ext/a.mjs
+✅ OK               7.3      2      6      0  OK                 fixture/ext/b.cjs
+✅ OK               7.3      2      6      0  OK                 fixture/ext/c.mts
+✅ OK               7.3      2      6      0  OK                 fixture/ext/d.cts
+✅ OK               6.2      5      1      0  OK                 fixture/bundle.min.js
+✅ OK               3.5      1      1      0  OK                 fixture/short.js
+✅ OK               0.0      -      -      0  -                  fixture/empty.js
+⛔ PARSE              -      -      -      -  -                  fixture/broken.js
+⛔ PARSE              -      -      -      -  -                  fixture/latin1.js
 
 ──────────────────────────────────────────────────────────────────────────────
 Summary: 18 file(s) | 15 OK | 0 WARN | 1 ERROR | 0 CRITICAL | 2 skipped (parse error)
@@ -58,8 +60,9 @@ def target(tmp_path):
     return path
 
 
-def _r(line, score, cyclo=2, lines=6, assessment="OK"):
-    return FileResult(line, score, cyclo, lines, assessment)
+def _r(line, score, cyclo=2, lines=6, assessment="OK", dup=None):
+    duplication = None if dup is None else {"lines": dup}
+    return FileResult(line, score, cyclo, lines, assessment, duplication)
 
 
 def _reporter(target, root=None, palette=None, thresholds=(50, 60, 75)):
@@ -80,22 +83,22 @@ def _out(capsys):
 
 def _example():
     results = [
-        _r("complex.ts", 71.3, 136, 245, "Needs improvement"),
-        _r("component.tsx", 37.4, 3, 18),
-        _r("dup_a.js", 35.0, 9, 23),
-        _r("dup_b.js", 35.1, 9, 23),
-        _r("widget.jsx", 31.0, 3, 11),
-        _r("simple.js", 7.7, 1, 6),
-        _r("ext/d.cts", 7.3),
-        _r("ext/c.mts", 7.3),
-        _r("crlf.js", 7.3),
-        _r("ext/UPPER.JS", 7.3),
-        _r("bom.ts", 7.3),
-        _r("ext/a.mjs", 7.3),
-        _r("ext/b.cjs", 7.3),
-        _r("bundle.min.js", 6.2, 5, 1),
-        _r("short.js", 3.5, 1, 1),
-        FileResult("empty.js", 0.0),
+        _r("complex.ts", 71.3, 136, 245, "Needs improvement", dup=0),
+        _r("component.tsx", 37.4, 3, 18, dup=0),
+        _r("dup_a.js", 35.0, 9, 23, dup=22),
+        _r("dup_b.js", 35.1, 9, 23, dup=22),
+        _r("widget.jsx", 31.0, 3, 11, dup=0),
+        _r("simple.js", 7.7, 1, 6, dup=0),
+        _r("ext/d.cts", 7.3, dup=0),
+        _r("ext/c.mts", 7.3, dup=0),
+        _r("crlf.js", 7.3, dup=0),
+        _r("ext/UPPER.JS", 7.3, dup=0),
+        _r("bom.ts", 7.3, dup=0),
+        _r("ext/a.mjs", 7.3, dup=0),
+        _r("ext/b.cjs", 7.3, dup=0),
+        _r("bundle.min.js", 6.2, 5, 1, dup=0),
+        _r("short.js", 3.5, 1, 1, dup=0),
+        FileResult("empty.js", 0.0, duplication={"lines": 0}),
     ]
     return _parsed(
         *results, parse_errors={"latin1.js": "not UTF-8", "broken.js": "syntax"}
@@ -149,8 +152,28 @@ def test_dropped_file_row(target, capsys):
     _reporter(target).report(_parsed(FileResult("empty.js", 0.0)))
 
     assert _out(capsys)[2] == (
-        f"{'✅ OK':<16} {'0.0':>5}  {'-':>5}  {'-':>5}  {'-':<17}  fixture/empty.js"
+        f"{'✅ OK':<16} {'0.0':>5}  {'-':>5}  {'-':>5}  {'-':>5}  {'-':<17}  fixture/empty.js"
     )
+
+
+@pytest.mark.parametrize(("dup", "shown"), [(22, "22"), (0, "0"), (None, "-")])
+def test_dup_column(target, capsys, dup, shown):
+    _reporter(target).report(_parsed(_r("a.js", 7.7, 1, 6, dup=dup)))
+
+    assert _out(capsys)[2] == (
+        f"{'✅ OK':<16} {'7.7':>5}  {'1':>5}  {'6':>5}  {shown:>5}  {'OK':<17}  fixture/a.js"
+    )
+
+
+def test_dup_does_not_change_the_level_or_the_summary(target, capsys):
+    _reporter(target).report(_parsed(_r("a.js", 1.0, dup=500), _r("b.js", 3.0)))
+
+    out = _out(capsys)
+    assert out[2].startswith(f"{'✅ OK':<16}")
+    assert out[-2:] == [
+        "Summary: 2 file(s) | 2 OK | 0 WARN | 0 ERROR | 0 CRITICAL",
+        "FTA score: avg 2.00 | max 3.00",
+    ]
 
 
 def test_parse_rows_are_sorted_below_level_rows(target, capsys):
@@ -160,7 +183,9 @@ def test_parse_rows_are_sorted_below_level_rows(target, capsys):
 
     out = _out(capsys)
     assert out[2].endswith("fixture/a.js")
-    assert out[3] == f"{'⛔ PARSE':<16} {'-':>5}  {'-':>5}  {'-':>5}  {'-':<17}  fixture/b.js"
+    assert out[3] == (
+        f"{'⛔ PARSE':<16} {'-':>5}  {'-':>5}  {'-':>5}  {'-':>5}  {'-':<17}  fixture/b.js"
+    )
     assert out[4].endswith("fixture/z.js")
 
 
