@@ -3,8 +3,10 @@
 This is the implementation view of the image that runs RubyCritic for
 `tingle code_check rubycritic`. Tingle sends a list of files on stdin and
 reads one JSON object on stdout. The `darthjee/tingle` image (`tingle linux`)
-is described in [tingle-linux-image.md](tingle-linux-image.md); both images
-are released by the same script and the same CircleCI workflow.
+is described in [tingle-linux-image.md](tingle-linux-image.md) and the
+`darthjee/tingle_js_complexity` image in
+[tingle-js-complexity-image.md](tingle-js-complexity-image.md); all three
+images are released by the same script and the same CircleCI workflow.
 
 - **Image**: `darthjee/tingle_rubycritic` on Docker Hub.
 - **Tag strategy**: the published Docker tag is exactly the plain semver git
@@ -343,8 +345,11 @@ The image is released by `scripts/release_image.sh`, the same script as the
 linux image, through an optional image selector:
 
 ```sh
-scripts/release_image.sh <subcommand> [linux|rubycritic]
+scripts/release_image.sh <subcommand> [linux|rubycritic|js_complexity]
 ```
+
+The `js_complexity` selector and its settings are described in
+[tingle-js-complexity-image.md](tingle-js-complexity-image.md#release-pipeline).
 
 - The selector defaults to `linux`, so calls without it keep releasing
   `darthjee/tingle`. `setup-builder` ignores it (the buildx builder
@@ -442,11 +447,19 @@ ones (`/^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/`) and
 | `build-and-publish-rubycritic-image` | `machine: image: ubuntu-2404:current` | `checkout`, then `scripts/release_image.sh <step> rubycritic` for `setup-builder`, `build`, `smoke-test`, `scan`, `publish` | none |
 | `update-rubycritic-description` | `machine: true` | `checkout`, `scripts/release_image.sh update-description rubycritic` | `build-and-publish-rubycritic-image` |
 
+- A git tag `X.Y.Z` also triggers the js_complexity jobs
+  (`build-and-publish-js-complexity-image`,
+  `update-js-complexity-description`; see
+  [tingle-js-complexity-image.md](tingle-js-complexity-image.md#circleci)).
 - `build-and-publish-rubycritic-image` runs in parallel with
-  `build-and-publish-linux-image`; each runs its own `setup-builder`.
-- `build-and-publish-release` (the CLI release zip) requires **both**
-  `build-and-publish-linux-image` and `build-and-publish-rubycritic-image`,
-  so a CLI release is never published without its images.
+  `build-and-publish-linux-image` and
+  `build-and-publish-js-complexity-image`; each runs its own
+  `setup-builder`.
+- `build-and-publish-release` (the CLI release zip) requires all three image
+  jobs: `build-and-publish-linux-image`,
+  `build-and-publish-rubycritic-image` and
+  `build-and-publish-js-complexity-image`, so a CLI release is never
+  published without its images.
 - The existing linux jobs keep calling the script without a selector.
 - The `test` workflow is unchanged: no image is built on regular commits.
 

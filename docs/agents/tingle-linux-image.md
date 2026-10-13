@@ -6,6 +6,8 @@ see the user guide [`docs/guides/linux.md`](../guides/linux.md), in
 particular [What's inside the shell](../guides/linux.md#whats-inside-the-shell).
 The `darthjee/tingle_rubycritic` image, released by the same script and
 workflow, is described in [tingle-rubycritic-image.md](tingle-rubycritic-image.md).
+The `darthjee/tingle_js_complexity` image, also released by the same script
+and workflow, is described in [tingle-js-complexity-image.md](tingle-js-complexity-image.md).
 
 - **Image**: `darthjee/tingle` on Docker Hub.
 - **Tag strategy**: the published Docker tag is exactly the plain semver
@@ -411,6 +413,11 @@ alone. #235 did that (`0.0.3`), which left the three out of sync and
 triggers the linux image release (`build-and-publish-linux-image`,
 `update-description`), the rubycritic image release
 (`build-and-publish-rubycritic-image`, `update-rubycritic-description`; see
-[tingle-rubycritic-image.md](tingle-rubycritic-image.md#release-pipeline))
-and the CLI release zip (`build-and-publish-release`), which waits for both
-`build-and-publish-linux-image` and `build-and-publish-rubycritic-image`.
+[tingle-rubycritic-image.md](tingle-rubycritic-image.md#release-pipeline)),
+the js_complexity image release (`build-and-publish-js-complexity-image`,
+`update-js-complexity-description`; see
+[tingle-js-complexity-image.md](tingle-js-complexity-image.md#release-pipeline))
+and the CLI release zip (`build-and-publish-release`), which waits for all
+three image jobs: `build-and-publish-linux-image`,
+`build-and-publish-rubycritic-image` and
+`build-and-publish-js-complexity-image`.
