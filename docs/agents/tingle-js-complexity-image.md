@@ -338,7 +338,7 @@ checked with `python3`. The fixture:
 | `simple.js` | Two one-line exported functions. | Normal row, `score` below 20, `assessment` `"OK"`. |
 | `complex.ts` | About 260 lines of branchy TypeScript (reducer, class, rule functions). | Normal row, `score` above 60, `assessment` `"Needs improvement"`. |
 | `component.tsx`, `widget.jsx` | React components with JSX. | Normal rows. |
-| `dup_a.js`, `dup_b.js` | The same 20-line function body, renamed. | Normal rows; one exact clone (`dup_a.js` lines 1–22, `dup_b.js` lines 4–25), so `duplication.lines` is 22 for both (the smoke test asserts `>= 20`). |
+| `dup_a.js`, `dup_b.js` | The same 20-line function body, renamed. | Normal rows; one exact clone (`dup_a.js` lines 3–25, `dup_b.js` lines 1–23), so `duplication.lines` is 23 for both (the smoke test asserts `>= 20`). |
 | `broken.js` | A syntax error. | `parse_error: true`, `fta: null`, `duplication: null`, at least one `fta` warning. |
 | `empty.js` | Empty (0 bytes). | `parse_error: false`, `fta: null` (dropped by FTA), `duplication.lines` `0` (still read by jscpd). |
 | `short.js` | One statement. | Normal row, `fta.lines` `1` (proves `--exclude-under 0`). |

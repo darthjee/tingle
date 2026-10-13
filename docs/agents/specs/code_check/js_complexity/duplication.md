@@ -70,10 +70,10 @@ jscpd's JSON report, trimmed (from the grounding run: the `fragment` text,
     {
       "format": "javascript",
       "kind": "exact",
-      "lines": 22,
-      "tokens": 250,
-      "firstFile": {"name": "plain/10.js", "start": 4, "end": 25},
-      "secondFile": {"name": "plain/9.js", "start": 1, "end": 22}
+      "lines": 23,
+      "tokens": 162,
+      "firstFile": {"name": "plain/9.js", "start": 3, "end": 25},
+      "secondFile": {"name": "plain/10.js", "start": 1, "end": 23}
     }
   ],
   "statistics": {"...": "omitted"}
@@ -114,8 +114,11 @@ CRLF file and 4–27 in a file with a BOM). For an SFC, the virtual module
 keeps the original line numbers (see [sfc.md](sfc.md#4-line-map)).
 
 **Grounding results** (fixture in [image.md](image.md#9-smoke-test-fixture)):
-one exact clone between `dup_a.js` (lines 1–22) and `dup_b.js` (lines 4–25),
-so `duplication.lines` is 22 for both, and 0 for every other staged file.
+one exact clone between `dup_a.js` (lines 3–25) and `dup_b.js` (lines 1–23),
+so `duplication.lines` is 23 for both, and 0 for every other staged file. The
+clone starts mid-line (column 31) on the function signature line of
+`dup_a.js`, because the two function names differ; the whole line still
+counts.
 
 ## 4. Report
 
@@ -137,8 +140,8 @@ Status             FTA  Cyclo  Lines    Dup  Assessment         File
 ──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
 🔴 ERROR           71.3    136    245      0  Needs improvement  fixture/complex.ts
 ✅ OK              37.4      3     18      0  OK                 fixture/component.tsx
-✅ OK              35.1      9     23     22  OK                 fixture/dup_b.js
-✅ OK              35.0      9     23     22  OK                 fixture/dup_a.js
+✅ OK              35.1      9     23     23  OK                 fixture/dup_b.js
+✅ OK              35.0      9     23     23  OK                 fixture/dup_a.js
 ...
 ✅ OK               0.0      -      -      0  -                  fixture/empty.js
 ⛔ PARSE              -      -      -      -  -                  fixture/broken.js
