@@ -16,24 +16,30 @@
 //            "files": [one entry per input line, in input order:
 //                      {path, parse_error, fta, duplication, functions}],
 //            "warnings": [{tool, path?, message}]}
-//         FTA's stderr is passed through to stderr.
+//         FTA's stderr and jscpd's stdout and stderr are passed through to
+//         stderr.
 // Exit:   0 when the JSON was printed; FTA's status when FTA exits non-zero;
 //         1 on any other failure ("tingle_js_complexity: <reason>" on stderr).
-//         Nothing is printed on stdout on failure.
+//         Nothing is printed on stdout on failure. A jscpd failure is not a
+//         failure: every files[].duplication is null and one path-less
+//         "jscpd" warning is added.
 //
 // Accepted files are copied to /tmp/stage/plain/<n>.<ext> (<n> = input line
-// number) and FTA runs on that tree, never on /src. Nothing is written
-// outside /tmp.
+// number) and FTA, then jscpd, run on that tree, never on /src. Nothing is
+// written outside /tmp.
 //
-// Dependencies: Node standard library, /usr/local/bin/fta (FTA 3.1.0).
+// Dependencies: Node standard library, /usr/local/bin/fta (FTA 3.1.0),
+// /opt/tingle_js_complexity/node_modules/.bin/jscpd (jscpd 5.4.1).
 //
-// Contract: docs/agents/specs/code_check/js_complexity/image.md.
+// Contract: docs/agents/specs/code_check/js_complexity/image.md and
+// docs/agents/specs/code_check/js_complexity/duplication.md.
 
 const { EntrypointError } = require("./lib/errors");
 const { readInputLines } = require("./lib/input");
 const { realSrcRoot, selectLine } = require("./lib/selection");
 const { stageFile } = require("./lib/staging");
 const { applyFtaStderr, applyFtaStdout, ftaVersion, runFta } = require("./lib/fta");
+const { applyJscpd, jscpdVersion } = require("./lib/jscpd");
 
 function newEntry(line) {
   return { path: line, parse_error: false, fta: null, duplication: null, functions: null };
@@ -66,13 +72,15 @@ function analyse(lines) {
   const files = [];
   const warnings = [];
   const fta = ftaVersion();
+  const jscpd = jscpdVersion();
   const staged = stageLines(lines, files, warnings);
   if (staged.size > 0) {
     const result = runFta();
     applyFtaStderr(result.stderr, files, staged, warnings);
     applyFtaStdout(result.stdout, files, staged);
+    applyJscpd(files, staged, warnings);
   }
-  return { tool_versions: { fta, jscpd: null, escomplex: null }, files, warnings };
+  return { tool_versions: { fta, jscpd, escomplex: null }, files, warnings };
 }
 
 function fail(error) {
