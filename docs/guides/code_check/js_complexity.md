@@ -15,11 +15,13 @@ machine, then runs [FTA](https://ftaproject.dev/) (Fast TypeScript Analyzer)
 on them inside the `darthjee/tingle_js_complexity` Docker image. FTA gives
 each file a score that combines its cyclomatic complexity, its size and its
 Halstead metrics. The higher the score, the harder the file is to maintain.
+The same image also runs [jscpd](https://github.com/kucherenko/jscpd) to
+find copy-pasted code between the selected files.
 
 Each file gets one row in a report, labelled OK, WARN, ERROR or CRITICAL.
 The label comes from the file's **FTA score** compared with thresholds you
-can choose. The other columns (cyclomatic complexity, lines and FTA's own
-assessment) are shown for information only: they never change the label or
+can choose. The other columns (cyclomatic complexity, lines, duplicated
+lines and FTA's own assessment) are shown for information only: they never change the label or
 the exit status.
 
 ## Requirements
@@ -654,25 +656,25 @@ Analyzing: /home/me/fixture
 Thresholds: warn=50 | error=60 | critical=75
 Image: darthjee/tingle_js_complexity:0.9.0
 
-Status             FTA  Cyclo  Lines  Assessment         File
-──────────────── ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
-🔴 ERROR           71.3    136    245  Needs improvement  fixture/complex.ts
-✅ OK              37.4      3     18  OK                 fixture/component.tsx
-✅ OK              35.1      9     23  OK                 fixture/dup_b.js
-✅ OK              35.0      9     23  OK                 fixture/dup_a.js
-✅ OK              31.0      3     11  OK                 fixture/widget.jsx
-✅ OK               7.7      1      6  OK                 fixture/simple.js
-✅ OK               7.3      2      6  OK                 fixture/bom.ts
-✅ OK               7.3      2      6  OK                 fixture/crlf.js
-✅ OK               7.3      2      6  OK                 fixture/ext/UPPER.JS
-✅ OK               7.3      2      6  OK                 fixture/ext/a.mjs
-✅ OK               7.3      2      6  OK                 fixture/ext/b.cjs
-✅ OK               7.3      2      6  OK                 fixture/ext/c.mts
-✅ OK               7.3      2      6  OK                 fixture/ext/d.cts
-✅ OK               3.5      1      1  OK                 fixture/short.js
-✅ OK               0.0      -      -  -                  fixture/empty.js
-⛔ PARSE              -      -      -  -                  fixture/broken.js
-⛔ PARSE              -      -      -  -                  fixture/latin1.js
+Status             FTA  Cyclo  Lines    Dup  Assessment         File
+──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
+🔴 ERROR           71.3    136    245      0  Needs improvement  fixture/complex.ts
+✅ OK              37.4      3     18      0  OK                 fixture/component.tsx
+✅ OK              35.1      9     23     22  OK                 fixture/dup_b.js
+✅ OK              35.0      9     23     22  OK                 fixture/dup_a.js
+✅ OK              31.0      3     11      0  OK                 fixture/widget.jsx
+✅ OK               7.7      1      6      0  OK                 fixture/simple.js
+✅ OK               7.3      2      6      0  OK                 fixture/bom.ts
+✅ OK               7.3      2      6      0  OK                 fixture/crlf.js
+✅ OK               7.3      2      6      0  OK                 fixture/ext/UPPER.JS
+✅ OK               7.3      2      6      0  OK                 fixture/ext/a.mjs
+✅ OK               7.3      2      6      0  OK                 fixture/ext/b.cjs
+✅ OK               7.3      2      6      0  OK                 fixture/ext/c.mts
+✅ OK               7.3      2      6      0  OK                 fixture/ext/d.cts
+✅ OK               3.5      1      1      0  OK                 fixture/short.js
+✅ OK               0.0      -      -      0  -                  fixture/empty.js
+⛔ PARSE              -      -      -      -  -                  fixture/broken.js
+⛔ PARSE              -      -      -      -  -                  fixture/latin1.js
 
 ──────────────────────────────────────────────────────────────────────────────
 Summary: 17 file(s) | 14 OK | 0 WARN | 1 ERROR | 0 CRITICAL | 2 skipped (parse error)
@@ -689,7 +691,7 @@ warning for each of `broken.js` and `latin1.js` is printed on standard error
 
 - `Analyzing:` shows the target as an absolute path.
 - `Thresholds:` shows the `warn`, `error` and `critical` values in use.
-- `Image:` shows the Docker image that runs FTA.
+- `Image:` shows the Docker image that runs FTA and jscpd.
 - `Config:` (dimmed) shows the path of the configuration file, when a
   `js_complexity` section was loaded from it, even an empty one. It is not
   printed when the file or the section does not exist, or with
@@ -703,6 +705,7 @@ warning for each of `broken.js` and `latin1.js` is printed on standard error
 | `FTA` | The file's FTA score, rounded to one decimal. This is the value compared with the thresholds. |
 | `Cyclo` | The file's cyclomatic complexity, as reported by FTA. Information only. |
 | `Lines` | The file's number of code lines, as counted by FTA. Information only. |
+| `Dup` | The number of the file's lines that are inside an exact copy-pasted block (a clone), as found by jscpd (see [Duplicated lines](#duplicated-lines)). Information only. `-` means the value is not available. |
 | `Assessment` | FTA's own verdict: `OK`, `Could be better` or `Needs improvement`. Information only. |
 | `File` | For a directory target, the path relative to the target's parent directory, so it starts with the directory's name (`fixture/...` above). For a single-file target, only the file name. |
 
@@ -715,8 +718,9 @@ same score are sorted by path. The `⛔ PARSE` rows follow, sorted by path.
 
 FTA leaves out the files that have no code line: empty files, and files with
 only blank lines or comments. Such a file is still listed, as `✅ OK` with a
-score of `0.0` and `-` in the other columns, so the file count matches the
-selection (`fixture/empty.js` above).
+score of `0.0` and `-` in the `Cyclo`, `Lines` and `Assessment` columns, so
+the file count matches the selection (`fixture/empty.js` above). jscpd still
+reads it, so its `Dup` column shows `0`.
 
 In rare cases the image also refuses a file it was given, for example one
 deleted between the selection and the run. It prints a warning on standard
@@ -735,9 +739,44 @@ UTF-8) prints a warning on standard error, before the report:
 Warning: cannot parse fixture/broken.js: <message>
 ```
 
-It appears as a `⛔ PARSE` row, with `-` in every value column, and in the
+It appears as a `⛔ PARSE` row, with `-` in every value column (`Dup`
+included), and in the
 `skipped (parse error)` count. It is never in the level counts or the FTA
 score line, and it never changes the exit status.
+
+### Duplicated lines
+
+The `Dup` column counts the file's lines that are part of an exact clone: a
+block of at least 50 tokens and 5 lines that appears more than once, either
+in another selected file or elsewhere in the same file. jscpd finds the
+clones; only exact copies count, so a copy with renamed variables is not a
+match.
+
+- Each line counts **once**, however many clones cover it. In the sample
+  above, `dup_a.js` and `dup_b.js` share one 22-line block, so both show
+  `22`.
+- Only the **selected files** are compared with each other. A copy in an
+  excluded or ignored file (for example under `node_modules`) is never
+  counted.
+- Copies between JavaScript and TypeScript files are found too (for
+  example a `.js` file and a `.ts` file).
+- `0` means the file was checked and has no duplicated line.
+- `-` means the value is not available: the file could not be parsed
+  (`⛔ PARSE` rows), it is larger than 1 MiB (1,048,576 bytes), or jscpd
+  failed (see below).
+
+The column is for information only: it never changes the file's level, the
+`--fail-on` gate, the exit status or the summary.
+
+If jscpd fails inside the image, the analysis still completes. Tingle prints
+one warning on standard error, before the report:
+
+```
+Warning: jscpd failed in <image>; duplication data is not available: <message>
+```
+
+The `Dup` column then shows `-` on every row. The exit status is not
+changed.
 
 ### Summary
 
@@ -879,8 +918,9 @@ In short:
 | `1` | Usage error, invalid configuration file, path problem, or Docker / FTA failure |
 | `2` | The complexity gate failed (`--fail-on`) |
 
-Unparsable files (`⛔ PARSE` rows) and files shown as `OK 0.0` never change
-the exit status on their own. The report always goes to standard output and
+Unparsable files (`⛔ PARSE` rows), files shown as `OK 0.0`, the `Dup`
+column and a jscpd failure warning never change the exit status on their
+own. The report always goes to standard output and
 error messages to standard error.
 
 ## Limitations
