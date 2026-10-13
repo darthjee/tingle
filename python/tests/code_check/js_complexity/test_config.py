@@ -24,6 +24,7 @@ FULL_SECTION = {
     "fail_on": "error",
     "min_level": "warn",
     "image": "darthjee/tingle_js_complexity:0.9.0",
+    "details": 5,
 }
 
 
@@ -43,6 +44,7 @@ def test_schema_keys():
     assert list(SCHEMA) == [
         "warn", "error", "critical", "top", "exclude", "ignore", "include",
         "no_default_excludes", "gitignore", "fail_on", "min_level", "image",
+        "details",
     ]
 
 
@@ -80,6 +82,9 @@ def test_empty_section_is_valid():
         ("min_level", "error"),
         ("min_level", "critical"),
         ("image", "img:dev"),
+        ("details", None),
+        ("details", 0),
+        ("details", 3),
     ],
 )
 def test_valid_values(key, value):
@@ -122,6 +127,11 @@ def test_valid_values(key, value):
         ("image", "   ", "'image' must be a non-empty string"),
         ("image", 1, "'image' must be a non-empty string"),
         ("image", None, "'image' must be a non-empty string"),
+        ("details", -1, "'details' must be an integer >= 0 or null"),
+        ("details", 2.0, "'details' must be an integer >= 0 or null"),
+        ("details", 1.5, "'details' must be an integer >= 0 or null"),
+        ("details", True, "'details' must be an integer >= 0 or null"),
+        ("details", "5", "'details' must be an integer >= 0 or null"),
     ],
 )
 def test_invalid_values(key, value, reason):
@@ -130,11 +140,6 @@ def test_invalid_values(key, value, reason):
 
 def test_ext_is_an_unknown_key():
     assert _reason({"ext": [".js"]}) == "unknown key 'ext'"
-
-
-@pytest.mark.parametrize("value", [None, 0, 5])
-def test_details_is_an_unknown_key_before_325(value):
-    assert _reason({"details": value}) == "unknown key 'details'"
 
 
 def test_unknown_key():

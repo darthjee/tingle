@@ -69,7 +69,7 @@ def test_help_exits_zero(capsys):
         [".", "--top", "1.5"],
         [".", "--min-level", "bad"],
         [".", "--fail-on", "ok"],
-        [".", "--details"],
+        [".", "--details", "x"],
         [".", "--unknown"],
     ],
 )

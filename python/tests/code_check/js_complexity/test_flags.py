@@ -16,7 +16,7 @@ def _flag(name):
 def test_flag_names_in_order():
     assert [f["name"] for f in FLAGS] == [
         "path", "--warn", "--error", "--critical", "--top",
-        "--min-level", "--fail-on", "--image",
+        "--min-level", "--fail-on", "--details", "--image",
         "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
         "--no-config",
     ]
@@ -33,6 +33,7 @@ def test_single_value_flags_default_to_none():
         "top": None,
         "min_level": None,
         "fail_on": None,
+        "details": None,
         "image": None,
         "exclude": None,
         "no_default_excludes": False,
@@ -79,6 +80,13 @@ def test_choices():
         ("--top", "Show only the top N most complex files (default: 0 = all)"),
         ("--min-level", "Show only files at this level or higher (default: ok)"),
         ("--fail-on", "Exit with status 2 if any file reaches this level or higher"),
+        (
+            "--details",
+            (
+                "Show the N most complex functions under each file "
+                "(default when given without N: 5; 0 = all)"
+            ),
+        ),
         (
             "--image",
             "Docker image to run (default: darthjee/tingle_js_complexity:<tingle version>)",
@@ -162,9 +170,33 @@ def test_no_config_flag():
     assert ArgParser(FLAGS).parse(["src"])["no_config"] is False
 
 
-@pytest.mark.parametrize("name", ["--details", "--ext"])
-def test_later_flags_are_absent(name):
-    assert all(f["name"] != name for f in FLAGS)
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (["src"], None),
+        (["src", "--details"], 5),
+        (["src", "--details", "3"], 3),
+        (["src", "--details", "0"], 0),
+        (["--details", "2", "src"], 2),
+    ],
+)
+def test_details_values(args, expected):
+    assert ArgParser(FLAGS).parse(args)["details"] == expected
+
+
+def test_details_flag_shape():
+    assert _flag("--details")["type"] is int
+    assert _flag("--details")["nargs"] == "?"
+    assert _flag("--details")["const"] == Constants.DEFAULT_DETAILS == 5
+
+
+def test_details_rejects_non_int():
+    with pytest.raises(SystemExit):
+        ArgParser(FLAGS).parse(["src", "--details", "x"])
+
+
+def test_ext_flag_is_absent():
+    assert all(f["name"] != "--ext" for f in FLAGS)
 
 
 @pytest.mark.parametrize("args", [["src", "--min-level", "bad"], ["src", "--fail-on", "ok"]])

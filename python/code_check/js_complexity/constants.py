@@ -17,6 +17,9 @@ class Constants:
     DEFAULT_ERROR: ClassVar[float] = 60
     DEFAULT_CRITICAL: ClassVar[float] = 75
 
+    # --details given without N: show this many functions per file
+    DEFAULT_DETAILS: ClassVar[int] = 5
+
     # file_size's default excludes plus JS tooling output directories
     DEFAULT_EXCLUDES: ClassVar[list[str]] = [
         *FileSizeConstants.DEFAULT_EXCLUDES,

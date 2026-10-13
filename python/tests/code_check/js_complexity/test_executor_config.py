@@ -331,7 +331,7 @@ def test_load_config_returns_section_and_path():
         ("[1, 2]", "top level must be an object"),
         ({"js_complexity": []}, "'js_complexity' must be an object"),
         ({"js_complexity": {"ext": [".js"]}}, "unknown key 'ext'"),
-        ({"js_complexity": {"details": 5}}, "unknown key 'details'"),
+        ({"js_complexity": {"details": -1}}, "'details' must be an integer >= 0 or null"),
         ({"js_complexity": {"bogus": 1}}, "unknown key 'bogus'"),
         ({"js_complexity": {"warn": -1}}, "'warn' must be a number >= 0"),
         ({"js_complexity": {"warn": True}}, "'warn' must be a number >= 0"),
