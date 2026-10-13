@@ -12,9 +12,12 @@ File selection follows `file_size`, applied in this order: default and
 `.gitignore` (unless `--no-gitignore`), `--ignore` globs, then `--include`
 globs together with the fixed core extensions (`.js .mjs .cjs .jsx .ts .mts
 .cts .tsx`, case-insensitive), then the declaration files (`.d.ts`,
-`.d.mts`, `.d.cts`). Symlinks resolving outside the mount root are skipped.
-For a single-file `<path>` the directory excludes don't apply and the globs
-match the file name.
+`.d.mts`, `.d.cts`), then the minified bundles (`.min.js`, `.min.mjs`,
+`.min.cjs`, case-insensitive; `--no-default-excludes` drops this skip too,
+and `--include` never brings them back). Symlinks resolving outside the
+mount root are skipped. For a single-file `<path>` the directory excludes
+don't apply and the globs match the file name; a minified single file is
+skipped unless `--no-default-excludes`.
 
 Personal defaults are read from the `js_complexity` section of
 `~/.tingle/code_check/config.json` (keys: warn, error, critical, top, exclude,
@@ -126,6 +129,17 @@ class CheckJsComplexity(DockerCheck):
     def _select_files(target: Path, root: Path, **kwargs) -> Selection:
         """Select the JS/TS files through this module's `select_files`."""
         return select_files(target, root, **kwargs)
+
+    @classmethod
+    def _selection_options(cls, options: dict) -> dict:
+        """Extend the base selection options with the minified-bundle skip.
+
+        Minified bundles are skipped unless `no_default_excludes` is set.
+        """
+        return {
+            **super()._selection_options(options),
+            "skip_minified": not bool(options.get("no_default_excludes")),
+        }
 
     @staticmethod
     def _gate_value(result: FileResult) -> float:
