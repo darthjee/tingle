@@ -550,6 +550,187 @@ if report != expected:
 ' "$platform" <<< "$output"
 }
 
+JS_COMPLEXITY_FIXTURE_DIR="docker/js_complexity/fixture"
+JS_COMPLEXITY_FIXTURE_FILES=(simple.js complex.ts component.tsx widget.jsx dup_a.js dup_b.js broken.js
+  empty.js short.js bundle.min.js build/out.js ext/a.mjs ext/b.cjs ext/c.mts ext/d.cts ext/UPPER.JS
+  ext/types.d.ts crlf.js bom.ts latin1.js Cart.vue)
+# Hostile lines piped after the fixture list: an empty line, an absolute path,
+# a ".." segment, a duplicate and a missing file. Each must be refused.
+JS_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.js simple.js missing.js)
+
+# Runs the fixture checks from docs/agents/specs/code_check/js_complexity/image.md
+# (section 9, "Smoke-test fixture") against a local tingle_js_complexity image,
+# with the canonical run line (--network none, read-only /src, foreign uid
+# 501:20): the fixture list plus the hostile lines on stdin (exit 0, one JSON
+# object checked with python3: tool versions, one files[] entry per input line
+# in order, the FTA expectations per fixture, refused hostile lines), no git in
+# the image, and empty files/warnings on empty stdin. Cart.vue is refused as
+# "unsupported extension" until SFC support lands (#326). Any failure prints
+# "<reason> on <platform>" on stderr and exits 1.
+smoke_test_js_complexity() {
+  local image="$1"
+  local platform="$2"
+  local run=(docker run --rm -i --pull never --network none --security-opt no-new-privileges
+    --platform "$platform" --user "$FOREIGN_USER"
+    -v "$PWD/$JS_COMPLEXITY_FIXTURE_DIR:/src:ro" -w /src)
+  local lines=("${JS_COMPLEXITY_FIXTURE_FILES[@]}" "${JS_COMPLEXITY_HOSTILE_LINES[@]}")
+
+  local output status=0
+  output=$(printf '%s\n' "${lines[@]}" | "${run[@]}" "$image") || status=$?
+  if [ "$status" -ne 0 ]; then
+    smoke_fail "Fixture run exited with status $status on $platform"
+  fi
+
+  python3 -c '
+import json, sys
+
+platform = sys.argv[1]
+lines = sys.argv[2:]
+
+def fail(reason):
+    print(f"{reason} on {platform}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError as error:
+    fail(f"Fixture output is not valid JSON ({error})")
+if not isinstance(report, dict):
+    fail("Fixture output is not a JSON object")
+
+versions = report.get("tool_versions") or {}
+fta_version = versions.get("fta")
+if fta_version != "3.1.0":
+    fail(f"tool_versions.fta is {fta_version!r}, not \"3.1.0\"")
+for tool in ("jscpd", "escomplex"):
+    if versions.get(tool) is not None:
+        fail(f"tool_versions.{tool} is {versions.get(tool)!r}, not null")
+
+files = report.get("files")
+if not isinstance(files, list) or not all(isinstance(f, dict) for f in files):
+    fail(f"files is {files!r}, not a list of objects")
+paths = [f.get("path") for f in files]
+if paths != lines:
+    fail(f"files paths are {paths}, expected the input lines {lines}")
+
+warnings = report.get("warnings")
+if not isinstance(warnings, list) or not all(isinstance(w, dict) for w in warnings):
+    fail(f"warnings is {warnings!r}, not a list of objects")
+
+hostile = {
+    "": "empty line",
+    "/etc/passwd": "absolute path",
+    "../outside.js": "path has a \x27..\x27 segment",
+    "simple.js": "duplicate line",
+    "missing.js": "not a regular file under /src",
+}
+
+def warnings_for(path):
+    return [(w.get("tool"), w.get("message")) for w in warnings if w.get("path") == path]
+
+# Warnings for a fixture path, without the one its hostile duplicate line gets.
+def fixture_warnings_for(path):
+    hostile_warning = ("entrypoint", hostile.get(path))
+    return [w for w in warnings_for(path) if w != hostile_warning]
+
+# The fixture rows come first, so the first entry for a path is its fixture row.
+entries = {}
+for entry in files:
+    entries.setdefault(entry["path"], entry)
+
+def normal(path):
+    entry = entries[path]
+    flag = entry.get("parse_error")
+    if flag is not False:
+        fail(f"{path} parse_error is {flag!r}, not false")
+    fta = entry.get("fta")
+    if not isinstance(fta, dict):
+        fail(f"{path} fta is {fta!r}, not an object")
+    score = fta.get("score")
+    if isinstance(score, bool) or not isinstance(score, (int, float)):
+        fail(f"{path} fta.score is {score!r}, not a number")
+    if fixture_warnings_for(path):
+        fail(f"{path} has warnings {fixture_warnings_for(path)}")
+    return fta
+
+def parse_error(path, message=None):
+    entry = entries[path]
+    flag, fta = entry.get("parse_error"), entry.get("fta")
+    if flag is not True:
+        fail(f"{path} parse_error is {flag!r}, not true")
+    if fta is not None:
+        fail(f"{path} fta is {fta!r}, not null")
+    fta_warnings = [m for tool, m in warnings_for(path) if tool == "fta"]
+    if not fta_warnings:
+        fail(f"{path} has no fta warning")
+    if message is not None and message not in fta_warnings:
+        fail(f"{path} fta warnings are {fta_warnings}, expected {message!r}")
+
+def refused(entry, message):
+    path, flag, fta = entry.get("path"), entry.get("parse_error"), entry.get("fta")
+    if flag is not False:
+        fail(f"refused line {path!r} parse_error is {flag!r}, not false")
+    if fta is not None:
+        fail(f"refused line {path!r} fta is {fta!r}, not null")
+    if ("entrypoint", message) not in warnings_for(path):
+        fail(f"refused line {path!r} has no entrypoint warning {message!r}")
+
+simple = normal("simple.js")
+if not simple["score"] < 20 or simple.get("assessment") != "OK":
+    fail(f"simple.js fta is {simple}, expected score < 20 and \"OK\"")
+complex_fta = normal("complex.ts")
+if not complex_fta["score"] > 60 or complex_fta.get("assessment") != "Needs improvement":
+    fail(f"complex.ts fta is {complex_fta}, expected score > 60 and \"Needs improvement\"")
+for path in ("component.tsx", "widget.jsx", "dup_a.js", "dup_b.js", "build/out.js",
+             "ext/a.mjs", "ext/b.cjs", "ext/c.mts", "ext/d.cts", "ext/UPPER.JS", "ext/types.d.ts"):
+    normal(path)
+parse_error("broken.js")
+empty = entries["empty.js"]
+if empty.get("parse_error") is not False or empty.get("fta") is not None:
+    fail(f"empty.js is {empty}, expected parse_error false and fta null")
+for path in ("short.js", "bundle.min.js"):
+    line_count = normal(path).get("lines")
+    if line_count != 1:
+        fail(f"{path} fta.lines is {line_count!r}, not 1")
+if normal("crlf.js")["score"] != normal("ext/a.mjs")["score"]:
+    fail("crlf.js score differs from ext/a.mjs")
+if normal("bom.ts")["score"] != normal("ext/c.mts")["score"]:
+    fail("bom.ts score differs from ext/c.mts")
+parse_error("latin1.js", "file is not valid UTF-8")
+refused(entries["Cart.vue"], "unsupported extension")
+
+fixture_count = len(lines) - len(hostile)
+for entry in files[fixture_count:]:
+    refused(entry, hostile[entry["path"]])
+' "$platform" "${lines[@]}" <<< "$output"
+
+  local git_check
+  git_check=$(docker run --rm --network none --platform "$platform" --entrypoint sh "$image" \
+    -c 'if command -v git >/dev/null 2>&1; then echo present; else echo absent; fi')
+  if [ "$git_check" != "absent" ]; then
+    smoke_fail "git is present in the image on $platform"
+  fi
+
+  status=0
+  output=$("${run[@]}" "$image" < /dev/null) || status=$?
+  if [ "$status" -ne 0 ]; then
+    smoke_fail "Empty stdin exited with status $status on $platform"
+  fi
+
+  python3 -c '
+import json, sys
+
+platform = sys.argv[1]
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError:
+    report = None
+if not isinstance(report, dict) or report.get("files") != [] or report.get("warnings") != []:
+    print(f"Empty stdin did not print empty files and warnings on {platform}", file=sys.stderr)
+    sys.exit(1)
+' "$platform" <<< "$output"
+}
+
 cmd_smoke_test() {
   if ! changed_since_previous; then
     echo "shell/linux/ unchanged since previous release tag — skipping smoke test"
