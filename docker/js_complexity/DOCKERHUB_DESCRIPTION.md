@@ -4,9 +4,12 @@ The JavaScript/TypeScript complexity image behind the
 `tingle code_check js_complexity` command of
 [tingle](https://github.com/darthjee/tingle). It runs
 [FTA](https://ftaproject.dev/) (Fast TypeScript Analyzer) and
-[jscpd](https://github.com/kucherenko/jscpd) (exact-clone duplication) on a
-list of JS/TS files and prints the results as one JSON object, so tingle can
-check code complexity and duplication without a local Node or Rust setup.
+[jscpd](https://github.com/kucherenko/jscpd) (exact-clone duplication) and
+[typhonjs-escomplex](https://github.com/typhonjs-node-escomplex/typhonjs-escomplex)
+(per-function complexity) on a list of JS/TS files and prints the results as
+one JSON object, so tingle can check code complexity and duplication, and
+drill down to each file's most complex functions, without a local Node or
+Rust setup.
 
 Supported platforms: `linux/amd64`, `linux/arm64`.
 
@@ -17,6 +20,7 @@ Supported platforms: `linux/amd64`, `linux/arm64`.
 | Node.js | `24.21.0` (`node:24.21.0-slim`, pinned by digest) |
 | FTA | `3.1.0` (built from the `fta` crate with `cargo install --locked`) |
 | jscpd | `5.4.1` (npm, pinned by `package-lock.json`) |
+| typhonjs-escomplex | `0.1.0` (npm, pinned by `package-lock.json`) |
 
 The image has no git and no Rust toolchain. It runs as uid 1000 by default;
 tingle always overrides the user.
@@ -40,16 +44,22 @@ tingle always overrides the user.
   given on stdin), or `null` (parse error, refused line, file over 1 MiB, or
   jscpd failure). `warnings` lists `{"tool", "path", "message"}` entries for
   refused lines and parse errors; a jscpd failure adds one `jscpd` warning
-  without `path` and does not change the exit status. `escomplex` and
-  `functions` are `null` for now. With empty stdin it prints empty `files`
-  and `warnings`.
-- **stderr:** FTA's and jscpd's own output and any error message.
+  without `path` and does not change the exit status. `functions` is a list
+  of `{"name", "line", "cyclo", "sloc"}` (per-function data from
+  typhonjs-escomplex, in source order; `[]` when the file has no function)
+  or `null` (parse error, refused line, or a file escomplex can't parse,
+  which adds an `escomplex` warning with its `path`). An escomplex failure
+  sets every `functions` to `null`, adds one `escomplex` warning without
+  `path` and does not change the exit status. With empty stdin it prints
+  empty `files` and `warnings`.
+- **stderr:** FTA's, jscpd's and escomplex's own output and any error
+  message.
 - **exit status:** `0` when the JSON was printed (even with parse errors or
   refused lines), non-zero otherwise.
 
 The image works under any `--user <uid>:<gid>`, with no network and a
 read-only `/src`. It only writes under `/tmp`: accepted files are copied to
-a staging tree and FTA and jscpd run there, never on `/src`.
+a staging tree and FTA, jscpd and escomplex run there, never on `/src`.
 
 ## Usage
 
