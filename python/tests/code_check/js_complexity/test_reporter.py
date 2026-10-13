@@ -319,3 +319,185 @@ def test_colours_on_a_tty(target, capsys, monkeypatch):
     assert f"{Colors.GRAY}{'⛔ PARSE':<16}{Colors.RESET}" in out
     assert f"{Colors.GRAY}| 1 skipped (parse error){Colors.RESET}" in out
     assert f"{Colors.BOLD}FTA score:{Colors.RESET} avg 80.00 | max 80.00" in out
+
+
+# --- details -----------------------------------------------------------------------
+
+
+def _fn(name, line, cyclo, sloc=1):
+    return {"name": name, "line": line, "cyclo": cyclo, "sloc": sloc}
+
+
+def _rf(line, score, functions):
+    return FileResult(line, score, 2, 6, "OK", {"lines": 0}, functions)
+
+
+def _fn_line(path, f):
+    return (
+        f"{'':<16} cyclo {f['cyclo']:>3}  sloc {f['sloc']:>4}  {f['name']}  ({path}:{f['line']})"
+    )
+
+
+NOTE = f"{'':<16} (per-function data unavailable)"
+
+
+def test_details_spec_example(target, capsys):
+    complex_fns = [_fn("score", 74, 9, 11), _fn("helper", 3, 2, 4), _fn("reducer", 9, 12, 27)]
+    component_fns = [_fn("<anon method-1>", 12, 1, 1), _fn("List", 8, 3, 13)]
+    _reporter(target).report(
+        _parsed(
+            FileResult("complex.ts", 71.3, 136, 245, "Needs improvement", {"lines": 0}, complex_fns),
+            FileResult("component.tsx", 37.4, 3, 18, "OK", {"lines": 0}, component_fns),
+        ),
+        details=2,
+    )
+
+    assert _out(capsys)[2:8] == [
+        "🔴 ERROR           71.3    136    245      0  Needs improvement  fixture/complex.ts",
+        "                 cyclo  12  sloc   27  reducer  (fixture/complex.ts:9)",
+        "                 cyclo   9  sloc   11  score  (fixture/complex.ts:74)",
+        "✅ OK              37.4      3     18      0  OK                 fixture/component.tsx",
+        "                 cyclo   3  sloc   13  List  (fixture/component.tsx:8)",
+        "                 cyclo   1  sloc    1  <anon method-1>  (fixture/component.tsx:12)",
+    ]
+
+
+def test_select_functions_sorts_by_cyclo_then_line_then_name():
+    functions = [
+        _fn("b", 5, 3), _fn("a", 5, 3), _fn("c", 1, 3), _fn("d", 9, 7), _fn("e", 2, 1),
+    ]
+
+    names = [f["name"] for f in Reporter.select_functions(functions, 0)]
+    assert names == ["d", "c", "a", "b", "e"]
+
+
+@pytest.mark.parametrize(("details", "count"), [(1, 1), (2, 2), (5, 3), (0, 3)])
+def test_select_functions_keeps_n_or_all(details, count):
+    functions = [_fn("a", 1, 1), _fn("b", 2, 2), _fn("c", 3, 3)]
+
+    assert len(Reporter.select_functions(functions, details)) == count
+
+
+def test_select_functions_does_not_mutate_input():
+    functions = [_fn("a", 1, 1), _fn("b", 2, 2)]
+
+    Reporter.select_functions(functions, 0)
+
+    assert [f["name"] for f in functions] == ["a", "b"]
+
+
+def test_details_lines_follow_their_row(target, capsys):
+    a_fns = [_fn("fa", 1, 4)]
+    b_fns = [_fn("fb", 2, 2, 10)]
+    _reporter(target).report(
+        _parsed(_rf("a.js", 20.0, a_fns), _rf("b.js", 10.0, b_fns)), details=5
+    )
+
+    out = _out(capsys)
+    assert out[2].endswith("fixture/a.js")
+    assert out[3] == _fn_line("fixture/a.js", a_fns[0])
+    assert out[4].endswith("fixture/b.js")
+    assert out[5] == _fn_line("fixture/b.js", b_fns[0])
+    assert out[6] == ""
+
+
+def test_details_zero_lists_every_function(target, capsys):
+    fns = [_fn(f"f{i}", i, 1) for i in range(1, 9)]
+    _reporter(target).report(_parsed(_rf("a.js", 20.0, fns)), details=0)
+
+    out = _out(capsys)
+    assert out[3:11] == [_fn_line("fixture/a.js", f) for f in fns]
+    assert out[11] == ""
+
+
+def test_details_only_under_shown_rows_with_top(target, capsys):
+    _reporter(target).report(
+        _parsed(_rf("a.js", 20.0, [_fn("fa", 1, 1)]), _rf("b.js", 10.0, [_fn("fb", 1, 1)])),
+        top=1,
+        details=5,
+    )
+
+    out = capsys.readouterr().out
+    assert "fa  (fixture/a.js:1)" in out
+    assert "fb" not in out
+
+
+def test_details_only_under_shown_rows_with_min_level(target, capsys):
+    _reporter(target).report(
+        _parsed(_rf("a.js", 55.0, [_fn("fa", 1, 1)]), _rf("b.js", 10.0, [_fn("fb", 1, 1)])),
+        min_level="warn",
+        details=5,
+    )
+
+    out = capsys.readouterr().out
+    assert "fa  (fixture/a.js:1)" in out
+    assert "fb" not in out
+
+
+def test_no_details_lines_under_parse_rows(target, capsys):
+    _reporter(target).report(
+        _parsed(_rf("a.js", 20.0, []), parse_errors={"p.js": "m"}), details=5
+    )
+
+    out = _out(capsys)
+    assert out[2].endswith("fixture/a.js")
+    assert out[3].endswith("fixture/p.js")
+    assert out[4] == ""
+
+
+def test_unavailable_note_when_functions_is_none(target, capsys):
+    _reporter(target).report(_parsed(_rf("a.js", 20.0, None)), details=5)
+
+    out = _out(capsys)
+    assert out[3] == NOTE
+    assert out[4] == ""
+
+
+def test_nothing_printed_for_empty_functions(target, capsys):
+    _reporter(target).report(_parsed(_rf("a.js", 20.0, [])), details=5)
+
+    out = _out(capsys)
+    assert out[2].endswith("fixture/a.js")
+    assert out[3] == ""
+
+
+def test_no_change_when_details_is_none(target, capsys):
+    parsed = _parsed(_rf("a.js", 20.0, [_fn("fa", 1, 1)]), _rf("b.js", 10.0, None))
+    _reporter(target).report(parsed)
+    without = capsys.readouterr().out
+
+    _reporter(target).report(parsed, details=None)
+
+    assert capsys.readouterr().out == without
+    assert "fa" not in without
+    assert "unavailable" not in without
+
+
+def test_details_do_not_change_the_summary(target, capsys):
+    _reporter(target).report(_parsed(_rf("a.js", 70.0, [_fn("fa", 1, 99)])), details=5)
+
+    out = _out(capsys)
+    assert "Summary: 1 file(s) | 0 OK | 0 WARN | 1 ERROR | 0 CRITICAL" in out[-2]
+
+
+def test_single_file_details_use_the_file_name(tmp_path, capsys):
+    path = tmp_path / "one.js"
+    path.write_text("x")
+    _reporter(path, root=tmp_path).report(
+        _parsed(_rf("one.js", 20.0, [_fn("fa", 3, 2)])), details=5
+    )
+
+    assert _out(capsys)[3] == _fn_line("one.js", _fn("fa", 3, 2))
+
+
+def test_details_lines_are_dim_on_a_tty(target, capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    palette = Palette(FakeTTY())
+
+    _reporter(target, palette=palette).report(
+        _parsed(_rf("a.js", 20.0, [_fn("fa", 1, 1)]), _rf("b.js", 10.0, None)), details=5
+    )
+
+    out = capsys.readouterr().out
+    assert f"{Colors.DIM}{_fn_line('fixture/a.js', _fn('fa', 1, 1))}{Colors.RESET}" in out
+    assert f"{Colors.DIM}{NOTE}{Colors.RESET}" in out
