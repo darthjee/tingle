@@ -77,19 +77,21 @@ bump.
 
 ## 3. Functions
 
-escomplex 0.1.0's report (trimmed, from the grounding run on `complex.ts`;
-`halstead`, `aggregate`, `maintainability` and the averages omitted):
+escomplex 0.1.0's report (trimmed, from the grounding run on `complex.ts`
+with the image built from #325, `0.6.1-arm64`: only `reducer` and
+`Store.dispatch` kept; `halstead`, `aggregate`, `maintainability` and the
+averages omitted):
 
 ```json
 {
   "methods": [
-    {"name": "reducer", "lineStart": 9, "lineEnd": 35, "cyclomatic": 12, "sloc": {"logical": 32, "physical": 27}}
+    {"name": "reducer", "lineStart": 31, "lineEnd": 72, "cyclomatic": 15, "sloc": {"logical": 48, "physical": 42}}
   ],
   "classes": [
     {
       "name": "Store",
       "methods": [
-        {"name": "dispatch", "lineStart": 41, "lineEnd": 59, "cyclomatic": 2, "sloc": {"logical": 6, "physical": 19}}
+        {"name": "dispatch", "lineStart": 93, "lineEnd": 105, "cyclomatic": 3, "sloc": {"logical": 13, "physical": 13}}
       ]
     }
   ]
@@ -115,8 +117,12 @@ escomplex 0.1.0's report (trimmed, from the grounding run on `complex.ts`;
   wrapper reports with `error`, a `parse_error` file and a refused line get
   `null`.
 
-**Grounding results:** `complex.ts` 20 functions (`reducer` 12 is the most
-complex), `simple.js` 2, `dup_a.js`/`dup_b.js` 3 each, `empty.js`,
+**Grounding results** (image built from #325, `0.6.1-arm64`, escomplex
+0.1.0): `complex.ts` 30 functions (8 of them `Store.<method>` entries); the
+most complex are `reducer` (line 31, cyclo 15, sloc 42), `ruleTags` (line
+156, cyclo 6, sloc 7), `score` (line 225, cyclo 6, sloc 23) and `ruleCoupon`
+(line 149, cyclo 5, sloc 6). `simple.js` 2 (`add` line 3 and `double` line
+5, both cyclo 1, sloc 1), `component.tsx` 3, `dup_a.js`/`dup_b.js` 3 each, `empty.js`,
 `short.js` and `ext/types.d.ts` 0 (`[]`), `broken.js` an error
 (`Unexpected keyword 'return'. (2:2)`). See the full table in
 [image.md](image.md#10-grounding-run).
@@ -159,15 +165,17 @@ with #324 and #325, first rows):
 Status             FTA  Cyclo  Lines    Dup  Assessment         File
 ──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
 🔴 ERROR           71.3    136    245      0  Needs improvement  fixture/complex.ts
-                 cyclo  12  sloc   27  reducer  (fixture/complex.ts:9)
-                 cyclo   9  sloc   11  score  (fixture/complex.ts:74)
+                 cyclo  15  sloc   42  reducer  (fixture/complex.ts:31)
+                 cyclo   6  sloc    7  ruleTags  (fixture/complex.ts:156)
 ✅ OK              37.4      3     18      0  OK                 fixture/component.tsx
-                 cyclo   3  sloc   13  List  (fixture/component.tsx:8)
-                 cyclo   1  sloc    1  <anon method-1>  (fixture/component.tsx:12)
+                 cyclo   2  sloc   17  Counter  (fixture/component.tsx:8)
+                 cyclo   2  sloc    5  <anon method-1>  (fixture/component.tsx:11)
 ```
 
-The values come from the grounding fixture; they change with the fixture
-content. With `--details 0`, `complex.ts` lists all 20 functions.
+The values come from the grounding fixture (image built from #325,
+`0.6.1-arm64`); they change with the fixture content. `ruleTags` comes
+before `score` (both cyclo 6) because its line is lower. With `--details 0`,
+`complex.ts` lists all 30 functions.
 
 ## 5. Unavailable data
 
