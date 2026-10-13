@@ -11,6 +11,10 @@ The file-selection flags (`--exclude`, `--no-default-excludes`,
 `--no-gitignore`, `--ignore`, `--include`) mirror `file_size`'s; the
 JavaScript/TypeScript extension filter is fixed, so there is no `--ext`.
 Their parsing lives in `code_check.excludes` and `docker_check`, never here.
+
+`--no-config` skips the `js_complexity` section of
+`~/.tingle/code_check/config.json`. The file is read and validated by the
+executor (`js_complexity.config`), which this module never imports.
 """
 
 from __future__ import annotations
@@ -114,5 +118,10 @@ FLAGS: list[dict] = [
             "Only analyse JavaScript/TypeScript files whose path relative to <path> "
             "matches this glob (can be repeated)"
         ),
+    },
+    {
+        "name": "--no-config",
+        "action": "store_true",
+        "help": "Do not read ~/.tingle/code_check/config.json",
     },
 ]

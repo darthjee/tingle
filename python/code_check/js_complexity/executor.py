@@ -14,10 +14,23 @@ globs together with the fixed core extensions (`.js .mjs .cjs .jsx .ts .mts
 .cts .tsx`, case-insensitive), then the declaration files (`.d.ts`,
 `.d.mts`, `.d.cts`). Symlinks resolving outside the mount root are skipped.
 For a single-file `<path>` the directory excludes don't apply and the globs
-match the file name. There is no config file yet.
+match the file name.
+
+Personal defaults are read from the `js_complexity` section of
+`~/.tingle/code_check/config.json` (keys: warn, error, critical, top, exclude,
+ignore, include, no_default_excludes, gitignore, fail_on, min_level, image;
+there is no `ext`). Single values given on the CLI win over the config, which
+wins over the built-in defaults; list values (exclude, ignore, include) are
+concatenated, config first, and deduplicated. `--no-default-excludes` and
+`--no-gitignore` win over the config. An invalid config prints
+`Error: <path>: <reason>` and exits with status 1 before any file selection
+or Docker call. `--no-config` skips the file entirely.
+
+Example config:
+    {"js_complexity": {"warn": 40, "ignore": ["**/*.test.ts"], "fail_on": "error"}}
 
 Exit status: 0 on success (also when no file is selected), 1 on errors (bad
-option, path missing or unreadable, Docker missing or failing, image pull
+option, invalid config, path missing or unreadable, Docker missing or failing, image pull
 failure, container failure, unparsable output) and 2 when `--fail-on` is set
 and any file reaches that level.
 
@@ -38,6 +51,7 @@ Examples
     tingle code_check js_complexity ./src --ignore '**/*.test.ts'
     tingle code_check js_complexity ./src --include 'src/**'
     tingle code_check js_complexity ./src --no-gitignore
+    tingle code_check js_complexity . --no-config
 
 """
 
@@ -48,8 +62,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from code_check.config import load_section
 from code_check.docker_check.executor import DockerCheck
 from code_check.file_size.file_analyzer import FileAnalyzer
+from code_check.js_complexity.config import validate
 from code_check.js_complexity.constants import Constants
 from code_check.js_complexity.docker_runner import DockerRunner, decode, write_stderr
 from code_check.js_complexity.errors import JsComplexityError
@@ -64,15 +80,14 @@ from code_check.js_complexity.output_parser import (
 from code_check.js_complexity.reporter import Reporter
 from code_check.js_complexity.selection import Selection, select_files
 from code_check.palette import Palette
-from common.arg_parser import ArgParser
 
 # Program name shown in the help usage line.
 PROG = "tingle code_check js_complexity"
 
-# Section of the config file holding this command's options (read from #322).
+# Section of the config file holding this command's options.
 CONFIG_SECTION = "js_complexity"
 
-# Built-in defaults for single-value options.
+# Built-in defaults for single-value options, applied after the config merge.
 SINGLE_DEFAULTS: dict = {
     "warn": Constants.DEFAULT_WARN,
     "error": Constants.DEFAULT_ERROR,
@@ -100,24 +115,12 @@ class CheckJsComplexity(DockerCheck):
     NO_FILES_MESSAGE = "No JavaScript/TypeScript files found for analysis."
     error_class = JsComplexityError
 
+    validate_config = staticmethod(validate)
+
     @staticmethod
-    def _parse(arg_parser: ArgParser, args: list[str]) -> dict:
-        """Parse args like the base class, adding `no_config` (read by `DockerCheck.run`).
-
-        There is no `--no-config` flag yet; #322 adds it and removes this override.
-        """
-        cli = DockerCheck._parse(arg_parser, args)
-        cli.setdefault("no_config", False)
-        return cli
-
-    @classmethod
-    def _load_config(cls, no_config: bool) -> tuple[dict, Path | None]:
-        """Return no config: the file is never read.
-
-        There is no `--no-config` flag and no `js_complexity` config section
-        yet; #322 replaces this override.
-        """
-        return {}, None
+    def _load_section(name: str, path: Path | None = None) -> dict | None:
+        """Read the config section through this module's `load_section`."""
+        return load_section(name, path)
 
     @staticmethod
     def _select_files(target: Path, root: Path, **kwargs) -> Selection:

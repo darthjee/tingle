@@ -252,6 +252,7 @@ def test_js_complexity_flag_names():
     assert JS_COMPLEXITY_EXPECTED_FLAGS == [
         "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--image",
         "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
+        "--no-config",
     ]
 
 
