@@ -23,9 +23,10 @@ The subcommand comes first; its options follow it.
 |---|---|
 | [`file_size`](code_check/file_size.md) | Token efficiency triage: file size analysis. |
 | [`rubycritic`](code_check/rubycritic.md) | Ruby code complexity via RubyCritic (Docker). |
+| [`js_complexity`](code_check/js_complexity.md) | JavaScript/TypeScript code complexity via FTA (Docker). |
 
-Subcommand names are exact: `file_size` and `rubycritic` work, `file-size`,
-`FILE_SIZE` and `RubyCritic` do not.
+Subcommand names are exact: `file_size`, `rubycritic` and `js_complexity`
+work, `file-size`, `FILE_SIZE`, `RubyCritic` and `js-complexity` do not.
 
 ## Help
 
@@ -52,7 +53,8 @@ Error: expected a subcommand before options (got '--top')
 
 ## Configuration file
 
-All subcommands read defaults from the same file:
+The `file_size` and `rubycritic` subcommands read defaults from the same
+file (`js_complexity` does not read it yet):
 
 ```
 ~/.tingle/code_check/config.json
@@ -83,7 +85,8 @@ For example:
 ```
 
 Options given on the command line win over the config file. Each
-subcommand also accepts `--no-config` to ignore the file for one run.
+subcommand that reads it also accepts `--no-config` to ignore the file for
+one run.
 
 ## Exit status
 

@@ -9,6 +9,7 @@ Usage:
     tingle code_check -h <subcommand>      # same as <subcommand> -h
     tingle code_check file_size <path> [options]
     tingle code_check rubycritic <path> [options]
+    tingle code_check js_complexity <path> [options]
 
 Exit status: 0 for help, 1 for an unknown or misplaced word; a subcommand's
 own exit status (e.g. 2 for `file_size --fail-on`) is forwarded unchanged.
@@ -20,6 +21,7 @@ import sys
 from typing import ClassVar
 
 from code_check.file_size.executor import CheckFileSize
+from code_check.js_complexity.executor import CheckJsComplexity
 from code_check.palette import Palette
 from code_check.rubycritic.executor import CheckRubycritic
 
@@ -34,6 +36,9 @@ class CodeCheck:
     SUBCOMMANDS: ClassVar[dict[str, tuple[type, str]]] = {
         "file_size": (CheckFileSize, "Token efficiency triage: file size analysis."),
         "rubycritic": (CheckRubycritic, "Ruby code complexity via RubyCritic (Docker)."),
+        "js_complexity": (
+            CheckJsComplexity, "JavaScript/TypeScript code complexity via FTA (Docker)."
+        ),
     }
 
     def run(self, args: list[str]) -> None:

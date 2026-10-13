@@ -10,13 +10,15 @@ file/folder sentinel), never both. Committed words are scanned by position
 without `argparse`.
 
 Only argv and each subcommand's `flags.FLAGS` (`code_check.file_size.flags`,
-`code_check.rubycritic.flags`) are inspected: no config read, no `git` call, no filesystem walk and no network, so every keystroke
-stays fast and side-effect-free.
+`code_check.rubycritic.flags`, `code_check.js_complexity.flags`) are
+inspected: no config read, no `git` call, no filesystem walk and no network,
+so every keystroke stays fast and side-effect-free.
 """
 
 from __future__ import annotations
 
 from code_check.file_size.flags import FLAGS as FILE_SIZE_FLAG_DEFS
+from code_check.js_complexity.flags import FLAGS as JS_COMPLEXITY_FLAG_DEFS
 from code_check.rubycritic.flags import FLAGS as RUBYCRITIC_FLAG_DEFS
 from code_check.subcommands import SUBCOMMAND_NAMES
 
@@ -46,6 +48,7 @@ def flag_tables(flags: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
 SUBCOMMAND_FLAGS: dict[str, tuple[list[str], dict[str, list[str]]]] = {
     "file_size": flag_tables(FILE_SIZE_FLAG_DEFS),
     "rubycritic": flag_tables(RUBYCRITIC_FLAG_DEFS),
+    "js_complexity": flag_tables(JS_COMPLEXITY_FLAG_DEFS),
 }
 
 def complete(argv: list[str]) -> list[str]:
