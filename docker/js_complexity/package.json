@@ -6,6 +6,7 @@
     "node": "24.21.0"
   },
   "dependencies": {
-    "jscpd": "5.4.1"
+    "jscpd": "5.4.1",
+    "typhonjs-escomplex": "0.1.0"
   }
 }
