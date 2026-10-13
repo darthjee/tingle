@@ -51,13 +51,14 @@ tingle code_check js_complexity <path> [options]
 
 - **a directory**: every JavaScript/TypeScript file below it is analysed,
   recursively, except for the files left out by the selection rules (see
-  [Which files are analysed](#which-files-are-analysed)). The directory is
-  mounted into the container;
+  [File selection](#file-selection)). The directory is mounted into the
+  container;
 - **a single file**: only that file is analysed. If it is a symlink, it is
   resolved first, and its target's parent directory is mounted into the
   container; otherwise its own parent directory is. A file without a
-  supported extension, or a declaration file (`.d.ts`, ...), leaves nothing
-  to analyse.
+  supported extension, a declaration file (`.d.ts`, ...), or a file left out
+  by the selection options leaves nothing to analyse (see
+  [Single-file targets](#single-file-targets)).
 
 The file list is sent to the container on its standard input, so there is no
 limit on the number of files, and the run has no timeout.
@@ -73,14 +74,20 @@ limit on the number of files, and the run has no timeout.
 | `--min-level LEVEL` | `ok` | Show only files at `LEVEL` or higher. `LEVEL` is `ok`, `warn`, `error` or `critical`. |
 | `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
 | `--image IMAGE` | `darthjee/tingle_js_complexity:<tingle version>` | Docker image to run. |
+| `--exclude a,b` | none | Extra directory names to skip (comma-separated), **added** to the [default excludes](#--exclude). |
+| `--no-default-excludes` | off | Do not skip the default directories; only `--exclude` names apply. |
+| `--no-gitignore` | off | Do not skip files ignored by git (`.gitignore`, `.git/info/exclude`, global excludes). |
+| `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches `GLOB`. Can be repeated. |
+| `--include GLOB` | all | Only analyse JavaScript/TypeScript files whose path relative to `<path>` matches `GLOB`. Can be repeated. |
 
 The thresholds accept decimals (`--warn 52.5`) and must be `0` or more.
 `--top` must be a whole number, `0` or more, and `--image` must not be
 empty. The order of the thresholds is not checked: keep `warn` < `error` <
 `critical`, or the labels will not make sense.
 
-There is no option to change the analysed extensions, and no option to skip
-files or directories yet (see [Limitations](#limitations)).
+The file selection options are described in
+[File selection](#file-selection). There is no option to change the analysed
+extensions (no `--ext`).
 
 ### `--min-level` and `--top`
 
@@ -144,10 +151,13 @@ suggests `--image`:
 Error: cannot read the tingle version from /path/to/tingle/shell/linux/VERSION; use --image to choose the image
 ```
 
-## Which files are analysed
+## File selection
 
 The files to analyse are chosen on your machine, before Docker is called.
-Only the selected files are sent to the container.
+Only the selected files are sent to the container. The options work as in
+[`tingle code_check rubycritic`](rubycritic.md#file-selection), except that
+the extension list is the JavaScript/TypeScript one and declaration files are
+always skipped. There is no `--ext` and no binary check.
 
 ### Extensions
 
@@ -158,32 +168,209 @@ case (`UPPER.JS` counts):
 .js .mjs .cjs .jsx .ts .mts .cts .tsx
 ```
 
-TypeScript **declaration files** (`.d.ts`, `.d.mts`, `.d.cts`) hold only
-types, so they are always skipped. Other files, such as `.vue`, `.svelte`
-or `.json`, are not analysed.
+TypeScript **declaration files** (`.d.ts`, `.d.mts`, `.d.cts`, in any case)
+hold only types, so they are always skipped, even with
+`--no-default-excludes` or a matching `--include`. Other files, such as
+`.vue`, `.svelte` or `.json`, are not analysed.
 
-### Default excludes
+### `--exclude`
 
-For a directory `<path>`, files under these directories are always skipped:
+The default list is:
 
 ```
 node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,.cache,coverage,.nuxt,out,target,.turbo,.svelte-kit,.output,.vercel,.parcel-cache,storybook-static
 ```
 
-A file is skipped when **any** part of its path **relative to `<path>`**
-matches one of the names. Matching is case-insensitive and covers a whole
-path component: `build` does not match `builder`. The directories *above*
-`<path>` are never checked, so a project living in `~/work/build/my-app` is
-analysed normally.
+That is the [`file_size`](file_size.md#--exclude) default list plus
+`.turbo`, `.svelte-kit`, `.output`, `.vercel`, `.parcel-cache` and
+`storybook-static`, the output folders of common JavaScript tools. These
+directories are always skipped unless you pass
+[`--no-default-excludes`](#--no-default-excludes). Passing `--exclude`
+**adds** names to this list:
 
-The list does not apply to a single-file `<path>`. There is no `.gitignore`
-filtering: files that git ignores are analysed too, unless they are under
-one of the directories above.
+```
+tingle code_check js_complexity . --exclude test,fixtures
+```
+
+skips `test` and `fixtures` as well as `node_modules`, `dist` and the rest.
+
+A file is skipped when **any** part of its path **relative to `<path>`**
+matches one of the names. Matching is case-insensitive (`Test` matches
+`test`) and covers a whole path component: `build` does not match `builder`.
+The directories *above* `<path>` are never checked, so a project living in
+`~/work/build/my-app` is analysed normally.
+
+The names are plain directory names, not globs. To skip files by pattern,
+use [`--ignore`](#--ignore-and---include).
+
+| Invocation | Excluded names |
+| --- | --- |
+| `tingle code_check js_complexity .` | The defaults |
+| `tingle code_check js_complexity . --exclude test` | The defaults + `test` |
+| `tingle code_check js_complexity . --no-default-excludes` | None (`node_modules/`, `dist/` and `.git/` are walked too) |
+| `tingle code_check js_complexity . --no-default-excludes --exclude test` | Only `test` |
+
+`--exclude` is not repeatable: if you pass it more than once, only the last
+one counts. Put all the names in a single comma-separated list.
+
+Spaces around each name are trimmed and empty entries are dropped, so
+`--exclude ' test, ,fixtures'` adds `test` and `fixtures`, and `--exclude ''`
+adds nothing. A name that is already a default (`--exclude dist`) has no
+extra effect and is not an error.
+
+### `--no-default-excludes`
+
+Drops the default list, so directories such as `node_modules/`, `dist/` and
+`.git/` are walked too. On its own, it skips no directory at all:
+
+```
+tingle code_check js_complexity . --no-default-excludes
+```
+
+Combine it with `--exclude` to choose exactly which names to skip:
+
+```
+tingle code_check js_complexity . --no-default-excludes --exclude .git,node_modules
+```
+
+Declaration files stay skipped: `--no-default-excludes` only affects the
+directory names.
+
+`.gitignore` support does not skip `.git/`, because git never lists it as
+ignored. If you drop the defaults but still want to leave `.git/` out, add
+it back with `--exclude .git`.
+
+### .gitignore and `--no-gitignore`
+
+By default, when `<path>` (or, for a single file, its parent directory) is
+inside a git repository, files that git ignores are skipped, so the report
+only covers the files that belong to the project. Git's own rules are used:
+
+- `.gitignore` files, including nested ones in subdirectories;
+- the repository's `.git/info/exclude` file;
+- your global excludes file (`core.excludesFile`).
+
+Only **untracked** files are skipped. A tracked file is always analysed,
+even if it matches an ignore pattern (for example a file added with
+`git add -f`), just as git keeps tracking it. An ignored directory skips
+every file under it. This is a convenient way to leave out generated code
+and build output that your project already ignores.
+
+To turn this step off and analyse ignored files too, pass `--no-gitignore`:
+
+```
+tingle code_check js_complexity . --no-gitignore
+```
+
+A few details:
+
+- If `git` is not installed, `<path>` is not inside a git repository, or the
+  git call fails for any reason, nothing is skipped by git. No warning is
+  shown and the exit status is unchanged.
+- When `<path>` is a subdirectory of a repository, rules from `.gitignore`
+  files in the parent directories still apply.
+- Only the repository that contains `<path>` is consulted. The ignore rules
+  of nested repositories and submodules are not used.
+- Git runs on your machine, not in the container: the
+  `darthjee/tingle_js_complexity` image has no git, and does not need it.
+
+### `--ignore` and `--include`
+
+These options filter files by a glob pattern, similar to a `.gitignore`
+line:
+
+- `--ignore GLOB` skips every file that matches the glob.
+- `--include GLOB` analyses **only** the JavaScript/TypeScript files that
+  match the glob. Without any `--include`, every JavaScript/TypeScript file
+  is included.
+
+Both can be repeated. A file is skipped if it matches **any** `--ignore`
+glob, and kept if it matches **any** `--include` glob.
+
+The glob is matched against the file's path **relative to `<path>`**,
+always written with `/` (for example `src/app.ts` when `<path>` is the
+project root). The whole path must match, not just part of it. Matching is
+case-insensitive, so `*.test.ts` also matches `app.TEST.ts`.
+
+> **Quote your globs.** Write `--ignore '**/*.test.ts'`, not
+> `--ignore **/*.test.ts`. Without quotes, your shell may expand the
+> pattern into file names before `tingle` sees it.
+
+The glob syntax is the same as for `file_size` (see
+[Glob syntax](file_size.md#glob-syntax) and
+[Where a pattern matches](file_size.md#where-a-pattern-matches)). In short:
+
+- `*` matches within one path segment, `**` spans directories;
+- a pattern with no `/` matches in any directory (`*.test.ts` is the same as
+  `**/*.test.ts`);
+- a pattern with a `/` is anchored at `<path>`, and a leading `/` only marks
+  the anchor (`/src/*.ts` is the same as `src/*.ts`);
+- a trailing `/` matches everything under that directory (`generated/` is
+  the same as `**/generated/**`).
+
+Combining filters:
+
+- `--ignore` wins over `--include`: a file that matches both is skipped.
+- `--include` and the extension list must **both** match:
+  `--include '*.json'` leaves nothing to analyse.
+- `--include` never brings back a declaration file.
+- Excluded directories (the defaults plus any `--exclude` names) are always
+  skipped, whatever the globs say.
+
+A glob that matches nothing is not an error, and an empty pattern
+(`--ignore ''`) is ignored.
+
+| Command | Effect |
+| --- | --- |
+| `tingle code_check js_complexity . --ignore '**/*.test.ts'` | Skips every `.test.ts` file, in any directory. |
+| `tingle code_check js_complexity . --ignore '**/*.test.ts' --ignore '**/*.spec.js'` | Skips the `.test.ts` and `.spec.js` files. |
+| `tingle code_check js_complexity . --ignore '*.generated.ts'` | Skips generated files such as `api.generated.ts`. |
+| `tingle code_check js_complexity . --include 'src/**'` | Analyses only the files under `src/`. |
+| `tingle code_check js_complexity . --include 'src/**' --ignore 'src/legacy/'` | Analyses the files under `src/`, except those under `src/legacy/`. |
+
+### Filter order
+
+For a directory `<path>`, every file found below it goes through these
+steps, in order. The first step that rejects a file drops it:
+
+1. the default excludes (skipped with `--no-default-excludes`);
+2. the `--exclude` names;
+3. `.gitignore` (skipped with `--no-gitignore`);
+4. the `--ignore` globs;
+5. the `--include` globs (when given) **and** the
+   [extension list](#extensions), in any case;
+6. declaration files (`.d.ts`, `.d.mts`, `.d.cts`), always;
+7. the symlink rule (see [Symlinks](#symlinks)).
+
+A file dropped by any of these steps is not counted anywhere and no message
+is printed.
+
+### Single-file targets
+
+When `<path>` is a single file, the exclude list (the defaults, `--exclude`
+and `--no-default-excludes`) is ignored. The other filters still apply:
+
+- the file is skipped if git ignores it, unless you pass `--no-gitignore`;
+- `--ignore` and `--include` globs are matched against the file's **name**
+  (for example `app.ts`);
+- the file must have a supported extension and must not be a declaration
+  file.
+
+If `<path>` is a symlink, it is resolved first: its target's parent
+directory is mounted, and the target's name is the one shown and matched.
+
+For example, this leaves nothing to analyse, so it prints
+`No JavaScript/TypeScript files found for analysis.` and exits `0`:
+
+```
+tingle code_check js_complexity ./src/app.test.ts --ignore '*.test.ts'
+```
 
 ### Symlinks
 
-The container only sees the folder that is mounted, read-only, so every file
-sent to it must be a real file inside that folder:
+The container only sees the folder that is mounted (`<path>` for a
+directory), read-only, so every file sent to it must be a real file inside
+that folder:
 
 - **Directory symlinks are not followed**: the files behind a symlinked
   directory are not analysed.
@@ -192,6 +379,8 @@ sent to it must be a real file inside that folder:
 - A file symlink pointing **inside** `<path>` is analysed as its target: the
   `File` column shows the target's path. If the target is selected too, the
   file is counted only once.
+- Absolute symlinks that point inside `<path>` work too: they are sent as
+  the target's path inside the mounted folder.
 
 ### Unusual file names
 
@@ -384,6 +573,30 @@ Analyse a single file:
 tingle code_check js_complexity ./src/app.ts
 ```
 
+Skip test and fixture directories as well as the defaults:
+
+```
+tingle code_check js_complexity . --exclude test,fixtures
+```
+
+Skip test and spec files, wherever they are:
+
+```
+tingle code_check js_complexity . --ignore '**/*.test.ts' --ignore '**/*.spec.js'
+```
+
+Analyse only the files under `src/`:
+
+```
+tingle code_check js_complexity . --include 'src/**'
+```
+
+Analyse the files git ignores too:
+
+```
+tingle code_check js_complexity . --no-gitignore
+```
+
 Run a locally built image:
 
 ```
@@ -449,17 +662,18 @@ error messages to standard error.
   [`tingle linux`](../linux.md)) has no `docker` command, so running this
   subcommand inside it fails with `docker not found on PATH`. Run it on a
   host with Docker.
-- **Minified bundles and generated code are analysed.** A minified bundle
-  (`app.min.js` or one without `.min` in its name) or a generated file
-  (for example `api.generated.ts`) usually gets a very high score and shows
-  up as CRITICAL. For now, keep such files out of `<path>`: point the
-  command at your source folder (`./src`), or place generated output in a
-  default-excluded directory such as `dist/` or `build/`. Options to skip
-  files by name or directory (`--exclude`, `--ignore`) and a default skip
-  for `*.min.js` bundles are planned (#321, #323).
-- **No configuration file section yet.** The options must be given on the
-  command line; `~/.tingle/code_check/config.json` is not read by this
-  subcommand.
+- **Minified bundles are analysed.** A minified bundle (`app.min.js`, or
+  one without `.min` in its name) usually gets a very high score and shows
+  up as CRITICAL. Bundles under a default-excluded directory such as
+  `dist/` or `build/`, or ignored by git, are already skipped; for the
+  others, use `--ignore` (for example `--ignore '*.min.js'`). A default
+  skip for `*.min.js` bundles is planned (#323).
+- **Generated code is analysed** unless it is skipped by the selection
+  rules. Keep it out with `.gitignore`, `--exclude` or `--ignore` (for
+  example `--ignore '*.generated.ts'`).
+- **No configuration file section yet.** The options, including the file
+  selection options, must be given on the command line;
+  `~/.tingle/code_check/config.json` is not read by this subcommand.
 
 ## Quick help
 
@@ -470,4 +684,9 @@ tingle code_check js_complexity --help
 ```
 
 `tingle --help code_check` shows the options of every `code_check`
-subcommand, together with their list.
+subcommand, together with their list. Its `js_complexity` part groups the
+options as **File selection** (`--exclude`, `--no-default-excludes`,
+`--no-gitignore`, `--ignore`, `--include`), **Thresholds** (`--warn`,
+`--error`, `--critical`), **Display** (`--top`, `--min-level`), **CI gate**
+(`--fail-on`) and **Image** (`--image`), followed by the exit codes and a
+few examples.
