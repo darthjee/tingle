@@ -40,7 +40,7 @@ def _run(args) -> int:
 
 def _cli(**overrides) -> dict:
     cli = {"path": "x", "warn": None, "error": None, "critical": None, "top": None,
-           "min_level": None, "fail_on": None, "image": None,
+           "min_level": None, "fail_on": None, "image": None, "details": None,
            "exclude": None, "no_default_excludes": False, "no_gitignore": False,
            "ignore": None, "include": None, "no_config": False}
     cli.update(overrides)
@@ -126,6 +126,7 @@ def test_cli_overrides_config_single_values(project, capsys, no_docker):
         ("fail_on", None, "error", "critical"),
         ("min_level", "ok", "warn", "error"),
         ("image", None, "img:config", "img:cli"),
+        ("details", None, 3, 7),
     ],
 )
 def test_single_value_precedence(key, default, config_value, cli_value):
@@ -137,6 +138,28 @@ def test_single_value_precedence(key, default, config_value, cli_value):
 
 def test_cli_zero_top_wins_over_config():
     assert CheckJsComplexity._merge(_cli(top=0), {"top": 5})["top"] == 0
+
+
+def test_cli_zero_details_wins_over_config():
+    assert CheckJsComplexity._merge(_cli(details=0), {"details": 5})["details"] == 0
+
+
+def test_config_null_details_means_off():
+    assert CheckJsComplexity._merge(_cli(), {"details": None})["details"] is None
+
+
+def test_config_details_reaches_execute(monkeypatch):
+    _write_config({"js_complexity": {"details": 2}})
+    seen = {}
+
+    def fake_execute(self, options, config_file=None):
+        seen.update(options=options)
+        return 0
+
+    monkeypatch.setattr(CheckJsComplexity, "_execute", fake_execute)
+
+    assert _run(["src"]) == 0
+    assert seen["options"]["details"] == 2
 
 
 def test_config_null_means_unset():

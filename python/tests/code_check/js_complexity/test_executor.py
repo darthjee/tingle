@@ -87,6 +87,7 @@ def test_argparse_usage_errors_exit_one(capsys, args):
         (["--critical", "-3"], "Error: --critical must be a number >= 0"),
         (["--warn", "nan"], "Error: --warn must be a number >= 0"),
         (["--top", "-1"], "Error: --top must be an integer >= 0"),
+        (["--details", "-1"], "Error: --details must be an integer >= 0"),
         (["--image", ""], "Error: --image must not be empty"),
     ],
 )
@@ -100,13 +101,14 @@ def test_validation_errors_exit_one(tmp_path, capsys, args, message):
 
 def test_merge_fills_the_built_in_defaults():
     cli = {"path": "x", "warn": None, "error": 55.5, "critical": None, "top": None,
-           "min_level": None, "fail_on": None, "image": None, "no_config": False}
+           "min_level": None, "fail_on": None, "image": None, "details": None,
+           "no_config": False}
 
     options = CheckJsComplexity._merge(cli, {})
 
     assert {k: options[k] for k in CheckJsComplexity.SINGLE_DEFAULTS} == {
         "warn": 50, "error": 55.5, "critical": 75, "top": 0, "fail_on": None,
-        "min_level": "ok", "image": None,
+        "min_level": "ok", "image": None, "details": None,
     }
 
 
@@ -584,6 +586,119 @@ def test_jscpd_warning_with_a_path_is_not_printed(fixture_dir, capsys, docker):
     _run([str(fixture_dir / "complex.ts"), "--image", "img"])
 
     assert capsys.readouterr().err == ""
+
+
+# --- details (escomplex) ----------------------------------------------------------
+
+DETAIL_FUNCTIONS = [
+    {"name": f"f{i}", "line": i, "cyclo": i, "sloc": 2 * i} for i in range(1, 8)
+]
+
+
+def _fn_line(f):
+    return (
+        f"{'':<16} cyclo {f['cyclo']:>3}  sloc {f['sloc']:>4}  {f['name']}  "
+        f"(complex.ts:{f['line']})"
+    )
+
+
+def _details_out(fixture_dir, capsys, docker, *extra, functions=DETAIL_FUNCTIONS):
+    files = [entry("complex.ts", 10.0, functions=functions)]
+    docker.configure(stdout=json.dumps(output(files)))
+
+    status = _run([str(fixture_dir / "complex.ts"), "--image", "img", *extra])
+
+    assert status == 0
+    return capsys.readouterr().out.splitlines()
+
+
+@pytest.mark.parametrize(("args", "count"), [([], 5), (["3"], 3), (["0"], 7)])
+def test_details_lists_the_most_complex_functions(fixture_dir, capsys, docker, args, count):
+    out = _details_out(fixture_dir, capsys, docker, "--details", *args)
+
+    expected = sorted(DETAIL_FUNCTIONS, key=lambda f: -f["cyclo"])[:count]
+    assert out[6].endswith("complex.ts")
+    assert out[7:7 + count] == [_fn_line(f) for f in expected]
+    assert out[7 + count] == ""
+
+
+def test_without_details_no_function_lines(fixture_dir, capsys, docker):
+    out = _details_out(fixture_dir, capsys, docker)
+
+    assert out[7] == ""
+    assert not any("cyclo " in line for line in out)
+
+
+def test_details_with_no_function_data_prints_the_note(fixture_dir, capsys, docker):
+    out = _details_out(fixture_dir, capsys, docker, "--details", functions=None)
+
+    assert out[7] == f"{'':<16} (per-function data unavailable)"
+
+
+def test_details_negative_exits_one_before_docker(fixture_dir, capsys, docker):
+    assert _run([str(fixture_dir), "--image", "img", "--details", "-2"]) == 1
+
+    assert capsys.readouterr().err.strip() == "Error: --details must be an integer >= 0"
+    assert docker.get().calls == []
+
+
+def test_escomplex_failure_is_warned_without_changing_the_exit_code(fixture_dir, capsys, docker):
+    files = [entry("complex.ts", 10.0)]
+    warnings = [{"tool": "escomplex", "message": "escomplex exited with status 1"}]
+    docker.configure(stdout=json.dumps(output(files, warnings)))
+
+    status = _run([str(fixture_dir / "complex.ts"), "--image", "img:dev", "--details"])
+
+    assert status == 0
+    captured = capsys.readouterr()
+    assert captured.err == (
+        "Warning: escomplex failed in img:dev; per-function data is not available: "
+        "escomplex exited with status 1\n"
+    )
+    assert f"{'':<16} (per-function data unavailable)" in captured.out
+
+
+def test_escomplex_failure_is_warned_without_details(fixture_dir, capsys, docker):
+    warnings = [{"tool": "escomplex", "message": "boom"}]
+    docker.configure(stdout=json.dumps(output([entry("complex.ts", 10.0)], warnings)))
+
+    assert _run([str(fixture_dir / "complex.ts"), "--image", "img"]) == 0
+
+    assert "Warning: escomplex failed in img;" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("score", "expected"), [(10.0, 0), (65.0, 2)])
+def test_escomplex_failure_does_not_change_the_gate(fixture_dir, capsys, docker, score, expected):
+    warnings = [{"tool": "escomplex", "message": "boom"}]
+    docker.configure(stdout=json.dumps(output([entry("complex.ts", score)], warnings)))
+
+    status = _run([
+        str(fixture_dir / "complex.ts"), "--image", "img", "--fail-on", "error", "--details",
+    ])
+
+    assert status == expected
+
+
+def test_escomplex_warning_with_a_path_is_not_printed(fixture_dir, capsys, docker):
+    warnings = [{"tool": "escomplex", "path": "complex.ts", "message": "Unexpected token"}]
+    docker.configure(stdout=json.dumps(output([entry("complex.ts", 10.0)], warnings)))
+
+    assert _run([str(fixture_dir / "complex.ts"), "--image", "img", "--details"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert f"{'':<16} (per-function data unavailable)" in captured.out
+
+
+def test_jscpd_warning_comes_before_escomplex(fixture_dir, capsys, docker):
+    warnings = [{"tool": "escomplex", "message": "e"}, {"tool": "jscpd", "message": "j"}]
+    docker.configure(stdout=json.dumps(output([entry("complex.ts", 10.0)], warnings)))
+
+    _run([str(fixture_dir / "complex.ts"), "--image", "img"])
+
+    err = capsys.readouterr().err.splitlines()
+    assert err[0].startswith("Warning: jscpd failed")
+    assert err[1].startswith("Warning: escomplex failed")
 
 
 # --- gate --------------------------------------------------------------------------
