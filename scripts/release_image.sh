@@ -1,32 +1,32 @@
 #!/usr/bin/env bash
 #
-# release_image.sh — build, smoke-test, and publish the darthjee/tingle and
-# darthjee/tingle_rubycritic Docker images, plus update their Docker Hub
-# descriptions.
+# release_image.sh — build, smoke-test, and publish the darthjee/tingle,
+# darthjee/tingle_rubycritic and darthjee/tingle_js_complexity Docker images,
+# plus update their Docker Hub descriptions.
 #
 # Usage:
 #   scripts/release_image.sh setup-builder
-#   scripts/release_image.sh build [linux|rubycritic]
-#   scripts/release_image.sh smoke-test [linux|rubycritic]
-#   scripts/release_image.sh scan [linux|rubycritic]
-#   scripts/release_image.sh publish [linux|rubycritic]
-#   scripts/release_image.sh update-description [linux|rubycritic]
+#   scripts/release_image.sh build [linux|rubycritic|js_complexity]
+#   scripts/release_image.sh smoke-test [linux|rubycritic|js_complexity]
+#   scripts/release_image.sh scan [linux|rubycritic|js_complexity]
+#   scripts/release_image.sh publish [linux|rubycritic|js_complexity]
+#   scripts/release_image.sh update-description [linux|rubycritic|js_complexity]
 #
 # Image selector: the optional second argument picks the image; it defaults
 # to "linux", so calls without a selector behave as before. setup-builder
 # ignores it (the builder is shared). An unknown selector prints the usage
 # line on stderr and exits 1. Per-image settings (see select_image()):
 #
-#   Setting            linux                            rubycritic
-#   Image name         darthjee/tingle                  darthjee/tingle_rubycritic
-#   Dockerfile         shell/linux/Dockerfile           docker/rubycritic/Dockerfile
-#   Build context      . (repo root)                    docker/rubycritic
-#   Change detection   shell/linux/ since previous tag  none, always runs
-#   Smoke test         smoke_test_image                 smoke_test_rubycritic
-#   Short description  DOCKERHUB_SHORT_DESCRIPTION.txt  docker/rubycritic/DOCKERHUB_SHORT_DESCRIPTION.txt
-#   Full description   DOCKERHUB_DESCRIPTION.md         docker/rubycritic/DOCKERHUB_DESCRIPTION.md
+#   Setting            linux                            rubycritic                                          js_complexity
+#   Image name         darthjee/tingle                  darthjee/tingle_rubycritic                          darthjee/tingle_js_complexity
+#   Dockerfile         shell/linux/Dockerfile           docker/rubycritic/Dockerfile                        docker/js_complexity/Dockerfile
+#   Build context      . (repo root)                    docker/rubycritic                                   docker/js_complexity
+#   Change detection   shell/linux/ since previous tag  none, always runs                                   none, always runs
+#   Smoke test         smoke_test_image                 smoke_test_rubycritic                               smoke_test_js_complexity
+#   Short description  DOCKERHUB_SHORT_DESCRIPTION.txt  docker/rubycritic/DOCKERHUB_SHORT_DESCRIPTION.txt  docker/js_complexity/DOCKERHUB_SHORT_DESCRIPTION.txt
+#   Full description   DOCKERHUB_DESCRIPTION.md         docker/rubycritic/DOCKERHUB_DESCRIPTION.md          docker/js_complexity/DOCKERHUB_DESCRIPTION.md
 #
-# Tag resolution (both images): $CIRCLE_TAG when set (CI), else the trimmed
+# Tag resolution (all images): $CIRCLE_TAG when set (CI), else the trimmed
 # content of shell/linux/VERSION (local dev). In CI, the pin file must match
 # $CIRCLE_TAG exactly or the job hard-fails before building/publishing.
 #
@@ -59,6 +59,8 @@
 #
 # Smoke test (rubycritic): see smoke_test_rubycritic().
 #
+# Smoke test (js_complexity): see smoke_test_js_complexity().
+#
 # Scan: scan runs the pinned Trivy image ($TRIVY_IMAGE) against each local
 # <image>:<tag>-<arch> image through the docker socket and prints the
 # vulnerability report. It is report-only: findings, and Trivy failures such
@@ -68,7 +70,10 @@
 # no-ops (exit 0) when shell/linux/ hasn't changed since the previous X.Y.Z
 # tag — see changed_since_previous(). The rubycritic image has NO change
 # detection: its build, smoke-test, scan and publish never skip, so
-# darthjee/tingle_rubycritic:X.Y.Z always exists for tingle X.Y.Z.
+# darthjee/tingle_rubycritic:X.Y.Z always exists for tingle X.Y.Z. The
+# js_complexity image has NO change detection either: its build, smoke-test,
+# scan and publish never skip, so darthjee/tingle_js_complexity:X.Y.Z always
+# exists for tingle X.Y.Z.
 #
 # Descriptions: update-description sends the image's one-line summary
 # (trimmed, 1-100 characters) as the Docker Hub "description" and its
@@ -82,7 +87,7 @@ set -euo pipefail
 
 VERSION_FILE="shell/linux/VERSION"
 SHORT_DESCRIPTION_MAX_LENGTH=100
-USAGE="Usage: $0 {setup-builder|build|smoke-test|scan|publish|update-description} [linux|rubycritic]"
+USAGE="Usage: $0 {setup-builder|build|smoke-test|scan|publish|update-description} [linux|rubycritic|js_complexity]"
 
 # Per-image settings, set by select_image().
 IMAGE_NAME=""
@@ -144,6 +149,15 @@ select_image() {
       FULL_DESCRIPTION_FILE="docker/rubycritic/DOCKERHUB_DESCRIPTION.md"
       CHANGE_DETECTION_PATH=""
       SMOKE_TEST_FUNCTION="smoke_test_rubycritic"
+      ;;
+    js_complexity)
+      IMAGE_NAME="darthjee/tingle_js_complexity"
+      DOCKERFILE="docker/js_complexity/Dockerfile"
+      BUILD_CONTEXT="docker/js_complexity"
+      SHORT_DESCRIPTION_FILE="docker/js_complexity/DOCKERHUB_SHORT_DESCRIPTION.txt"
+      FULL_DESCRIPTION_FILE="docker/js_complexity/DOCKERHUB_DESCRIPTION.md"
+      CHANGE_DETECTION_PATH=""
+      SMOKE_TEST_FUNCTION="smoke_test_js_complexity"
       ;;
     *)
       usage
