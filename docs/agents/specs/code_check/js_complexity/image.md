@@ -452,7 +452,7 @@ the pinned options; Functions = escomplex entries):
 | File | FTA score | Assessment | Cyclo | Lines | Parse error | Dropped | Dup lines | Functions |
 |------|-----------|------------|-------|-------|-------------|---------|-----------|-----------|
 | `simple.js` | 7.69 | OK | 1 | 6 | no | no | 0 | 2 |
-| `complex.ts` | 71.25 | Needs improvement | 136 | 245 | no | no | 0 | 20 |
+| `complex.ts` | 71.25 | Needs improvement | 136 | 245 | no | no | 0 | 30 |
 | `component.tsx` | 37.43 | OK | 3 | 18 | no | no | 0 | 3 |
 | `widget.jsx` | 31.02 | OK | 3 | 11 | no | no | 0 | 1 |
 | `dup_a.js` | 35.03 | OK | 9 | 23 | no | no | 23 | 3 |

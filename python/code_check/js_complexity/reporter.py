@@ -8,6 +8,12 @@ Files FTA dropped or the image refused show `0.0` and `-` for the rest.
 `Dup` (lines in exact clones found by jscpd among the selected files) is
 information only: `-` when there is no duplication data and on `PARSE` rows;
 it never changes the level, the summary or the gate.
+With `details` set, each shown level row is followed by dim lines for its
+most complex functions (typhonjs-escomplex), sorted by cyclomatic complexity
+(highest first, ties by line then name); never under PARSE rows. A row with
+no per-function data (`functions` is `None`) gets one dim
+`(per-function data unavailable)` note instead; a file with no function
+(`[]`) gets nothing. Function lines are information only too.
 The header is printed by `DockerCheck._print_header`.
 """
 
@@ -56,18 +62,50 @@ class Reporter:
         shown = [r for r in rows if self._analyzer.reaches(r[1].score, min_level)]
         return shown[:top] if top > 0 else shown
 
-    def report(self, parsed: ParsedOutput, min_level: str = "ok", top: int = 0) -> None:
-        """Print the table (or the empty-filter note) and the summary."""
+    def report(
+        self,
+        parsed: ParsedOutput,
+        min_level: str = "ok",
+        top: int = 0,
+        details: int | None = None,
+    ) -> None:
+        """Print the table (or the empty-filter note) and the summary.
+
+        `details` is the number of functions listed under each shown level
+        row (`0` = all, `None` = no function lines).
+        """
         rows = self.sort_rows(parsed.results)
         shown = self.select_shown(rows, min_level, top)
         parse_rows = sorted(parsed.parse_errors)
 
         if shown or parse_rows:
-            self._print_table(shown, parse_rows)
+            self._print_table(shown, parse_rows, details)
         else:
             print(f"No files at or above {min_level.upper()}.")
 
         self._print_summary(rows, len(parse_rows))
+
+    @staticmethod
+    def select_functions(functions: list[dict], details: int) -> list[dict]:
+        """Sort functions by cyclo (highest first), then line, then name; keep `details`.
+
+        All of them are kept when `details` is 0.
+        """
+        ordered = sorted(functions, key=lambda f: (-f["cyclo"], f["line"], f["name"]))
+        return ordered[:details] if details > 0 else ordered
+
+    def _print_functions(self, line: str, result: FileResult, details: int) -> None:
+        """Print the dim function lines for a row, or the unavailable note."""
+        c = self._palette
+        if result.functions is None:
+            print(f"{c.DIM}{'':<16} (per-function data unavailable){c.RESET}")
+            return
+        path = self.display_path(line)
+        for f in self.select_functions(result.functions, details):
+            print(
+                f"{c.DIM}{'':<16} cyclo {f['cyclo']:>3}  sloc {f['sloc']:>4}  "
+                f"{f['name']}  ({path}:{f['line']}){c.RESET}"
+            )
 
     @staticmethod
     def _value(value: int | str | None) -> str:
@@ -79,8 +117,13 @@ class Reporter:
         """Return the duplicated line count as text, `-` when jscpd has no data."""
         return "-" if result.duplication is None else str(result.duplication["lines"])
 
-    def _print_table(self, rows: list[tuple[str, FileResult]], parse_rows: list[str]) -> None:
-        """Print the header, the level rows and the PARSE rows."""
+    def _print_table(
+        self,
+        rows: list[tuple[str, FileResult]],
+        parse_rows: list[str],
+        details: int | None = None,
+    ) -> None:
+        """Print the header, the level rows (with their function lines) and the PARSE rows."""
         c = self._palette
         print(
             f"{'Status':<16} {'FTA':>5}  {'Cyclo':>5}  {'Lines':>5}  {'Dup':>5}  "
@@ -99,6 +142,8 @@ class Reporter:
                 f"{self._value(result.assessment):<17}  "
                 f"{self.display_path(line)}"
             )
+            if details is not None:
+                self._print_functions(line, result, details)
         for line in parse_rows:
             print(
                 f"{c.GRAY}{PARSE_LABEL:<16}{c.RESET} "

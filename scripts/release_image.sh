@@ -566,9 +566,14 @@ JS_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.js simple.js missing.js)
 # in order, the FTA expectations per fixture, the jscpd duplication
 # expectations from docs/agents/specs/code_check/js_complexity/duplication.md
 # (section 6: the dup_a.js/dup_b.js clone, 0 for simple.js and empty.js, null
-# for broken.js, latin1.js and the hostile lines, no jscpd warning), refused
-# hostile lines), no git in the image, and empty files/warnings on empty
-# stdin. Cart.vue is refused as
+# for broken.js, latin1.js and the hostile lines, no jscpd warning), the
+# escomplex expectations from
+# docs/agents/specs/code_check/js_complexity/details.md (section 8: version
+# 0.1.0, >= 20 functions for complex.ts with "reducer" and a "Store." method,
+# [] for empty.js and short.js, null for broken.js, latin1.js and the refused
+# lines, every line/cyclo/sloc an int >= 1, no path-less escomplex warning),
+# refused hostile lines), no git in the image, and empty files/warnings on
+# empty stdin. Cart.vue is refused as
 # "unsupported extension" until SFC support lands (#326). Any failure prints
 # "<reason> on <platform>" on stderr and exits 1.
 smoke_test_js_complexity() {
@@ -610,8 +615,8 @@ jscpd_version = versions.get("jscpd")
 if jscpd_version != "5.4.1":
     fail(f"tool_versions.jscpd is {jscpd_version!r}, not \"5.4.1\"")
 escomplex_version = versions.get("escomplex")
-if escomplex_version is not None:
-    fail(f"tool_versions.escomplex is {escomplex_version!r}, not null")
+if escomplex_version != "0.1.0":
+    fail(f"tool_versions.escomplex is {escomplex_version!r}, not \"0.1.0\"")
 
 files = report.get("files")
 if not isinstance(files, list) or not all(isinstance(f, dict) for f in files):
@@ -734,6 +739,50 @@ for entry in files[fixture_count:]:
     path, duplication = entry.get("path"), entry.get("duplication")
     if duplication is not None:
         fail(f"refused line {path!r} duplication is {duplication!r}, not null")
+    functions = entry.get("functions")
+    if functions is not None:
+        fail(f"refused line {path!r} functions is {functions!r}, not null")
+
+escomplex_wrapper_warnings = [w for w in warnings if w.get("tool") == "escomplex" and "path" not in w]
+if escomplex_wrapper_warnings:
+    fail(f"escomplex wrapper warnings {escomplex_wrapper_warnings}")
+
+def is_positive_int(value):
+    return not isinstance(value, bool) and isinstance(value, int) and value >= 1
+
+for entry in files:
+    path, functions = entry.get("path"), entry.get("functions")
+    if functions is None:
+        continue
+    if not isinstance(functions, list):
+        fail(f"{path} functions is {functions!r}, not a list or null")
+    for function in functions:
+        if not isinstance(function, dict) or not isinstance(function.get("name"), str):
+            fail(f"{path} has a malformed function {function!r}")
+        for key in ("line", "cyclo", "sloc"):
+            if not is_positive_int(function.get(key)):
+                fail(f"{path} function {function!r} {key} is not an int >= 1")
+
+def functions_of(path):
+    functions = entries[path].get("functions")
+    if not isinstance(functions, list):
+        fail(f"{path} functions is {functions!r}, not a list")
+    return functions
+
+complex_names = [f["name"] for f in functions_of("complex.ts")]
+if len(complex_names) < 20:
+    fail(f"complex.ts has {len(complex_names)} functions, not >= 20")
+if "reducer" not in complex_names:
+    fail(f"complex.ts functions {complex_names} have no \"reducer\"")
+if not any(name.startswith("Store.") for name in complex_names):
+    fail(f"complex.ts functions {complex_names} have no \"Store.\" method")
+for path in ("empty.js", "short.js"):
+    if functions_of(path) != []:
+        fail(f"{path} functions is {functions_of(path)!r}, not []")
+for path in ("broken.js", "latin1.js", "Cart.vue"):
+    functions = entries[path].get("functions")
+    if functions is not None:
+        fail(f"{path} functions is {functions!r}, not null")
 ' "$platform" "${lines[@]}" <<< "$output"
 
   local git_check

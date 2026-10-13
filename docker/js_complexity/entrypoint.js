@@ -16,23 +16,31 @@
 //            "files": [one entry per input line, in input order:
 //                      {path, parse_error, fta, duplication, functions}],
 //            "warnings": [{tool, path?, message}]}
-//         FTA's stderr and jscpd's stdout and stderr are passed through to
-//         stderr.
+//         FTA's stderr, jscpd's stdout and stderr and the escomplex
+//         wrapper's stderr are passed through to stderr.
 // Exit:   0 when the JSON was printed; FTA's status when FTA exits non-zero;
 //         1 on any other failure ("tingle_js_complexity: <reason>" on stderr).
 //         Nothing is printed on stdout on failure. A jscpd failure is not a
 //         failure: every files[].duplication is null and one path-less
-//         "jscpd" warning is added.
+//         "jscpd" warning is added. Neither is an escomplex failure: a file
+//         escomplex cannot parse gets functions: null and an "escomplex"
+//         warning with its path; a wrapper failure sets every
+//         files[].functions to null and adds one path-less "escomplex"
+//         warning.
 //
 // Accepted files are copied to /tmp/stage/plain/<n>.<ext> (<n> = input line
-// number) and FTA, then jscpd, run on that tree, never on /src. Nothing is
+// number) and FTA, then jscpd, then the escomplex wrapper (a separate node
+// process, lib/escomplex.js) run on that tree, never on /src. Nothing is
 // written outside /tmp.
 //
 // Dependencies: Node standard library, /usr/local/bin/fta (FTA 3.1.0),
-// /opt/tingle_js_complexity/node_modules/.bin/jscpd (jscpd 5.4.1).
+// /opt/tingle_js_complexity/node_modules/.bin/jscpd (jscpd 5.4.1),
+// /opt/tingle_js_complexity/node_modules/typhonjs-escomplex
+// (typhonjs-escomplex 0.1.0, loaded only by lib/escomplex.js).
 //
-// Contract: docs/agents/specs/code_check/js_complexity/image.md and
-// docs/agents/specs/code_check/js_complexity/duplication.md.
+// Contract: docs/agents/specs/code_check/js_complexity/image.md,
+// docs/agents/specs/code_check/js_complexity/duplication.md and
+// docs/agents/specs/code_check/js_complexity/details.md.
 
 const { EntrypointError } = require("./lib/errors");
 const { readInputLines } = require("./lib/input");
@@ -40,6 +48,7 @@ const { realSrcRoot, selectLine } = require("./lib/selection");
 const { stageFile } = require("./lib/staging");
 const { applyFtaStderr, applyFtaStdout, ftaVersion, runFta } = require("./lib/fta");
 const { applyJscpd, jscpdVersion } = require("./lib/jscpd");
+const { applyEscomplex, escomplexVersion } = require("./lib/escomplex");
 
 function newEntry(line) {
   return { path: line, parse_error: false, fta: null, duplication: null, functions: null };
@@ -73,14 +82,16 @@ function analyse(lines) {
   const warnings = [];
   const fta = ftaVersion();
   const jscpd = jscpdVersion();
+  const escomplex = escomplexVersion();
   const staged = stageLines(lines, files, warnings);
   if (staged.size > 0) {
     const result = runFta();
     applyFtaStderr(result.stderr, files, staged, warnings);
     applyFtaStdout(result.stdout, files, staged);
     applyJscpd(files, staged, warnings);
+    applyEscomplex(files, staged, warnings);
   }
-  return { tool_versions: { fta, jscpd, escomplex: null }, files, warnings };
+  return { tool_versions: { fta, jscpd, escomplex }, files, warnings };
 }
 
 function fail(error) {

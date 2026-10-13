@@ -11,6 +11,15 @@ a parse error or a jscpd failure). It never sets a level and never changes
 the exit code. When jscpd fails, a warning is printed and the run goes on.
 The host needs Docker, not Node.js.
 
+`--details [N]` lists, under each shown file row, its N most complex
+functions (from typhonjs-escomplex), sorted by cyclomatic complexity
+(highest first), with their source lines of code and `path:line`.
+`--details` alone means 5 and `--details 0` lists every function. A file
+escomplex could not analyse shows `(per-function data unavailable)` instead;
+when escomplex fails as a whole, a warning is printed and the run goes on.
+Per-function data is information only: it never sets a level and never
+changes the exit code.
+
 File selection follows `file_size`, applied in this order: default and
 `--exclude` directory names (`--no-default-excludes` drops the defaults),
 `.gitignore` (unless `--no-gitignore`), `--ignore` globs, then `--include`
@@ -25,8 +34,8 @@ skipped unless `--no-default-excludes`.
 
 Personal defaults are read from the `js_complexity` section of
 `~/.tingle/code_check/config.json` (keys: warn, error, critical, top, exclude,
-ignore, include, no_default_excludes, gitignore, fail_on, min_level, image;
-there is no `ext`). Single values given on the CLI win over the config, which
+ignore, include, no_default_excludes, gitignore, fail_on, min_level, image,
+details; there is no `ext`). Single values given on the CLI win over the config, which
 wins over the built-in defaults; list values (exclude, ignore, include) are
 concatenated, config first, and deduplicated. `--no-default-excludes` and
 `--no-gitignore` win over the config. An invalid config prints
@@ -52,6 +61,8 @@ Examples
     tingle code_check js_complexity ./src --warn 40 --error 55 --critical 70
     tingle code_check js_complexity ./src --top 10 --min-level warn
     tingle code_check js_complexity ./src --fail-on error
+    tingle code_check js_complexity ./src --details
+    tingle code_check js_complexity ./src --details 0
     tingle code_check js_complexity ./src --image tingle_js_complexity:dev
     tingle code_check js_complexity ./src --exclude test,fixtures
     tingle code_check js_complexity ./src --no-default-excludes --exclude vendor
@@ -103,6 +114,7 @@ SINGLE_DEFAULTS: dict = {
     "fail_on": None,
     "min_level": "ok",
     "image": None,
+    "details": None,
 }
 
 # Threshold options validated as numbers >= 0.
@@ -163,9 +175,11 @@ class CheckJsComplexity(DockerCheck):
 
     @classmethod
     def _print_warnings(cls, parsed: ParsedOutput, reporter: Reporter, image: str) -> None:
-        """Warn about the refused lines (warnings order), the unparsable files, then jscpd.
+        """Warn about the refused lines, the unparsable files, then jscpd and escomplex.
 
         A path-less `jscpd` warning means jscpd failed: no duplication data.
+        A path-less `escomplex` warning means escomplex failed: no per-function
+        data. Per-file `escomplex` warnings (with a `path`) are not printed.
         """
         for line, message in parsed.refused:
             cls._warn(f"the image skipped {line}: {message}")
@@ -175,6 +189,12 @@ class CheckJsComplexity(DockerCheck):
             if warning["tool"] == "jscpd" and "path" not in warning:
                 cls._warn(
                     f"jscpd failed in {image}; duplication data is not available: "
+                    f"{warning['message']}"
+                )
+        for warning in parsed.warnings:
+            if warning["tool"] == "escomplex" and "path" not in warning:
+                cls._warn(
+                    f"escomplex failed in {image}; per-function data is not available: "
                     f"{warning['message']}"
                 )
 
@@ -199,7 +219,7 @@ class CheckJsComplexity(DockerCheck):
         analyzer = FileAnalyzer(options["warn"], options["error"], options["critical"])
         reporter = Reporter(analyzer, target, root, out)
         self._print_warnings(parsed, reporter, image)
-        reporter.report(parsed, options["min_level"], options["top"])
+        reporter.report(parsed, options["min_level"], options["top"], options["details"])
         # The gate uses every level row (never PARSE files), not only the displayed ones.
         failed = self._gate_failed(analyzer, parsed.results.values(), options["fail_on"])
         return 2 if failed else 0

@@ -4,8 +4,8 @@
 # Tingle sends the files to analyse on stdin (one path per line, relative to
 # /src) and reads one JSON object on stdout: the merged JSON (tool_versions,
 # one files[] entry per input line, warnings). The entrypoint stages the
-# accepted files under /tmp/stage and runs FTA and jscpd on that tree, never
-# on /src.
+# accepted files under /tmp/stage and runs FTA, jscpd and escomplex on that
+# tree, never on /src.
 # See entrypoint.js.
 #
 # Reproducibility:
@@ -14,8 +14,9 @@
 #   - FTA 3.1.0 is built from the `fta` crate with `cargo install --locked`,
 #     so every Rust dependency is pinned by the crate's own Cargo.lock
 #     (the fta-cli npm package's arm64 binary needs musl, so it is not used);
-#   - the npm tools (jscpd 5.4.1) are pinned by package.json +
-#     package-lock.json, and `npm ci` fails if they disagree. jscpd is a Rust
+#   - the npm tools (jscpd 5.4.1, typhonjs-escomplex 0.1.0) are pinned by
+#     package.json + package-lock.json, and `npm ci` fails if they disagree.
+#     typhonjs-escomplex is pure JavaScript; jscpd is a Rust
 #     binary shipped as per-platform optional npm packages; the lock lists
 #     both jscpd-linux-x64-gnu and jscpd-linux-arm64-gnu, and `npm ci`
 #     installs the one matching the build platform.
