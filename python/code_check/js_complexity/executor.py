@@ -7,11 +7,14 @@ per file, classified by thresholds on the file's FTA score rounded to one
 decimal. `Cyclo`, `Lines` and `Assessment` are information only. The host
 needs Docker, not Node.js.
 
-File selection: the core extensions (`.js .mjs .cjs .jsx .ts .mts .cts
-.tsx`, case-insensitive) minus the default excludes and the declaration
-files (`.d.ts`, `.d.mts`, `.d.cts`). Symlinks resolving outside the mount
-root are skipped. There are no selection flags, no `.gitignore` filtering and
-no config file yet.
+File selection follows `file_size`, applied in this order: default and
+`--exclude` directory names (`--no-default-excludes` drops the defaults),
+`.gitignore` (unless `--no-gitignore`), `--ignore` globs, then `--include`
+globs together with the fixed core extensions (`.js .mjs .cjs .jsx .ts .mts
+.cts .tsx`, case-insensitive), then the declaration files (`.d.ts`,
+`.d.mts`, `.d.cts`). Symlinks resolving outside the mount root are skipped.
+For a single-file `<path>` the directory excludes don't apply and the globs
+match the file name. There is no config file yet.
 
 Exit status: 0 on success (also when no file is selected), 1 on errors (bad
 option, path missing or unreadable, Docker missing or failing, image pull
@@ -30,6 +33,11 @@ Examples
     tingle code_check js_complexity ./src --top 10 --min-level warn
     tingle code_check js_complexity ./src --fail-on error
     tingle code_check js_complexity ./src --image tingle_js_complexity:dev
+    tingle code_check js_complexity ./src --exclude test,fixtures
+    tingle code_check js_complexity ./src --no-default-excludes --exclude vendor
+    tingle code_check js_complexity ./src --ignore '**/*.test.ts'
+    tingle code_check js_complexity ./src --include 'src/**'
+    tingle code_check js_complexity ./src --no-gitignore
 
 """
 
@@ -86,7 +94,7 @@ class CheckJsComplexity(DockerCheck):
     FLAGS = FLAGS
     CONFIG_SECTION = CONFIG_SECTION
     SINGLE_DEFAULTS = SINGLE_DEFAULTS
-    LIST_KEYS = ()
+    LIST_KEYS = ("ignore", "include")
     THRESHOLD_KEYS = THRESHOLD_KEYS
     DEFAULT_EXCLUDES = Constants.DEFAULT_EXCLUDES
     NO_FILES_MESSAGE = "No JavaScript/TypeScript files found for analysis."
@@ -115,19 +123,6 @@ class CheckJsComplexity(DockerCheck):
     def _select_files(target: Path, root: Path, **kwargs) -> Selection:
         """Select the JS/TS files through this module's `select_files`."""
         return select_files(target, root, **kwargs)
-
-    @classmethod
-    def _selection_options(cls, options: dict) -> dict:
-        """Return the fixed selection: default excludes only, no globs, no `.gitignore`.
-
-        #321 removes this override when the selection flags land.
-        """
-        return {
-            "excludes": list(cls.DEFAULT_EXCLUDES),
-            "ignore": [],
-            "include": [],
-            "gitignore": False,
-        }
 
     @staticmethod
     def _gate_value(result: FileResult) -> float:

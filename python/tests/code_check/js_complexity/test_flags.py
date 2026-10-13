@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from code_check.js_complexity.constants import Constants
 from code_check.js_complexity.flags import FLAGS
 from common.arg_parser import ArgParser
 
@@ -16,6 +17,7 @@ def test_flag_names_in_order():
     assert [f["name"] for f in FLAGS] == [
         "path", "--warn", "--error", "--critical", "--top",
         "--min-level", "--fail-on", "--image",
+        "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
     ]
 
 
@@ -31,6 +33,11 @@ def test_single_value_flags_default_to_none():
         "min_level": None,
         "fail_on": None,
         "image": None,
+        "exclude": None,
+        "no_default_excludes": False,
+        "no_gitignore": False,
+        "ignore": None,
+        "include": None,
     }
 
 
@@ -74,19 +81,75 @@ def test_choices():
             "--image",
             "Docker image to run (default: darthjee/tingle_js_complexity:<tingle version>)",
         ),
+        (
+            "--exclude",
+            (
+                "Extra directory names to skip (comma-separated), added to the defaults: "
+                "node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,"
+                ".cache,coverage,.nuxt,out,target,.turbo,.svelte-kit,.output,.vercel,"
+                ".parcel-cache,storybook-static"
+            ),
+        ),
+        ("--no-default-excludes", "Do not skip the default directories; only --exclude names apply"),
+        (
+            "--no-gitignore",
+            "Do not skip files ignored by git (.gitignore, .git/info/exclude, global excludes)",
+        ),
+        ("--ignore", "Skip files whose path relative to <path> matches this glob (can be repeated)"),
+        (
+            "--include",
+            (
+                "Only analyse JavaScript/TypeScript files whose path relative to <path> "
+                "matches this glob (can be repeated)"
+            ),
+        ),
     ],
 )
 def test_help_texts_match_spec(name, text):
     assert _flag(name)["help"] == text
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
-        "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore",
-        "--include", "--no-config", "--details", "--ext",
-    ],
-)
+def test_exclude_help_lists_every_default():
+    help_text = _flag("--exclude")["help"]
+
+    assert help_text.endswith(",".join(Constants.DEFAULT_EXCLUDES))
+
+
+def test_selection_flag_shapes():
+    assert _flag("--exclude")["type"] is str
+    assert _flag("--exclude")["default"] is None
+    assert "action" not in _flag("--exclude")
+    assert _flag("--no-default-excludes")["action"] == "store_true"
+    assert _flag("--no-gitignore")["action"] == "store_true"
+    for name in ("--ignore", "--include"):
+        assert _flag(name)["type"] is str
+        assert _flag(name)["action"] == "append"
+        assert _flag(name)["default"] is None
+
+
+def test_exclude_is_not_repeatable_last_wins():
+    parsed = ArgParser(FLAGS).parse(["src", "--exclude", "a,b", "--exclude", "c"])
+
+    assert parsed["exclude"] == "c"
+
+
+def test_ignore_and_include_are_repeatable():
+    parsed = ArgParser(FLAGS).parse(
+        ["src", "--ignore", "a", "--ignore", "b", "--include", "x", "--include", "y"]
+    )
+
+    assert parsed["ignore"] == ["a", "b"]
+    assert parsed["include"] == ["x", "y"]
+
+
+def test_store_true_flags():
+    parsed = ArgParser(FLAGS).parse(["src", "--no-default-excludes", "--no-gitignore"])
+
+    assert parsed["no_default_excludes"] is True
+    assert parsed["no_gitignore"] is True
+
+
+@pytest.mark.parametrize("name", ["--no-config", "--details", "--ext"])
 def test_later_flags_are_absent(name):
     assert all(f["name"] != name for f in FLAGS)
 

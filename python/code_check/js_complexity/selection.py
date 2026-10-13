@@ -43,10 +43,11 @@ def select_files(
 
     `excludes` are directory names (default: `Constants.DEFAULT_EXCLUDES`; not
     applied to a single file), `ignore`/`include` are globs relative to
-    `target` and `gitignore` skips the untracked files git ignores (off by
-    default until the selection flags land). There is no binary check, so
-    non-UTF-8 files still reach the image, and files resolving outside the
-    mount root are dropped. Declaration files are always skipped.
+    `target` and `gitignore` skips the untracked files git ignores (off
+    here; the executor always passes it, on unless `--no-gitignore`). There
+    is no binary check, so non-UTF-8 files still reach the image, and files
+    resolving outside the mount root are dropped. Declaration files are
+    always skipped.
     """
     return docker_check_selection.select_files(
         target,
