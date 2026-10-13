@@ -369,14 +369,14 @@ def test_end_to_end_report_and_warnings(fixture_dir, capsys, docker, monkeypatch
         "Thresholds: warn=50 | error=60 | critical=75",
         "Image: darthjee/tingle_js_complexity:0.9.0",
         "",
-        "Status             FTA  Cyclo  Lines  Assessment         File",
-        f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 17}  {'─' * 50}",
-        "🔴 ERROR           71.3    136    245  Needs improvement  fixture/complex.ts",
-        "✅ OK               7.7      1      6  OK                 fixture/simple.js",
-        "✅ OK               0.0      -      -  -                  fixture/empty.js",
-        "✅ OK               0.0      -      -  -                  fixture/gone.js",
-        "⛔ PARSE              -      -      -  -                  fixture/broken.js",
-        "⛔ PARSE              -      -      -  -                  fixture/latin1.js",
+        "Status             FTA  Cyclo  Lines    Dup  Assessment         File",
+        f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 17}  {'─' * 50}",
+        "🔴 ERROR           71.3    136    245      -  Needs improvement  fixture/complex.ts",
+        "✅ OK               7.7      1      6      -  OK                 fixture/simple.js",
+        "✅ OK               0.0      -      -      -  -                  fixture/empty.js",
+        "✅ OK               0.0      -      -      -  -                  fixture/gone.js",
+        "⛔ PARSE              -      -      -      -  -                  fixture/broken.js",
+        "⛔ PARSE              -      -      -      -  -                  fixture/latin1.js",
         "",
         "─" * 78,
         "Summary: 6 file(s) | 3 OK | 0 WARN | 1 ERROR | 0 CRITICAL | 2 skipped (parse error)",
@@ -386,6 +386,10 @@ def test_end_to_end_report_and_warnings(fixture_dir, capsys, docker, monkeypatch
         "Warning: the image skipped gone.js: not a regular file under /src",
         "Warning: cannot parse fixture/broken.js: Expected ','",
         "Warning: cannot parse fixture/latin1.js: file is not valid UTF-8",
+        (
+            "Warning: jscpd failed in darthjee/tingle_js_complexity:0.9.0; "
+            "duplication data is not available: jscpd failed"
+        ),
     ]
 
 
@@ -529,6 +533,57 @@ def test_parse_output_raises_with_reason():
         CheckJsComplexity._parse_output(proc, ["a.js"], "img")
 
     assert exc_info.value.message == "could not parse the output of img: expected a JSON object"
+
+
+# --- duplication (jscpd) ----------------------------------------------------------
+
+@pytest.mark.parametrize(("duplication", "shown"), [({"lines": 22}, "22"), ({"lines": 0}, "0")])
+def test_dup_column_shows_the_duplicated_lines(fixture_dir, capsys, docker, duplication, shown):
+    files = [entry("complex.ts", 10.0, duplication=duplication)]
+    docker.configure(stdout=json.dumps(output(files)))
+
+    status = _run([str(fixture_dir / "complex.ts"), "--image", "img"])
+
+    assert status == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[4] == "Status             FTA  Cyclo  Lines    Dup  Assessment         File"
+    assert out[6] == f"✅ OK              10.0      2      6  {shown:>5}  OK                 complex.ts"
+
+
+def test_jscpd_failure_is_warned_without_changing_the_exit_code(fixture_dir, capsys, docker):
+    files = [entry("complex.ts", 10.0)]
+    warnings = [{"tool": "jscpd", "message": "jscpd exited with status 1"}]
+    docker.configure(stdout=json.dumps(output(files, warnings)))
+
+    status = _run([str(fixture_dir / "complex.ts"), "--image", "img:dev"])
+
+    assert status == 0
+    captured = capsys.readouterr()
+    assert captured.err == (
+        "Warning: jscpd failed in img:dev; duplication data is not available: "
+        "jscpd exited with status 1\n"
+    )
+    assert "      -  OK                 complex.ts" in captured.out
+
+
+@pytest.mark.parametrize(("score", "expected"), [(10.0, 0), (65.0, 2)])
+def test_jscpd_failure_does_not_change_the_gate(fixture_dir, capsys, docker, score, expected):
+    warnings = [{"tool": "jscpd", "message": "boom"}]
+    docker.configure(stdout=json.dumps(output([entry("complex.ts", score)], warnings)))
+
+    status = _run([str(fixture_dir / "complex.ts"), "--image", "img", "--fail-on", "error"])
+
+    assert status == expected
+    assert "Warning: jscpd failed in img;" in capsys.readouterr().err
+
+
+def test_jscpd_warning_with_a_path_is_not_printed(fixture_dir, capsys, docker):
+    warnings = [{"tool": "jscpd", "path": "complex.ts", "message": "secondary"}]
+    docker.configure(stdout=json.dumps(output([entry("complex.ts", 10.0)], warnings)))
+
+    _run([str(fixture_dir / "complex.ts"), "--image", "img"])
+
+    assert capsys.readouterr().err == ""
 
 
 # --- gate --------------------------------------------------------------------------

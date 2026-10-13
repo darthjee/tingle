@@ -5,6 +5,9 @@ by level on the rounded FTA score, sorted by score (highest first, ties by
 sent line), then the `⛔ PARSE` rows sorted by sent line. `--min-level` and
 `--top` only filter the level rows; the summary always counts every file.
 Files FTA dropped or the image refused show `0.0` and `-` for the rest.
+`Dup` (lines in exact clones found by jscpd among the selected files) is
+information only: `-` when there is no duplication data and on `PARSE` rows;
+it never changes the level, the summary or the gate.
 The header is printed by `DockerCheck._print_header`.
 """
 
@@ -71,24 +74,35 @@ class Reporter:
         """Return a column value as text, `-` when FTA has no data."""
         return "-" if value is None else str(value)
 
+    @staticmethod
+    def _dup(result: FileResult) -> str:
+        """Return the duplicated line count as text, `-` when jscpd has no data."""
+        return "-" if result.duplication is None else str(result.duplication["lines"])
+
     def _print_table(self, rows: list[tuple[str, FileResult]], parse_rows: list[str]) -> None:
         """Print the header, the level rows and the PARSE rows."""
         c = self._palette
-        print(f"{'Status':<16} {'FTA':>5}  {'Cyclo':>5}  {'Lines':>5}  {'Assessment':<17}  File")
-        print(f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 17}  {'─' * 50}")
+        print(
+            f"{'Status':<16} {'FTA':>5}  {'Cyclo':>5}  {'Lines':>5}  {'Dup':>5}  "
+            f"{'Assessment':<17}  File"
+        )
+        print(
+            f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 17}  {'─' * 50}"
+        )
 
         for line, result in rows:
             label, level = self._analyzer.classify(result.score)
             print(
                 f"{c.level_color(level)}{label:<16}{c.RESET} "
                 f"{result.score:>5.1f}  {self._value(result.cyclo):>5}  "
-                f"{self._value(result.lines):>5}  {self._value(result.assessment):<17}  "
+                f"{self._value(result.lines):>5}  {self._dup(result):>5}  "
+                f"{self._value(result.assessment):<17}  "
                 f"{self.display_path(line)}"
             )
         for line in parse_rows:
             print(
                 f"{c.GRAY}{PARSE_LABEL:<16}{c.RESET} "
-                f"{'-':>5}  {'-':>5}  {'-':>5}  {'-':<17}  {self.display_path(line)}"
+                f"{'-':>5}  {'-':>5}  {'-':>5}  {'-':>5}  {'-':<17}  {self.display_path(line)}"
             )
 
     def _print_summary(self, rows: list[tuple[str, FileResult]], skipped: int) -> None:
