@@ -38,10 +38,25 @@ workflows:
               only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
             branches:
               ignore: /.*/
+      - build-and-publish-js-complexity-image:
+          filters:
+            tags:
+              only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
+            branches:
+              ignore: /.*/
+      - update-js-complexity-description:
+          requires:
+            - build-and-publish-js-complexity-image
+          filters:
+            tags:
+              only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
+            branches:
+              ignore: /.*/
       - build-and-publish-release:
           requires:
             - build-and-publish-linux-image
             - build-and-publish-rubycritic-image
+            - build-and-publish-js-complexity-image
           filters:
             tags:
               only: /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/
@@ -140,6 +155,33 @@ jobs:
       - run:
           name: Update Docker Hub description
           command: scripts/release_image.sh update-description rubycritic
+  build-and-publish-js-complexity-image:
+    machine:
+      image: ubuntu-2404:current
+    steps:
+      - checkout
+      - run:
+          name: Set up builder
+          command: scripts/release_image.sh setup-builder js_complexity
+      - run:
+          name: Build image
+          command: scripts/release_image.sh build js_complexity
+      - run:
+          name: Smoke test
+          command: scripts/release_image.sh smoke-test js_complexity
+      - run:
+          name: Scan image
+          command: scripts/release_image.sh scan js_complexity
+      - run:
+          name: Publish image
+          command: scripts/release_image.sh publish js_complexity
+  update-js-complexity-description:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Update Docker Hub description
+          command: scripts/release_image.sh update-description js_complexity
   build-and-publish-release:
     machine: true
     steps:
