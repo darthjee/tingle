@@ -1,6 +1,6 @@
 # `tingle_js_complexity` Docker image
 
-This is the implementation view of the image that runs FTA for
+This is the implementation view of the image that runs FTA and jscpd for
 `tingle code_check js_complexity`. Tingle sends a list of files on stdin and
 reads one JSON object on stdout. The `darthjee/tingle` image (`tingle linux`)
 is described in [tingle-linux-image.md](tingle-linux-image.md) and the
@@ -8,11 +8,13 @@ is described in [tingle-linux-image.md](tingle-linux-image.md) and the
 [tingle-rubycritic-image.md](tingle-rubycritic-image.md). All three images
 are released by the same script and the same CircleCI workflow.
 
-The image currently runs FTA only. jscpd (#324), typhonjs-escomplex (#325)
-and SFC extraction (#326) are added by those sub-issues; until then their
-JSON keys are `null` and `.vue` files are refused. The full specs still live
+The image currently runs FTA (complexity) and jscpd (duplication).
+typhonjs-escomplex (#325) and SFC extraction (#326) are added by those
+sub-issues; until then `tool_versions.escomplex` and `files[].functions` are
+`null` and `.vue` files are refused. The full specs still live
 under [specs/code_check/js_complexity/](specs/code_check/js_complexity/)
-(see [image.md](specs/code_check/js_complexity/image.md) and
+(see [image.md](specs/code_check/js_complexity/image.md),
+[duplication.md](specs/code_check/js_complexity/duplication.md) and
 [release.md](specs/code_check/js_complexity/release.md)).
 
 - **Image**: `darthjee/tingle_js_complexity` on Docker Hub.
@@ -33,10 +35,10 @@ under [specs/code_check/js_complexity/](specs/code_check/js_complexity/)
   | Path | Content |
   |------|---------|
   | `Dockerfile` | The three-stage image (`fta`, `deps`, final). |
-  | `package.json` | `"private": true` and the Node engine (`24.21.0`). It lists no npm tool yet: `jscpd` comes with #324, `typhonjs-escomplex` with #325. |
-  | `package-lock.json` | The resolved lock (lockfile v3), committed. |
+  | `package.json` | `"private": true`, the Node engine (`24.21.0`) and `"jscpd": "5.4.1"` (exact). `typhonjs-escomplex` comes with #325. |
+  | `package-lock.json` | The resolved lock (lockfile v3), committed. jscpd 5.4.1 is a Rust binary shipped as per-platform optional packages; the lock lists both `jscpd-linux-x64-gnu` and `jscpd-linux-arm64-gnu` `5.4.1`. |
   | `entrypoint.js` | The entrypoint (see [Contract](#contract)). |
-  | `lib/` | Entrypoint helpers: `input.js` (stdin), `selection.js` (refused lines), `staging.js` (staged tree), `fta.js` (FTA run and parsing), `errors.js` (fatal errors). |
+  | `lib/` | Entrypoint helpers: `input.js` (stdin), `selection.js` (refused lines), `staging.js` (staged tree), `fta.js` (FTA run and parsing), `jscpd.js` (jscpd run, report parsing and per-file duplicated lines), `errors.js` (fatal errors). |
   | `fixture/` | The smoke-test fixture (see [Smoke test](#smoke-test)). |
   | `DOCKERHUB_SHORT_DESCRIPTION.txt`, `DOCKERHUB_DESCRIPTION.md` | The Docker Hub description (see [Docker Hub description](#docker-hub-description)). |
   | `.dockerignore` | Excludes `fixture/` and both Docker Hub description files from the build context. |
@@ -52,7 +54,8 @@ under [specs/code_check/js_complexity/](specs/code_check/js_complexity/)
   - The `deps` stage (from `BASE_IMAGE`) copies `package.json` and
     `package-lock.json` to `/opt/tingle_js_complexity/` and runs
     `npm ci --omit=dev --no-audit --no-fund`. `npm ci` fails when the lock
-    does not match `package.json`.
+    does not match `package.json`. It installs jscpd and the jscpd binary
+    package for the build platform.
   - The final stage starts again from `BASE_IMAGE`, copies
     `/opt/fta/bin/fta` to `/usr/local/bin/fta`, `/opt/tingle_js_complexity/`
     from `deps`, then `entrypoint.js` and `lib/` into
@@ -77,6 +80,7 @@ under [specs/code_check/js_complexity/](specs/code_check/js_complexity/)
   | Node | `24.21.0` (`node:24.21.0-slim`, digest above) | `ARG BASE_IMAGE` |
   | Rust toolchain (build only) | `1.99.0` | `ARG RUST_IMAGE` |
   | FTA | `3.1.0` (crate `fta`) | `cargo install --version 3.1.0 --locked` |
+  | jscpd | `5.4.1` (npm `jscpd`) | `package.json` and `package-lock.json` |
 
 ## Contract
 
@@ -107,13 +111,15 @@ single file.
   | `/src/<line>` does not exist, is not a regular file, or its real path (symlinks resolved) is not inside `/src`. | `not a regular file under /src` |
   | Its extension (after the last `.` of the name, lower-cased) is not one of `js mjs cjs jsx ts mts cts tsx`. | `unsupported extension` |
 
-  A refused line is never staged and never reaches FTA. It still gets its
-  `files` entry, in its position, with `parse_error: false` and `fta: null`,
+  A refused line is never staged and never reaches FTA or jscpd. It still
+  gets its `files` entry, in its position, with `parse_error: false`,
+  `fta: null` and `duplication: null`,
   plus a warning `{"tool": "entrypoint", "path": <line>, "message": <message>}`.
   The image does not skip `.d.ts` or minified files; that is the host's job.
 - **Staged tree**: each accepted line `<n>` is read from its real path and
-  copied to `/tmp/stage/plain/<n>.<ext>` (`<ext>` lower-cased). FTA runs on
-  `/tmp/stage`, never on `/src`. The opaque names avoid FTA's built-in
+  copied to `/tmp/stage/plain/<n>.<ext>` (`<ext>` lower-cased). FTA and
+  jscpd run on `/tmp/stage`, never on `/src`, so jscpd only sees the
+  selected files. The opaque names avoid FTA's built-in
   filters (directories named `dist`, `bin` and `build`, `.d.ts`, `.min.js`,
   `.bundle.js`, hidden files, upper-case extensions), and the files are
   copied because FTA does not follow symlinks. FTA reports paths relative to
@@ -138,17 +144,57 @@ single file.
   `{"tool": "fta", "path": <line>, "message": <error>}` to `warnings`.
   `tool_versions.fta` comes from `fta --version` (`fta 3.1.0` gives
   `"3.1.0"`).
+- **jscpd run**: after FTA, only when at least one file was staged. The
+  entrypoint runs, in `/tmp`:
+
+  ```
+  /opt/tingle_js_complexity/node_modules/.bin/jscpd /tmp/stage \
+    --reporters json --output /tmp/jscpd --report-name jscpd \
+    --silent --no-tips --no-colors \
+    --min-tokens 50 --min-lines 5 --mode mild --kind exact \
+    --format javascript,typescript,jsx,tsx \
+    --formats-exts "javascript:js,mjs,cjs;typescript:ts,mts,cts;jsx:jsx;tsx:tsx" \
+    --cross-formats js-ts \
+    --no-gitignore --max-size 1mb
+  ```
+
+  Every option that affects the result is pinned, even where it equals
+  jscpd's default (the reasons are in
+  [duplication.md §2](specs/code_check/js_complexity/duplication.md#2-jscpd-invocation)).
+  jscpd prints its summary on stdout even with `--silent`, so both its
+  stdout and its stderr go to the entrypoint's stderr. jscpd exits 0 when
+  it finds clones. The entrypoint reads the report from
+  `/tmp/jscpd/jscpd.json`: for each staged file, it collects the set of line
+  numbers covered by any `firstFile`/`secondFile` range (`start` and `end`
+  1-based, inclusive) in which the file appears (a clone inside one file
+  contributes both ranges), and maps the name (`plain/<n>.<ext>`) back to
+  line `<n>`. `tool_versions.jscpd` is read from
+  `node_modules/jscpd/package.json` (`"5.4.1"`), whether or not files were
+  staged.
+- **jscpd failure**: jscpd exiting non-zero or killed, a missing or invalid
+  `/tmp/jscpd/jscpd.json`, a `duplicates` that is not a list, an entry
+  without `firstFile`/`secondFile` objects with `name` (str), `start` and
+  `end` (ints), or a `name` that does not map to a staged file. A failure
+  never fails the run: the entrypoint sets `duplication: null` on **every**
+  file, keeps `tool_versions.jscpd`, adds exactly one warning
+  `{"tool": "jscpd", "message": "<one-line reason>"}` **without** `path`,
+  and goes on with an unchanged exit status. For each such warning, tingle
+  prints on stderr:
+
+  ```
+  Warning: jscpd failed in <image>; duplication data is not available: <message>
+  ```
 - **stdout**: exactly one JSON object followed by `\n`, the merged JSON:
 
   ```json
   {
-    "tool_versions": {"fta": "3.1.0", "jscpd": null, "escomplex": null},
+    "tool_versions": {"fta": "3.1.0", "jscpd": "5.4.1", "escomplex": null},
     "files": [
       {
         "path": "simple.js",
         "parse_error": false,
         "fta": {"score": 7.690944198185733, "cyclo": 1, "lines": 6, "assessment": "OK"},
-        "duplication": null,
+        "duplication": {"lines": 0},
         "functions": null
       },
       {"path": "broken.js", "parse_error": true, "fta": null, "duplication": null, "functions": null},
@@ -167,19 +213,32 @@ single file.
     `fta_score`, `cyclo`, `line_count` and `assessment`), or `null` when the
     file is a parse error, was refused, or was dropped by FTA (a file with no
     code line, like `empty.js`).
-  - `tool_versions.jscpd`, `tool_versions.escomplex`, `files[].duplication`
-    and `files[].functions` are always `null` until #324 and #325.
-  - With empty stdin, no tool runs and the entrypoint prints empty `files`
+  - `files[].duplication` is `{"lines": <int >= 0>}` or `null`:
+
+    | Case | `duplication` |
+    |------|---------------|
+    | Staged, read by jscpd, in no clone (including a file FTA dropped, like `empty.js`) | `{"lines": 0}` |
+    | Staged, in one or more clones | `{"lines": n}`, n = the number of distinct line numbers of the file covered by any clone range |
+    | Staged but larger than 1,048,576 bytes (skipped by `--max-size 1mb`) | `null` |
+    | `parse_error: true` | `null` |
+    | Refused line | `null` |
+    | jscpd failed | `null` for every file |
+
+  - `tool_versions.jscpd` is `"5.4.1"`, also when jscpd failed.
+  - `tool_versions.escomplex` and `files[].functions` are always `null`
+    until #325.
+  - With empty stdin, neither FTA nor jscpd runs and the entrypoint prints empty `files`
     and `warnings` (with `tool_versions` filled) and exits 0.
   - Nothing else is ever written to stdout. The key types and the per-file
     states are pinned in
     [image.md §7](specs/code_check/js_complexity/image.md#7-merged-json).
-- **stderr**: FTA's stderr is passed through, plus the failure reason.
+- **stderr**: FTA's stderr and jscpd's stdout and stderr are passed
+  through, plus the failure reason.
 - **Exit status**:
 
   | Status | When |
   |--------|------|
-  | `0` | The JSON was printed, including when some or all files are parse errors, dropped or refused. |
+  | `0` | The JSON was printed, including when some or all files are parse errors, dropped or refused, and when jscpd failed. |
   | FTA's status (non-zero) | FTA exited non-zero. Nothing is printed on stdout. |
   | `1` | Any other failure: stdin not valid UTF-8, `fta --version` failing, FTA killed by a signal, FTA's stdout not a JSON array, an FTA path that does not map to a staged file, or an unexpected error. A one-line reason prefixed with `tingle_js_complexity: ` goes to stderr. Nothing is printed on stdout. |
 
@@ -187,11 +246,13 @@ single file.
 
 - **Arbitrary uid**: the image ends with `USER 1000:1000`, but tingle always
   overrides it with `--user <uid>:<gid>` (the smoke test uses `501:20`). The
-  entrypoint calls `/usr/local/bin/fta` directly and never uses `npx`, which
+  entrypoint calls `/usr/local/bin/fta` and
+  `/opt/tingle_js_complexity/node_modules/.bin/jscpd` directly and never
+  uses `npx`, which
   would write to `$HOME/.npm` (with a foreign uid, `HOME` is `/`).
 - **Read-only `/src`**: the sources are mounted with `:ro`. The entrypoint
-  writes only under `/tmp`: the staged tree, `/tmp/fta.json` and FTA's
-  output.
+  writes only under `/tmp`: the staged tree, `/tmp/fta.json`, FTA's output
+  and jscpd's report (`/tmp/jscpd/`).
 - **No network**: the canonical line uses `--network none`; the image needs
   no network at runtime. `--security-opt no-new-privileges` is always set.
 - **No git**: no stage installs git and the base image has none
@@ -277,9 +338,9 @@ checked with `python3`. The fixture:
 | `simple.js` | Two one-line exported functions. | Normal row, `score` below 20, `assessment` `"OK"`. |
 | `complex.ts` | About 260 lines of branchy TypeScript (reducer, class, rule functions). | Normal row, `score` above 60, `assessment` `"Needs improvement"`. |
 | `component.tsx`, `widget.jsx` | React components with JSX. | Normal rows. |
-| `dup_a.js`, `dup_b.js` | The same 20-line function body, renamed. | Normal rows. |
-| `broken.js` | A syntax error. | `parse_error: true`, `fta: null`, at least one `fta` warning. |
-| `empty.js` | Empty (0 bytes). | `parse_error: false`, `fta: null` (dropped by FTA). |
+| `dup_a.js`, `dup_b.js` | The same 20-line function body, renamed. | Normal rows; one exact clone (`dup_a.js` lines 1–22, `dup_b.js` lines 4–25), so `duplication.lines` is 22 for both (the smoke test asserts `>= 20`). |
+| `broken.js` | A syntax error. | `parse_error: true`, `fta: null`, `duplication: null`, at least one `fta` warning. |
+| `empty.js` | Empty (0 bytes). | `parse_error: false`, `fta: null` (dropped by FTA), `duplication.lines` `0` (still read by jscpd). |
 | `short.js` | One statement. | Normal row, `fta.lines` `1` (proves `--exclude-under 0`). |
 | `bundle.min.js` | One minified line. | Normal row, `fta.lines` `1` (minified files are not skipped). |
 | `build/out.js` | A small function under `build/`. | Normal row (FTA's `build` filter is bypassed). |
@@ -287,8 +348,11 @@ checked with `python3`. The fixture:
 | `ext/types.d.ts` | Only `declare` statements. | Normal row (`.d.ts` is not skipped). |
 | `crlf.js` | A small function with CRLF line endings. | Normal row, same `score` as `ext/a.mjs`. |
 | `bom.ts` | A small function with a UTF-8 BOM. | Normal row, same `score` as `ext/c.mts`. |
-| `latin1.js` | ISO-8859-1 bytes. | `parse_error: true`, `fta: null`, an `fta` warning `file is not valid UTF-8`. |
-| `Cart.vue` | A Vue SFC. | Refused: `parse_error: false`, `fta: null`, an `entrypoint` warning `unsupported extension` (until #326). |
+| `latin1.js` | ISO-8859-1 bytes. | `parse_error: true`, `fta: null`, `duplication: null`, an `fta` warning `file is not valid UTF-8`. |
+| `Cart.vue` | A Vue SFC. | Refused: `parse_error: false`, `fta: null`, `duplication: null`, an `entrypoint` warning `unsupported extension` (until #326). |
+
+Every other staged fixture file is in no clone and gets `duplication.lines`
+`0`.
 
 A **normal row** has `parse_error: false`, an `fta` object whose `score` is
 a number (not a boolean), and no warning for its path (the `duplicate line`
@@ -299,14 +363,18 @@ It asserts that:
 
 - the fixture run exits 0;
 - stdout parses as JSON and is an object;
-- `tool_versions.fta` is `"3.1.0"`, and `tool_versions.jscpd` and
-  `tool_versions.escomplex` are `null`;
+- `tool_versions.fta` is `"3.1.0"`, `tool_versions.jscpd` is `"5.4.1"` and
+  `tool_versions.escomplex` is `null`;
 - `files` is a list of objects and the list of `files[].path` equals the
   input lines, in order (so there is one entry per input line);
 - `warnings` is a list of objects;
-- the per-file expectations in the table hold;
+- the per-file expectations in the table hold; for duplication,
+  `duplication.lines >= 20` for `dup_a.js` and `dup_b.js`, `0` for
+  `simple.js` and `empty.js`, and `null` for `broken.js` and `latin1.js`;
+- there is no `jscpd` warning in the fixture run;
 - each of the last five entries (the hostile lines) has
-  `parse_error: false`, `fta: null` and an `entrypoint` warning with the
+  `parse_error: false`, `fta: null`, `duplication: null` and an
+  `entrypoint` warning with the
   message from [Contract](#contract): `empty line`, `absolute path`,
   `path has a '..' segment`, `duplicate line` and
   `not a regular file under /src`;
@@ -316,8 +384,8 @@ It asserts that:
   `"warnings": []`.
 
 Any failed check prints `<reason> on <platform>` on stderr and exits 1. The
-checks for jscpd (#324), escomplex (#325) and `Cart.vue` as a normal row
-(#326) are added by those sub-issues, in the same PR as the image change.
+checks for escomplex (#325) and `Cart.vue` as a normal row (#326) are added
+by those sub-issues, in the same PR as the image change.
 
 ### CircleCI
 
@@ -348,12 +416,11 @@ image jobs (`/^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/`) and
 - `docker/js_complexity/DOCKERHUB_SHORT_DESCRIPTION.txt`: one line, 1 to
   100 characters after trimming.
 - `docker/js_complexity/DOCKERHUB_DESCRIPTION.md`: what the image is for,
-  the stdin/stdout contract, the canonical run line, the pinned Node and FTA
-  versions, the tag strategy (same tag as tingle, no `latest`) and a link to
+  the stdin/stdout contract, the canonical run line, the pinned Node, FTA
+  and jscpd versions, the exact-clone duplication (`duplication` field), the tag strategy (same tag as tingle, no `latest`) and a link to
   the tingle repository. Links must be absolute URLs, because Docker Hub
-  cannot resolve paths relative to the repository. Until #324 and #325 land,
-  both files describe FTA only; each of those sub-issues updates them in its
-  own PR.
+  cannot resolve paths relative to the repository. Both files describe FTA
+  and jscpd; #325 updates them in its own PR.
 - Both files are excluded from the build context by
   `docker/js_complexity/.dockerignore`.
 - `scripts/release_image.sh update-description js_complexity` pushes both in
@@ -394,10 +461,12 @@ Nothing bumps the pins automatically. Each bump is a deliberate change:
 2. **FTA**: update `--version` in the `cargo install` line (and
    `ARG RUST_IMAGE` if the crate needs a newer Rust). Check FTA's built-in
    filters and the `Failed to analyze` log line format again.
-3. **npm tools** (from #324/#325: jscpd, typhonjs-escomplex,
+3. **npm tools** (jscpd, and from #325 typhonjs-escomplex and
    `@babel/parser`): update `package.json`, then regenerate
    `package-lock.json` inside the base image with
-   `npm install --package-lock-only`.
+   `npm install --package-lock-only`. For jscpd, check that the lock still
+   lists both `jscpd-linux-x64-gnu` and `jscpd-linux-arm64-gnu` at the same
+   version, and check the JSON report shape and the pinned options again.
 4. Re-run the smoke test on both platforms
    (`scripts/release_image.sh build js_complexity` then
    `smoke-test js_complexity`). If a tool's output shape, a pinned option or
