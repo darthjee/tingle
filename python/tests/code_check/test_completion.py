@@ -11,6 +11,7 @@ import pytest
 from code_check.completion import FILES_SENTINEL, complete
 from code_check.executor import CodeCheck
 from code_check.file_size.flags import FLAGS
+from code_check.js_complexity.flags import FLAGS as JS_COMPLEXITY_FLAGS
 from code_check.rubycritic.flags import FLAGS as RUBYCRITIC_FLAGS
 from code_check.subcommands import SUBCOMMAND_NAMES
 
@@ -48,6 +49,9 @@ def test_completion_imports_no_heavy_module():
         "'code_check.rubycritic.executor', 'code_check.rubycritic.docker_runner', "
         "'code_check.rubycritic.output_parser', 'code_check.rubycritic.reporter', "
         "'code_check.rubycritic.selection', 'code_check.rubycritic.config', "
+        "'code_check.js_complexity.executor', 'code_check.js_complexity.docker_runner', "
+        "'code_check.js_complexity.output_parser', 'code_check.js_complexity.reporter', "
+        "'code_check.js_complexity.selection', 'code_check.docker_check.executor', "
         "'code_check.validators') if m in sys.modules]; "
         "print(','.join(heavy))"
     )
@@ -231,3 +235,58 @@ def test_rubycritic_does_not_offer_file_size_only_flags():
     flags = complete(["rubycritic", "app", ""])
 
     assert "--ext" not in flags
+
+
+# --- js_complexity ----------------------------------------------------------------
+
+JS_COMPLEXITY_EXPECTED_FLAGS = [
+    f["name"] for f in JS_COMPLEXITY_FLAGS if f["name"].startswith("-")
+]
+
+
+def test_js_complexity_is_offered_as_a_subcommand():
+    assert "js_complexity" in complete([""])
+
+
+def test_js_complexity_flag_names():
+    assert JS_COMPLEXITY_EXPECTED_FLAGS == [
+        "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--image",
+    ]
+
+
+@pytest.mark.parametrize("current", ["", "src", "./sr"])
+def test_js_complexity_without_path_returns_file_sentinel(current):
+    assert complete(["js_complexity", current]) == [FILES_SENTINEL]
+
+
+def test_help_then_js_complexity_behaves_like_js_complexity():
+    assert complete(["-h", "js_complexity", ""]) == [FILES_SENTINEL]
+
+
+@pytest.mark.parametrize("current", ["-", "--i"])
+def test_js_complexity_dash_word_returns_every_flag(current):
+    assert complete(["js_complexity", current]) == JS_COMPLEXITY_EXPECTED_FLAGS
+
+
+def test_js_complexity_after_path_returns_every_flag():
+    assert complete(["js_complexity", "src", ""]) == JS_COMPLEXITY_EXPECTED_FLAGS
+
+
+@pytest.mark.parametrize(
+    ("flag", "choices"),
+    [
+        ("--min-level", ["ok", "warn", "error", "critical"]),
+        ("--fail-on", ["warn", "error", "critical"]),
+    ],
+)
+def test_js_complexity_choice_flags_return_choices(flag, choices):
+    assert complete(["js_complexity", "src", flag, ""]) == choices
+
+
+@pytest.mark.parametrize("flag", ["--warn", "--error", "--critical", "--top", "--image"])
+def test_js_complexity_free_value_flags_return_nothing(flag):
+    assert complete(["js_complexity", "src", flag, ""]) == []
+
+
+def test_js_complexity_value_flag_before_path_does_not_count_as_path():
+    assert complete(["js_complexity", "--image", "img:dev", ""]) == [FILES_SENTINEL]
