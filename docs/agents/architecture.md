@@ -229,11 +229,14 @@ reference for the full rules):
 #322):
 
 - `executor.py` — `CheckJsComplexity(DockerCheck)`
-  (`PROG = "tingle code_check js_complexity"`), with `_parse_output` and
-  `_execute`. Until #321/#322 it overrides two hooks: `_load_config` returns
-  `({}, None)` without reading the config file (there is no `--no-config`
-  yet), and the selection options force `gitignore=False`, `ignore=[]` and
-  `include=[]`, so only the default excludes apply.
+  (`PROG = "tingle code_check js_complexity"`), with `_select_files`,
+  `_gate_value` (the rounded FTA score), `_parse_output`, `_print_warnings`
+  and `_execute`. Until #321/#322 it overrides three hooks: `_parse` adds
+  `no_config: False` (read by `DockerCheck.run` before `_load_config`; there
+  is no `--no-config` yet), `_load_config` returns `({}, None)` without
+  reading the config file, and `_selection_options` forces
+  `gitignore=False`, `ignore=[]` and `include=[]`, so only the default
+  excludes apply.
 - `constants.py` — thresholds (`50`/`60`/`75`, applied to the rounded FTA
   score), the default excludes (`file_size`'s list plus `.turbo`,
   `.svelte-kit`, `.output`, `.vercel`, `.parcel-cache` and
@@ -253,8 +256,9 @@ reference for the full rules):
   `"FTA"`; it re-exports `decode` and `write_stderr`.
 - `selection.py` — thin wrapper: `select_files(target, root, *,
   excludes=None, ignore=None, include=None, gitignore=False)` binds the
-  extensions, the default excludes and a `skip` predicate that drops
-  declaration files (`path.name.lower()` ending with a declaration suffix);
+  extensions, the default excludes and the `is_declaration` `skip` predicate
+  that drops declaration files (`path.name.lower()` ending with a
+  declaration suffix);
   it re-exports `Selection`, `unsendable_reason` and `build_selection`.
 - `output_parser.py` — checks the container's merged JSON and maps its paths
   back to the sent lines (`OutputFormatError` on a contract break). It
