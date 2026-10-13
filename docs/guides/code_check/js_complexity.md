@@ -16,13 +16,16 @@ on them inside the `darthjee/tingle_js_complexity` Docker image. FTA gives
 each file a score that combines its cyclomatic complexity, its size and its
 Halstead metrics. The higher the score, the harder the file is to maintain.
 The same image also runs [jscpd](https://github.com/kucherenko/jscpd) to
-find copy-pasted code between the selected files.
+find copy-pasted code between the selected files, and
+[typhonjs-escomplex](https://github.com/typhonjs-node-escomplex/typhonjs-escomplex)
+to measure each function, so you can drill down from a file to the
+functions that make it complex (see [`--details`](#--details)).
 
 Each file gets one row in a report, labelled OK, WARN, ERROR or CRITICAL.
 The label comes from the file's **FTA score** compared with thresholds you
 can choose. The other columns (cyclomatic complexity, lines, duplicated
-lines and FTA's own assessment) are shown for information only: they never change the label or
-the exit status.
+lines and FTA's own assessment) and the per-function lines are shown for
+information only: they never change the label or the exit status.
 
 ## Requirements
 
@@ -76,6 +79,7 @@ limit on the number of files, and the run has no timeout.
 | `--top N` | `0` | Show only the `N` most complex files. `0` shows all files. |
 | `--min-level LEVEL` | `ok` | Show only files at `LEVEL` or higher. `LEVEL` is `ok`, `warn`, `error` or `critical`. |
 | `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
+| `--details [N]` | off | Under each shown file, list its `N` most complex functions. `--details` alone means `5`; `0` lists every function. |
 | `--image IMAGE` | `darthjee/tingle_js_complexity:<tingle version>` | Docker image to run. |
 | `--exclude a,b` | none | Extra directory names to skip (comma-separated), **added** to the [default excludes](#--exclude). |
 | `--no-default-excludes` | off | Do not skip the default directories or minified bundles; only `--exclude` names apply. |
@@ -85,8 +89,8 @@ limit on the number of files, and the run has no timeout.
 | `--no-config` | off | Do not read `~/.tingle/code_check/config.json` (see [Configuration file](#configuration-file)). |
 
 The thresholds accept decimals (`--warn 52.5`) and must be `0` or more.
-`--top` must be a whole number, `0` or more, and `--image` must not be
-empty. The order of the thresholds is not checked: keep `warn` < `error` <
+`--top` and `--details N` must be whole numbers, `0` or more, and `--image`
+must not be empty. The order of the thresholds is not checked: keep `warn` < `error` <
 `critical`, or the labels will not make sense.
 
 The file selection options are described in
@@ -140,6 +144,45 @@ analysis always exits `0`.
   not fail the build.
 - If there are no JavaScript/TypeScript files to analyse, the command exits
   `0`.
+
+### `--details`
+
+Drills down from a file to the functions that make it complex. Under each
+shown file row, the command lists the file's most complex functions, each
+with its own cyclomatic complexity, its length, its name and where it starts:
+
+```
+$ tingle code_check js_complexity fixture --details 2
+...
+Status             FTA  Cyclo  Lines    Dup  Assessment         File
+──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
+🔴 ERROR           71.3    136    245      0  Needs improvement  fixture/complex.ts
+                 cyclo  12  sloc   27  reducer  (fixture/complex.ts:9)
+                 cyclo   9  sloc   11  score  (fixture/complex.ts:74)
+✅ OK              37.4      3     18      0  OK                 fixture/component.tsx
+                 cyclo   3  sloc   13  List  (fixture/component.tsx:8)
+                 cyclo   1  sloc    1  <anon method-1>  (fixture/component.tsx:12)
+...
+```
+
+- `--details` without a number shows up to **5** functions per file;
+  `--details N` shows up to `N`; `--details 0` shows **every** function.
+- Without `--details`, no function lines are printed.
+- Functions are sorted by cyclomatic complexity, highest first, then by
+  line, then by name. A file with fewer functions shows only those it has; a
+  file with no function at all (for example one with only constants or
+  imports) gets no function lines.
+- Only the **shown** rows get function lines: `--min-level` and `--top` pick
+  the files first, then `--details` adds lines under each of them. `⛔ PARSE`
+  rows never get function lines.
+- Functions have **no level**: they are not labelled OK/WARN/ERROR/CRITICAL,
+  are not counted in the `Summary:` line, and never affect `--fail-on` or
+  the exit status. The level and the gate stay based on each file's FTA
+  score.
+
+The function data comes from escomplex, not from FTA. When it is missing for
+a file, the row gets a short note instead of function lines (see
+[Function lines](#function-lines)); this is never an error.
 
 ### `--image`
 
@@ -493,6 +536,7 @@ Every key is optional and matches a command-line option:
 | `critical` | number >= 0 | `75` | `--critical` |
 | `top` | integer >= 0 | `0` | `--top` |
 | `fail_on` | `"warn"`, `"error"`, `"critical"` or `null` | `null` | `--fail-on` (`null` means no gate) |
+| `details` | integer >= 0 or `null` | `null` | `--details` (`0` lists every function, `null` prints no function lines) |
 | `min_level` | `"ok"`, `"warn"`, `"error"` or `"critical"` | `"ok"` | `--min-level` |
 | `image` | non-empty string | `darthjee/tingle_js_complexity:<tingle version>` | `--image` |
 | `exclude` | list of strings | `[]` | `--exclude` (comma-separated on the command line) |
@@ -505,7 +549,8 @@ Notes:
 
 - The thresholds accept decimals (`"critical": 75.5`). Numbers must be
   real, finite JSON numbers: `true`, `"50"`, `NaN` and `Infinity` are
-  errors. `top` must be a whole number (`"top": 20.0` is an error).
+  errors. `top` and `details` must be whole numbers (`"top": 20.0` is an
+  error).
 - A `null` value for a single-value key means "not set": the built-in
   default (or the command-line option) is used.
 - `image` must not be empty or only spaces. Setting it also means tingle
@@ -522,8 +567,8 @@ Notes:
 ### How the config and the command line combine
 
 - **Single values** (`warn`, `error`, `critical`, `top`, `fail_on`,
-  `min_level`, `image`): the command line wins over the config, which wins
-  over the built-in default.
+  `min_level`, `image`, `details`): the command line wins over the config,
+  which wins over the built-in default.
 - **Lists** (`exclude`, `ignore`, `include`): the config values come first,
   then the command-line values are **added**. Duplicates are dropped (the
   first occurrence is kept). The command line never replaces a config list.
@@ -554,7 +599,8 @@ For example, with this file:
     "gitignore": true,
     "fail_on": "error",
     "min_level": "warn",
-    "image": "darthjee/tingle_js_complexity:0.9.0"
+    "image": "darthjee/tingle_js_complexity:0.9.0",
+    "details": 5
   }
 }
 ```
@@ -572,7 +618,7 @@ runs with:
 - the default excludes plus `generated` and `fixtures`;
 - the ignore globs `**/*.test.ts` and `**/legacy/**`;
 - the image `darthjee/tingle_js_complexity:0.9.0`, and the other values
-  (`top`, `include`, `fail_on`, `min_level`) from the config.
+  (`top`, `include`, `fail_on`, `min_level`, `details`) from the config.
 
 The `rubycritic` section is ignored here.
 
@@ -609,7 +655,7 @@ Error: /home/me/.tingle/code_check/config.json: <reason>
 | The top level is not a JSON object | `top level must be an object` |
 | The `js_complexity` section is not a JSON object | `'js_complexity' must be an object` |
 | An unknown key, such as a typo or `ext` | `unknown key '<key>'` |
-| A wrong type or value | for example `'warn' must be a number >= 0`, `'top' must be an integer >= 0`, `'image' must be a non-empty string` or `'fail_on' must be one of warn, error, critical or null` |
+| A wrong type or value | for example `'warn' must be a number >= 0`, `'top' must be an integer >= 0`, `'details' must be an integer >= 0 or null`, `'image' must be a non-empty string` or `'fail_on' must be one of warn, error, critical or null` |
 
 For example:
 
@@ -691,11 +737,49 @@ warning for each of `broken.js` and `latin1.js` is printed on standard error
 
 - `Analyzing:` shows the target as an absolute path.
 - `Thresholds:` shows the `warn`, `error` and `critical` values in use.
-- `Image:` shows the Docker image that runs FTA and jscpd.
+- `Image:` shows the Docker image that runs FTA, jscpd and escomplex.
 - `Config:` (dimmed) shows the path of the configuration file, when a
   `js_complexity` section was loaded from it, even an empty one. It is not
   printed when the file or the section does not exist, or with
   `--no-config` (see [Configuration file](#configuration-file)).
+
+### Function lines
+
+With [`--details`](#--details), indented lines follow some file rows, one per
+function, dimmed in a terminal:
+
+```
+                 cyclo  12  sloc   27  reducer  (fixture/complex.ts:9)
+```
+
+- `cyclo`: the function's own cyclomatic complexity (at least `1`);
+- `sloc`: the number of lines the function spans, from its first line to its
+  last;
+- the function's name. A class method is shown as `Class.method` (for
+  example `Store.dispatch`), with `<anonymous>` as the class name for an
+  unnamed class. An anonymous function (an arrow function or a callback,
+  for example) is shown as `<anon method-N>`. Nested functions are listed
+  too, as their own lines;
+- in parentheses, the file (as in the `File` column) and the line where the
+  function starts, as your editor numbers it (Windows line endings and a
+  leading BOM do not shift it).
+
+A file's function values do not add up to its `Cyclo` or `Lines` columns:
+those come from FTA and also count the code outside functions.
+
+When the per-function data is not available for a shown row, a single dim
+note replaces its function lines:
+
+```
+                 (per-function data unavailable)
+```
+
+This happens when escomplex could not parse a file that FTA could (for
+example very recent TypeScript syntax), when escomplex failed as a whole
+(see [escomplex failures](#escomplex-failures)), or with an older image
+passed through [`--image`](#--image) that does not report functions. The row
+keeps its level, and the exit status does not change. A file that simply has
+no function gets neither function lines nor this note.
 
 ### Columns
 
@@ -777,6 +861,23 @@ Warning: jscpd failed in <image>; duplication data is not available: <message>
 
 The `Dup` column then shows `-` on every row. The exit status is not
 changed.
+
+### escomplex failures
+
+If escomplex fails as a whole inside the image (it crashed, ran out of
+memory, or gave output tingle could not read), the analysis still completes.
+Tingle prints one warning on standard error, before the report:
+
+```
+Warning: escomplex failed in <image>; per-function data is not available: <message>
+```
+
+With [`--details`](#--details), every level row then shows the
+`(per-function data unavailable)` note. The levels, the summary and the exit
+status are not changed. The warning is printed with or without `--details`.
+
+When escomplex cannot parse a single file, no warning is printed: only that
+file's row shows the note under `--details`.
 
 ### Summary
 
@@ -864,6 +965,12 @@ Run a locally built image:
 tingle code_check js_complexity ./src --image tingle_js_complexity:dev
 ```
 
+Show the 3 most complex functions of each of the 5 most complex files:
+
+```
+tingle code_check js_complexity ./src --top 5 --details 3
+```
+
 Ignore your configuration file for one run:
 
 ```
@@ -892,6 +999,7 @@ Errors are printed on **standard error** as `Error: <message>`.
 | Unknown option or invalid value (e.g. `--top abc`, `--fail-on foo`) | A usage error | `1` |
 | Negative threshold | `Error: --warn must be a number >= 0` (`--error`, `--critical` likewise) | `1` |
 | Negative `--top` | `Error: --top must be an integer >= 0` | `1` |
+| Negative `--details` | `Error: --details must be an integer >= 0` | `1` |
 | Empty `--image` | `Error: --image must not be empty` | `1` |
 | Invalid configuration file (unreadable, bad JSON, unknown key, wrong value, ...) | `Error: <config file>: <reason>` (see [Config errors](#config-errors)) | `1` |
 | `<path>` does not exist | `Error: path not found: <absolute path>` | `1` |
@@ -919,8 +1027,9 @@ In short:
 | `2` | The complexity gate failed (`--fail-on`) |
 
 Unparsable files (`⛔ PARSE` rows), files shown as `OK 0.0`, the `Dup`
-column and a jscpd failure warning never change the exit status on their
-own. The report always goes to standard output and
+column, the function lines of `--details`, the
+`(per-function data unavailable)` note and a jscpd or escomplex failure
+warning never change the exit status on their own. The report always goes to standard output and
 error messages to standard error.
 
 ## Limitations
