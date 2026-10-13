@@ -157,11 +157,11 @@ $ tingle code_check js_complexity fixture --details 2
 Status             FTA  Cyclo  Lines    Dup  Assessment         File
 ──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
 🔴 ERROR           71.3    136    245      0  Needs improvement  fixture/complex.ts
-                 cyclo  12  sloc   27  reducer  (fixture/complex.ts:9)
-                 cyclo   9  sloc   11  score  (fixture/complex.ts:74)
+                 cyclo  15  sloc   42  reducer  (fixture/complex.ts:31)
+                 cyclo   6  sloc    7  ruleTags  (fixture/complex.ts:156)
 ✅ OK              37.4      3     18      0  OK                 fixture/component.tsx
-                 cyclo   3  sloc   13  List  (fixture/component.tsx:8)
-                 cyclo   1  sloc    1  <anon method-1>  (fixture/component.tsx:12)
+                 cyclo   2  sloc   17  Counter  (fixture/component.tsx:8)
+                 cyclo   2  sloc    5  <anon method-1>  (fixture/component.tsx:11)
 ...
 ```
 
@@ -749,7 +749,7 @@ With [`--details`](#--details), indented lines follow some file rows, one per
 function, dimmed in a terminal:
 
 ```
-                 cyclo  12  sloc   27  reducer  (fixture/complex.ts:9)
+                 cyclo  15  sloc   42  reducer  (fixture/complex.ts:31)
 ```
 
 - `cyclo`: the function's own cyclomatic complexity (at least `1`);
