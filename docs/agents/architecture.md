@@ -65,7 +65,8 @@ dispatches to.
   returns subcommand names at the first position, flag names when the word
   being typed starts with `-`, and `__tingle_files__` for the path position.
   Each subcommand's completion is driven by its own `flags.FLAGS`
-  (`code_check.file_size.flags`, `code_check.rubycritic.flags`):
+  (`code_check.file_size.flags`, `code_check.rubycritic.flags`,
+  `code_check.js_complexity.flags`):
   `flag_tables(flags)` in `python/code_check/completion.py` turns a `FLAGS`
   list into its flag names and value-taking flags (with their `choices`), and
   `SUBCOMMAND_FLAGS` maps each subcommand name to those tables. Adding a
@@ -136,13 +137,14 @@ image repository and an error subclass:
   `build_selection` and `select_files(target, root, *, extensions, excludes,
   ignore=None, include=None, gitignore=True, skip=None)`.
 - `executor.py` — `DockerCheck`, the base class for each check's executor
-  (`CheckRubycritic`, and later `CheckJsComplexity`).
+  (`CheckRubycritic`, `CheckJsComplexity`).
 
 How the check-specific parts are passed in:
 
 - `error_class` — every shared function or class that raises takes the
   check's `DockerCheckError` subclass, so each check keeps its own error
-  type (`RubycriticError` for `rubycritic`).
+  type (`RubycriticError` for `rubycritic`, `JsComplexityError` for
+  `js_complexity`).
 - `command` and `tool` — used only in the two tool-specific runner
   messages: `docker not found on PATH; {command} needs Docker to run {tool}`
   and `{tool} failed in {image} (exit {status})`. Every other message is
@@ -222,6 +224,48 @@ reference for the full rules):
 - `reporter.py` — the header, table, summary and `Score:` line, plus its
   display filtering.
 
+`python/code_check/js_complexity/` follows the same layout, built on
+`docker_check`. It has no `config.py` yet (the config section arrives with
+#322):
+
+- `executor.py` — `CheckJsComplexity(DockerCheck)`
+  (`PROG = "tingle code_check js_complexity"`), with `_parse_output` and
+  `_execute`. Until #321/#322 it overrides two hooks: `_load_config` returns
+  `({}, None)` without reading the config file (there is no `--no-config`
+  yet), and the selection options force `gitignore=False`, `ignore=[]` and
+  `include=[]`, so only the default excludes apply.
+- `constants.py` — thresholds (`50`/`60`/`75`, applied to the rounded FTA
+  score), the default excludes (`file_size`'s list plus `.turbo`,
+  `.svelte-kit`, `.output`, `.vercel`, `.parcel-cache` and
+  `storybook-static`), `EXTENSIONS` (`.js .mjs .cjs .jsx .ts .mts .cts
+  .tsx`), `DECLARATION_SUFFIXES` (`.d.ts`, `.d.mts`, `.d.cts`), the image
+  repository (`darthjee/tingle_js_complexity`) and `VERSION_FILE`, assigned
+  from `docker_check`.
+- `errors.py` — `JsComplexityError(DockerCheckError)`, the user-facing error.
+- `flags.py` — the import-light `FLAGS` list (shared by the parser and
+  completion).
+- `image.py` — thin wrapper: `resolve_image(cli_image, version_file=None)`
+  binds the js_complexity repository, `Constants.VERSION_FILE` and
+  `JsComplexityError`. The default image is
+  `darthjee/tingle_js_complexity:<version>`.
+- `docker_runner.py` — thin wrapper: a `DockerRunner(image)` subclass that
+  binds `JsComplexityError`, `"tingle code_check js_complexity"` and
+  `"FTA"`; it re-exports `decode` and `write_stderr`.
+- `selection.py` — thin wrapper: `select_files(target, root, *,
+  excludes=None, ignore=None, include=None, gitignore=False)` binds the
+  extensions, the default excludes and a `skip` predicate that drops
+  declaration files (`path.name.lower()` ending with a declaration suffix);
+  it re-exports `Selection`, `unsendable_reason` and `build_selection`.
+- `output_parser.py` — checks the container's merged JSON and maps its paths
+  back to the sent lines (`OutputFormatError` on a contract break). It
+  validates the whole shape, including `duplication`, `functions` and the
+  `jscpd`/`escomplex` tool versions that nothing displays yet, so later
+  issues never change the checks. The JSON shape is pinned in
+  [tingle-js-complexity-image.md](tingle-js-complexity-image.md#contract).
+- `reporter.py` — the table (`Status FTA Cyclo Lines Assessment File`),
+  summary and `FTA score:` line, plus its display filtering. The header comes
+  from `DockerCheck`.
+
 **`FileCollector` reuse.** `docker_check.selection` imports `FileCollector`
 straight from `code_check.file_size.file_collector` and passes the
 keyword-only `binary_check=False` and `outside_symlinks=False` (the defaults
@@ -246,6 +290,7 @@ subcommand in its own sub-package. `python/code_check/` is the reference:
   SUBCOMMANDS = {
       "file_size": (CheckFileSize, "Token efficiency triage: file size analysis."),
       "rubycritic": (CheckRubycritic, "Ruby code complexity via RubyCritic (Docker)."),
+      "js_complexity": (CheckJsComplexity, "JavaScript/TypeScript code complexity via FTA (Docker)."),
   }
   ```
 
