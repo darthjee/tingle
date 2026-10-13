@@ -1,1 +1,1 @@
-FTA complexity as JSON for tingle code_check js_complexity.
+FTA complexity and jscpd duplication as JSON for tingle code_check js_complexity.
