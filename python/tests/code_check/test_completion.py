@@ -251,6 +251,7 @@ def test_js_complexity_is_offered_as_a_subcommand():
 def test_js_complexity_flag_names():
     assert JS_COMPLEXITY_EXPECTED_FLAGS == [
         "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--image",
+        "--exclude", "--no-default-excludes", "--no-gitignore", "--ignore", "--include",
     ]
 
 
@@ -283,9 +284,18 @@ def test_js_complexity_choice_flags_return_choices(flag, choices):
     assert complete(["js_complexity", "src", flag, ""]) == choices
 
 
-@pytest.mark.parametrize("flag", ["--warn", "--error", "--critical", "--top", "--image"])
+@pytest.mark.parametrize(
+    "flag",
+    ["--warn", "--error", "--critical", "--top", "--image", "--exclude", "--ignore", "--include"],
+)
 def test_js_complexity_free_value_flags_return_nothing(flag):
     assert complete(["js_complexity", "src", flag, ""]) == []
+
+
+@pytest.mark.parametrize("flag", ["--no-default-excludes", "--no-gitignore"])
+def test_js_complexity_store_true_flags_take_no_value(flag):
+    assert complete(["js_complexity", "src", flag, ""]) == JS_COMPLEXITY_EXPECTED_FLAGS
+    assert complete(["js_complexity", flag, ""]) == [FILES_SENTINEL]
 
 
 def test_js_complexity_value_flag_before_path_does_not_count_as_path():

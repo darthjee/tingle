@@ -134,6 +134,33 @@ def test_gitignore_is_off_by_default(tmp_path, fake_git):
     assert fake_git["calls"] == []
 
 
+def test_gitignore_when_asked_skips_ignored_files(tmp_path, fake_git):
+    _touch(tmp_path, "a.js", "ignored.js", "gen/b.js")
+    root = tmp_path.resolve()
+    fake_git["result"] = GitIgnored({root / "ignored.js"}, [root / "gen"])
+
+    assert select_files(tmp_path, tmp_path, gitignore=True).lines == ["a.js"]
+    assert fake_git["calls"] == [root]
+
+
+# --- globs -------------------------------------------------------------------------
+
+
+def test_ignore_and_include_globs(tmp_path):
+    _touch(tmp_path, "src/a.ts", "src/a.test.ts", "lib/b.js")
+
+    selection = select_files(tmp_path, tmp_path, ignore=["**/*.test.ts"], include=["src/**"])
+
+    assert selection.lines == ["src/a.ts"]
+
+
+def test_absolute_symlink_inside_is_reported_as_target(tmp_path):
+    _touch(tmp_path, "lib/real.js")
+    (tmp_path / "abs.js").symlink_to(tmp_path / "lib" / "real.js")
+
+    assert select_files(tmp_path, tmp_path).lines == ["lib/real.js"]
+
+
 # --- symlinks ----------------------------------------------------------------------
 
 

@@ -70,7 +70,6 @@ def test_help_exits_zero(capsys):
         [".", "--min-level", "bad"],
         [".", "--fail-on", "ok"],
         [".", "--no-config"],
-        [".", "--exclude", "a"],
         [".", "--details"],
         [".", "--unknown"],
     ],
@@ -112,16 +111,51 @@ def test_merge_fills_the_built_in_defaults():
     }
 
 
-def test_selection_options_are_fixed():
-    options = {"exclude": ["x"], "no_default_excludes": True, "ignore": ["a"],
-               "include": ["b"], "gitignore": True}
+def test_merge_resolves_the_selection_options():
+    cli = {"path": "x", "exclude": "test,,fixtures,test", "no_default_excludes": False,
+           "no_gitignore": False, "ignore": ["a", "b", "a"], "include": ["c", "c"],
+           "no_config": False}
 
-    assert CheckJsComplexity._selection_options(options) == {
+    options = CheckJsComplexity._merge(cli, {})
+
+    assert options["exclude"] == ["test", "fixtures"]
+    assert options["no_default_excludes"] is False
+    assert options["gitignore"] is True
+    assert options["ignore"] == ["a", "b"]
+    assert options["include"] == ["c"]
+
+
+def test_merge_no_gitignore_turns_gitignore_off():
+    options = CheckJsComplexity._merge({"path": "x", "no_gitignore": True}, {})
+
+    assert options["gitignore"] is False
+
+
+def test_selection_options_defaults():
+    assert CheckJsComplexity._selection_options({}) == {
         "excludes": Constants.DEFAULT_EXCLUDES,
         "ignore": [],
         "include": [],
+        "gitignore": True,
+    }
+
+
+def test_selection_options_from_flags():
+    options = {"exclude": ["test", "dist"], "no_default_excludes": False, "ignore": ["a"],
+               "include": ["b"], "gitignore": False}
+
+    assert CheckJsComplexity._selection_options(options) == {
+        "excludes": [*Constants.DEFAULT_EXCLUDES, "test"],
+        "ignore": ["a"],
+        "include": ["b"],
         "gitignore": False,
     }
+
+
+def test_selection_options_no_default_excludes():
+    options = {"exclude": ["vendor"], "no_default_excludes": True}
+
+    assert CheckJsComplexity._selection_options(options)["excludes"] == ["vendor"]
 
 
 # --- path and image ----------------------------------------------------------------
@@ -217,10 +251,16 @@ def test_unsendable_name_is_warned(tmp_path, capsys, no_docker):
     assert "No JavaScript/TypeScript files found for analysis." in captured.out
 
 
-def test_gitignore_is_not_consulted(tmp_path, capsys, no_docker, fake_git):
+def test_gitignore_is_consulted_by_default(tmp_path, capsys, no_docker, fake_git):
     fake_git["result"] = GitIgnored(set(), [])
 
     _run([str(tmp_path), "--image", "img"])
+
+    assert fake_git["calls"] == [tmp_path.resolve()]
+
+
+def test_no_gitignore_does_not_consult_git(tmp_path, capsys, no_docker, fake_git):
+    _run([str(tmp_path), "--image", "img", "--no-gitignore"])
 
     assert fake_git["calls"] == []
 
