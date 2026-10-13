@@ -660,8 +660,8 @@ Status             FTA  Cyclo  Lines    Dup  Assessment         File
 ──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
 🔴 ERROR           71.3    136    245      0  Needs improvement  fixture/complex.ts
 ✅ OK              37.4      3     18      0  OK                 fixture/component.tsx
-✅ OK              35.1      9     23     22  OK                 fixture/dup_b.js
-✅ OK              35.0      9     23     22  OK                 fixture/dup_a.js
+✅ OK              35.1      9     23     23  OK                 fixture/dup_b.js
+✅ OK              35.0      9     23     23  OK                 fixture/dup_a.js
 ✅ OK              31.0      3     11      0  OK                 fixture/widget.jsx
 ✅ OK               7.7      1      6      0  OK                 fixture/simple.js
 ✅ OK               7.3      2      6      0  OK                 fixture/bom.ts
@@ -753,8 +753,8 @@ clones; only exact copies count, so a copy with renamed variables is not a
 match.
 
 - Each line counts **once**, however many clones cover it. In the sample
-  above, `dup_a.js` and `dup_b.js` share one 22-line block, so both show
-  `22`.
+  above, `dup_a.js` and `dup_b.js` share one 23-line block, so both show
+  `23`.
 - Only the **selected files** are compared with each other. A copy in an
   excluded or ignored file (for example under `node_modules`) is never
   counted.
