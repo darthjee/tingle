@@ -5,16 +5,18 @@ A `Selection` holds the mount root, the lines sent on the container's stdin
 the files whose name cannot be sent (a newline, or not valid UTF-8).
 
 Files are collected with `file_size`'s `FileCollector` (default excludes, the
-fixed core extension filter, matched case-insensitively), without its binary
-check and with symlink confinement: a file that resolves outside the mount
-root (or a dangling symlink) is dropped. Declaration files (`.d.ts`,
-`.d.mts`, `.d.cts`) are always dropped silently; minified bundles
-(`.min.js`, `.min.mjs`, `.min.cjs`) are dropped silently too unless
+fixed extension filter, matched case-insensitively), without its binary check
+and with symlink confinement: a file that resolves outside the mount root (or
+a dangling symlink) is dropped. The filter holds the core extensions and the
+.vue, .svelte and .astro single-file components (their <script> blocks and
+Astro frontmatter only); no skip rule applies to the components. Declaration
+files (`.d.ts`, `.d.mts`, `.d.cts`) are always dropped silently; minified
+bundles (`.min.js`, `.min.mjs`, `.min.cjs`) are dropped silently too unless
 `skip_minified` is false (`--no-default-excludes`).
 
 The logic lives in `code_check.docker_check.selection`; `select_files` here
-binds the extensions, the default excludes, the declaration-file skip and
-the minified-bundle skip.
+binds the extensions (core and SFC), the default excludes, the
+declaration-file skip and the minified-bundle skip.
 """
 
 from __future__ import annotations
@@ -55,7 +57,7 @@ def select_files(
     gitignore: bool = False,
     skip_minified: bool = True,
 ) -> Selection:
-    """Collect the JS/TS files under `target` (or `target` itself) for the mount `root`.
+    """Collect the JS/TS and SFC files under `target` (or `target` itself) for the mount `root`.
 
     `excludes` are directory names (default: `Constants.DEFAULT_EXCLUDES`; not
     applied to a single file), `ignore`/`include` are globs relative to
@@ -76,7 +78,7 @@ def select_files(
     return docker_check_selection.select_files(
         target,
         root,
-        extensions=Constants.EXTENSIONS,
+        extensions=[*Constants.EXTENSIONS, *Constants.SFC_EXTENSIONS],
         excludes=Constants.DEFAULT_EXCLUDES if excludes is None else excludes,
         ignore=ignore,
         include=include,

@@ -55,6 +55,10 @@ def test_extensions():
     assert Constants.EXTENSIONS == [".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx"]
 
 
+def test_sfc_extensions():
+    assert Constants.SFC_EXTENSIONS == [".vue", ".svelte", ".astro"]
+
+
 # --- extensions --------------------------------------------------------------------
 
 
@@ -62,7 +66,56 @@ def test_extensions():
 @pytest.mark.parametrize("case", [str.lower, str.upper])
 def test_each_extension_in_any_case_is_selected(tmp_path, ext, case):
     name = f"file{case(ext)}"
-    _touch(tmp_path, name, "README.md", "style.css", "a.vue")
+    _touch(tmp_path, name, "README.md", "style.css", "a.json")
+
+    assert select_files(tmp_path, tmp_path).lines == [name]
+
+
+# --- single-file components --------------------------------------------------------
+
+
+def _mixed_case(ext):
+    return ext[:2].upper() + ext[2:]
+
+
+@pytest.mark.parametrize("ext", Constants.SFC_EXTENSIONS)
+@pytest.mark.parametrize("case", [str.lower, str.upper, _mixed_case])
+def test_each_sfc_extension_in_any_case_is_selected(tmp_path, ext, case):
+    name = f"Cart{case(ext)}"
+    _touch(tmp_path, name, "README.md", "style.css", "index.html")
+
+    assert select_files(tmp_path, tmp_path).lines == [name]
+
+
+@pytest.mark.parametrize("ext", Constants.SFC_EXTENSIONS)
+def test_sfc_single_file_is_selected(tmp_path, ext):
+    _touch(tmp_path, f"Cart{ext}", "other.ts")
+
+    assert select_files(tmp_path / f"Cart{ext}", tmp_path).lines == [f"Cart{ext}"]
+
+
+def test_sfc_files_are_selected_with_core_files(tmp_path):
+    _touch(
+        tmp_path,
+        "src/Cart.vue", "src/store.ts", "src/main.js",
+        "src/Counter.svelte", "src/pages/Page.astro", "src/style.css",
+    )
+
+    assert select_files(tmp_path, tmp_path).lines == [
+        "src/Cart.vue", "src/Counter.svelte", "src/main.js",
+        "src/pages/Page.astro", "src/store.ts",
+    ]
+
+
+def test_sfc_and_its_ts_twin_are_both_selected(tmp_path):
+    _touch(tmp_path, "Cart.vue", "Cart.vue.ts")
+
+    assert select_files(tmp_path, tmp_path).lines == ["Cart.vue", "Cart.vue.ts"]
+
+
+@pytest.mark.parametrize("name", ["Cart.min.vue", "Cart.d.vue"])
+def test_no_skip_rule_applies_to_sfc_files(tmp_path, name):
+    _touch(tmp_path, name)
 
     assert select_files(tmp_path, tmp_path).lines == [name]
 
@@ -318,7 +371,7 @@ def test_single_file_sends_only_its_name(tmp_path):
     assert selection.lines == ["a.ts"]
 
 
-@pytest.mark.parametrize("name", ["a.py", "a.vue", "a.json", "README"])
+@pytest.mark.parametrize("name", ["a.py", "a.html", "a.json", "README"])
 def test_single_file_with_unsupported_extension_selects_nothing(tmp_path, name):
     _touch(tmp_path, name)
 

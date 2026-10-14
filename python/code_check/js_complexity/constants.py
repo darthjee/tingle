@@ -31,6 +31,10 @@ class Constants:
         ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx",
     ]
 
+    # Single-file components (compared case-insensitively): the image analyses
+    # their <script> blocks and Astro frontmatter only. No skip rule applies.
+    SFC_EXTENSIONS: ClassVar[list[str]] = [".vue", ".svelte", ".astro"]
+
     # TypeScript declaration files, always skipped (matched on the lower-case name)
     DECLARATION_SUFFIXES: ClassVar[tuple[str, ...]] = (".d.ts", ".d.mts", ".d.cts")
 
