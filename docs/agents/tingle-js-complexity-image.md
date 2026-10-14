@@ -424,7 +424,7 @@ exist; this section is the lasting contract.
   `functions[].line` and the jscpd ranges are the component's own line
   numbers with no offset. FTA ignores blank lines, so the padding does not
   change its score or `lines` (`Cart.vue` gives the same result as its bare
-  script: score about `30.66`, cyclo 3, 11 lines).
+  script: score about `33.59`, cyclo 3, 12 lines).
 - **Mapping back**: the tools report `sfc/<n>.<ext>.<vext>`; the entrypoint
   parses `<n>` and fills the `files` entry of line `<n>`, whose `path` is the
   original line (for example `src/Cart.vue`). The JSON shape is unchanged. A
@@ -539,8 +539,8 @@ stdin it pipes the 28 fixture files, one per line, in this order:
 `dup_b.js`, `broken.js`, `empty.js`, `short.js`, `bundle.min.js`,
 `build/out.js`, `ext/a.mjs`, `ext/b.cjs`, `ext/c.mts`, `ext/d.cts`,
 `ext/UPPER.JS`, `ext/types.d.ts`, `crlf.js`, `bom.ts`, `latin1.js`,
-`Cart.vue`, `Cart.vue.ts`, `NoScript.vue`, `TwoBlocks.vue`,
-`External.vue`, `Coffee.vue`, `Counter.svelte`, `Page.astro`
+`Cart.vue`, `NoScript.vue`, `External.vue`, `Coffee.vue`,
+`TwoBlocks.vue`, `Counter.svelte`, `Page.astro`, `Cart.vue.ts`
 
 followed by five hostile lines: an empty line, `/etc/passwd`,
 `../outside.js`, a second `simple.js` and `missing.js`. The output is
@@ -562,7 +562,7 @@ checked with `python3`. The fixture:
 | `crlf.js` | A small function with CRLF line endings. | Normal row, same `score` as `ext/a.mjs`. |
 | `bom.ts` | A small function with a UTF-8 BOM. | Normal row, same `score` as `ext/c.mts`. |
 | `latin1.js` | ISO-8859-1 bytes. | `parse_error: true`, `fta: null`, `duplication: null`, an `fta` warning `file is not valid UTF-8`. |
-| `Cart.vue` | A Vue SFC with one `<script>` block. | Normal row, `score` between 25 and 40, `fta.lines` `11`, `duplication.lines` `0`, and one function at `line` `13` (the original line, not the script's). |
+| `Cart.vue` | A Vue SFC with one `<script>` block. | Normal row, `score` between 25 and 40, `fta.lines` `12`, `duplication.lines` `0`, and one function at `line` `13` (the original line, not the script's). |
 | `Cart.vue.ts` | A real TypeScript file named next to `Cart.vue`. | Its own normal row, separate from `Cart.vue` (staged under `plain/`, not `sfc/`). |
 | `NoScript.vue` | A template-only component. | `parse_error: false`, `fta: null`, `duplication.lines` `0`, `functions: []`, no warning. |
 | `TwoBlocks.vue` | `<script>` + `<script setup lang="ts">`, with functions in both. | Normal row; its functions come from both blocks, at their original lines. |
