@@ -553,7 +553,8 @@ if report != expected:
 JS_COMPLEXITY_FIXTURE_DIR="docker/js_complexity/fixture"
 JS_COMPLEXITY_FIXTURE_FILES=(simple.js complex.ts component.tsx widget.jsx dup_a.js dup_b.js broken.js
   empty.js short.js bundle.min.js build/out.js ext/a.mjs ext/b.cjs ext/c.mts ext/d.cts ext/UPPER.JS
-  ext/types.d.ts crlf.js bom.ts latin1.js Cart.vue)
+  ext/types.d.ts crlf.js bom.ts latin1.js Cart.vue NoScript.vue External.vue Coffee.vue TwoBlocks.vue
+  Counter.svelte Page.astro Cart.vue.ts)
 # Hostile lines piped after the fixture list: an empty line, an absolute path,
 # a ".." segment, a duplicate and a missing file. Each must be refused.
 JS_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.js simple.js missing.js)
@@ -572,10 +573,13 @@ JS_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.js simple.js missing.js)
 # 0.1.0, >= 20 functions for complex.ts with "reducer" and a "Store." method,
 # [] for empty.js and short.js, null for broken.js, latin1.js and the refused
 # lines, every line/cyclo/sloc an int >= 1, no path-less escomplex warning),
-# refused hostile lines), no git in the image, and empty files/warnings on
-# empty stdin. Cart.vue is refused as
-# "unsupported extension" until SFC support lands (#326). Any failure prints
-# "<reason> on <platform>" on stderr and exits 1.
+# the single-file component expectations from
+# docs/agents/specs/code_check/js_complexity/sfc.md (section 7: normal rows
+# for Cart.vue, TwoBlocks.vue, Counter.svelte, Page.astro and Cart.vue.ts with
+# the original line numbers, an empty row for NoScript.vue and External.vue,
+# a PARSE row with an entrypoint warning for Coffee.vue), refused hostile
+# lines), no git in the image, and empty files/warnings on empty stdin. Any
+# failure prints "<reason> on <platform>" on stderr and exits 1.
 smoke_test_js_complexity() {
   local image="$1"
   local platform="$2"
@@ -709,7 +713,28 @@ if normal("crlf.js")["score"] != normal("ext/a.mjs")["score"]:
 if normal("bom.ts")["score"] != normal("ext/c.mts")["score"]:
     fail("bom.ts score differs from ext/c.mts")
 parse_error("latin1.js", "file is not valid UTF-8")
-refused(entries["Cart.vue"], "unsupported extension")
+
+# Single-file components (sfc.md section 7).
+cart = normal("Cart.vue")
+if not 25 <= cart["score"] <= 40 or cart.get("lines") != 12:
+    fail(f"Cart.vue fta is {cart}, expected 25 <= score <= 40 and lines 12")
+for path in ("TwoBlocks.vue", "Counter.svelte", "Page.astro"):
+    normal(path)
+if normal("Cart.vue.ts") == cart:
+    fail("Cart.vue.ts has the same fta row as Cart.vue")
+for path in ("NoScript.vue", "External.vue"):
+    entry = entries[path]
+    if entry.get("parse_error") is not False or entry.get("fta") is not None:
+        fail(f"{path} is {entry}, expected parse_error false and fta null")
+    if warnings_for(path):
+        fail(f"{path} has warnings {warnings_for(path)}")
+coffee = entries["Coffee.vue"]
+if coffee.get("parse_error") is not True or coffee.get("fta") is not None:
+    fail(f"Coffee.vue is {coffee}, expected parse_error true and fta null")
+coffee_warning = ("entrypoint", "unsupported <script lang=\"coffee\">")
+coffee_warnings = warnings_for("Coffee.vue")
+if coffee_warnings != [coffee_warning]:
+    fail(f"Coffee.vue warnings are {coffee_warnings}, expected [{coffee_warning}]")
 
 jscpd_warnings = [w for w in warnings if w.get("tool") == "jscpd"]
 if jscpd_warnings:
@@ -725,10 +750,11 @@ def duplicated_lines(path):
 for path in ("dup_a.js", "dup_b.js"):
     if not duplicated_lines(path) >= 20:
         fail(f"{path} duplication.lines is {duplicated_lines(path)}, not >= 20")
-for path in ("simple.js", "empty.js"):
+for path in ("simple.js", "empty.js", "Cart.vue", "NoScript.vue", "External.vue", "TwoBlocks.vue",
+             "Counter.svelte", "Page.astro", "Cart.vue.ts"):
     if duplicated_lines(path) != 0:
         fail(f"{path} duplication.lines is {duplicated_lines(path)}, not 0")
-for path in ("broken.js", "latin1.js"):
+for path in ("broken.js", "latin1.js", "Coffee.vue"):
     duplication = entries[path].get("duplication")
     if duplication is not None:
         fail(f"{path} duplication is {duplication!r}, not null")
@@ -776,13 +802,31 @@ if "reducer" not in complex_names:
     fail(f"complex.ts functions {complex_names} have no \"reducer\"")
 if not any(name.startswith("Store.") for name in complex_names):
     fail(f"complex.ts functions {complex_names} have no \"Store.\" method")
-for path in ("empty.js", "short.js"):
+for path in ("empty.js", "short.js", "NoScript.vue", "External.vue"):
     if functions_of(path) != []:
         fail(f"{path} functions is {functions_of(path)!r}, not []")
-for path in ("broken.js", "latin1.js", "Cart.vue"):
+for path in ("broken.js", "latin1.js", "Coffee.vue"):
     functions = entries[path].get("functions")
     if functions is not None:
         fail(f"{path} functions is {functions!r}, not null")
+
+# Function lines of the components are their original lines.
+def function_lines(path):
+    return {f["name"]: f["line"] for f in functions_of(path)}
+
+expected_lines = {
+    "Cart.vue": {"<anon method-1>": 13},
+    "TwoBlocks.vue": {"normaliseTag": 8, "label": 17},
+    "Counter.svelte": {"instanceCount": 4, "increment": 16},
+    "Page.astro": {"publishedSlugs": 5, "toggleTheme": 17},
+}
+for path, expected in expected_lines.items():
+    actual = function_lines(path)
+    if any(actual.get(name) != line for name, line in expected.items()):
+        fail(f"{path} function lines are {actual}, expected {expected}")
+cart_functions = functions_of("Cart.vue")
+if len(cart_functions) != 1:
+    fail(f"Cart.vue functions are {cart_functions}, expected exactly one")
 ' "$platform" "${lines[@]}" <<< "$output"
 
   local git_check
