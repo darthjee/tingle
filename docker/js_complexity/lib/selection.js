@@ -5,9 +5,12 @@
 
 const fs = require("fs");
 const path = require("path");
+const { SFC_EXTENSIONS } = require("./sfc");
 
 const SRC = "/src";
-const EXTENSIONS = new Set(["js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx"]);
+const EXTENSIONS = new Set([
+  "js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx", ...SFC_EXTENSIONS,
+]);
 
 // Lower-cased text after the last "." of the base name, or null.
 function extensionOf(line) {
