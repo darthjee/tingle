@@ -13,14 +13,8 @@ typhonjs-escomplex (per-function complexity, for `--details`). It also
 accepts `.vue`, `.svelte` and `.astro` single-file components (their
 `<script>` blocks and Astro frontmatter only), which the entrypoint extracts
 into a padded virtual module (see
-[Single-file components](#single-file-components)). The full specs still live
-under [specs/code_check/js_complexity/](specs/code_check/js_complexity/)
-(see [image.md](specs/code_check/js_complexity/image.md),
-[duplication.md](specs/code_check/js_complexity/duplication.md),
-[details.md](specs/code_check/js_complexity/details.md),
-[sfc.md](specs/code_check/js_complexity/sfc.md) and
-[release.md](specs/code_check/js_complexity/release.md)); this doc is
-self-sufficient once they are removed.
+[Single-file components](#single-file-components)). The JSON it prints is
+pinned in [Merged JSON](#merged-json).
 
 - **Image**: `darthjee/tingle_js_complexity` on Docker Hub.
 - **Tag strategy**: the published Docker tag is exactly the plain semver git
@@ -86,7 +80,7 @@ self-sufficient once they are removed.
   | Rust toolchain (build only) | `1.99.0` | `ARG RUST_IMAGE` |
   | FTA | `3.1.0` (crate `fta`) | `cargo install --version 3.1.0 --locked` |
   | jscpd | `5.4.1` (npm `jscpd`) | `package.json` and `package-lock.json` |
-| typhonjs-escomplex | `0.1.0` (npm `typhonjs-escomplex`) | `package.json` and `package-lock.json` |
+  | typhonjs-escomplex | `0.1.0` (npm `typhonjs-escomplex`) | `package.json` and `package-lock.json` |
 
   typhonjs-escomplex 0.1.0 (2018) depends on `@babel/parser` with a `^7`
   range, so the lock is what fixes the parser. The lock pins:
@@ -146,13 +140,19 @@ single file.
   `.bundle.js`, hidden files, upper-case extensions), and the files are
   copied because FTA does not follow symlinks. FTA reports paths relative to
   `/tmp/stage` (`plain/6.ts`, `sfc/21.vue.js`); the entrypoint parses `<n>`
-  from the name and fills the `files` entry of line `<n>`. A reported path
-  that does not map to a staged file is a failure (exit 1).
+  from the name and fills the `files` entry of line `<n>`; it never derives a
+  path by stripping a prefix. A reported path that does not map to a staged
+  file is a failure (exit 1).
 - **Encoding check**: before staging, the file is decoded as UTF-8 with a
   fatal decoder (a leading BOM is accepted). A file that is not valid UTF-8
   (single-file components included) is not staged; it gets
   `parse_error: true` and the warning
   `{"tool": "fta", "path": <line>, "message": "file is not valid UTF-8"}`.
+  FTA itself drops such a file silently (no log line), so this check is what
+  makes it a parse error. CRLF line endings and a UTF-8 BOM are handled by
+  all three tools: FTA gives the same score and `lines` as for the same code
+  with LF and no BOM, and jscpd ranges and escomplex lines are the editor's
+  line numbers.
 - **Single-file components**: see
   [Single-file components](#single-file-components) below for the
   extraction, the virtual module, the line map and the two extraction-error
@@ -164,6 +164,15 @@ single file.
   ```
   fta /tmp/stage --json --config-path /tmp/fta.json --score-cap 1000000000 --exclude-under 0 --include-comments false
   ```
+
+  `DEBUG` is removed because FTA switches to debug logging when it is set.
+  The config file **adds** the four extensions to FTA's own list
+  (`.js .jsx .ts .tsx`), and with an explicit `--config-path` FTA never reads
+  an `fta.json` from the scanned tree. `--score-cap` is raised because FTA
+  exits 1 when a file scores above the cap (default 1000). `--exclude-under 0`
+  keeps every file with at least one code line (the default, 6, drops small
+  files). `--include-comments false` is FTA's default, pinned: comment lines
+  are not counted in `line_count`.
 
   FTA logs files it cannot parse on stderr and drops them. Every stderr line
   matching `Failed to analyze /tmp/stage/(plain|sfc)/(\d+)\.\S*: (.*)$` sets
@@ -186,8 +195,14 @@ single file.
   ```
 
   Every option that affects the result is pinned, even where it equals
-  jscpd's default (the reasons are in
-  [duplication.md §2](specs/code_check/js_complexity/duplication.md#2-jscpd-invocation)).
+  jscpd's default (`--min-tokens 50`, `--min-lines 5`, `--mode mild`,
+  `--max-size 1mb`), so a change of default cannot change the result.
+  `--kind exact` keeps only exact (Type-1) clones. `--format` limits jscpd to
+  the formats tingle sends. Without `--formats-exts`, jscpd does not read
+  `.mjs`, `.cjs`, `.mts` and `.cts`; without `--cross-formats js-ts`, a clone
+  between a `.js` and a `.ts` file is not found. `--no-gitignore` makes sure
+  nothing can hide a staged file. A virtual module is read as JavaScript or
+  TypeScript, never with jscpd's own Vue, Svelte or Astro support.
   jscpd prints its summary on stdout even with `--silent`, so both its
   stdout and its stderr go to the entrypoint's stderr. jscpd exits 0 when
   it finds clones. The entrypoint reads the report from
@@ -195,7 +210,12 @@ single file.
   numbers covered by any `firstFile`/`secondFile` range (`start` and `end`
   1-based, inclusive) in which the file appears (a clone inside one file
   contributes both ranges), and maps the name (`plain/<n>.<ext>` or
-  `sfc/<n>.<ext>.<vext>`) back to line `<n>`. jscpd picks the format of a
+  `sfc/<n>.<ext>.<vext>`) back to line `<n>`. Each line counts once, however
+  many clones cover it, and a clone that starts or ends mid-line still counts
+  the whole line. `format`, `kind`, `lines`, `tokens`, `fragment` and
+  `statistics` are not used. Clones are only found within the staged files,
+  so a clone with an excluded file (for example under `node_modules`) is never
+  counted. jscpd picks the format of a
   virtual module from its last extension (`<vext>`). `tool_versions.jscpd` is read from
   `node_modules/jscpd/package.json` (`"5.4.1"`), whether or not files were
   staged.
@@ -253,8 +273,8 @@ single file.
     `objectRestSpread`, `optionalCatchBinding` and `exportDefaultFrom`.
     `sourceType: "unambiguous"` lets both ES modules and CommonJS parse.
     Changing a plugin or a module option is a deliberate change, like a
-    version bump (see
-    [details.md §2](specs/code_check/js_complexity/details.md#2-escomplex-wrapper)).
+    version bump (see [Bumping versions](#bumping-versions)): it can change
+    which files escomplex parses and the functions it reports.
   - **Functions**: the wrapper flattens escomplex's `methods` (every
     function outside a class, nested and anonymous ones included) and
     `classes[].methods` (every method of a class, with the functions nested
@@ -350,10 +370,10 @@ single file.
 
   - `tool_versions.escomplex` is `"0.1.0"`, also when the wrapper failed.
   - With empty stdin, neither FTA, jscpd nor escomplex runs and the entrypoint prints empty `files`
-    and `warnings` (with `tool_versions` filled) and exits 0.
+    and `warnings` (with `tool_versions` filled) and exits 0. Tingle never
+    starts the container with an empty list, but the image must handle it.
   - Nothing else is ever written to stdout. The key types and the per-file
-    states are pinned in
-    [image.md §7](specs/code_check/js_complexity/image.md#7-merged-json).
+    states are pinned in [Merged JSON](#merged-json).
 - **stderr**: FTA's stderr, jscpd's stdout and stderr, and the escomplex
   wrapper's stderr are passed through, plus the failure reason.
 - **Exit status**:
@@ -364,6 +384,55 @@ single file.
   | FTA's status (non-zero) | FTA exited non-zero. Nothing is printed on stdout. |
   | `1` | Any other failure: stdin not valid UTF-8, `fta --version` failing, FTA killed by a signal, FTA's stdout not a JSON array, an FTA path that does not map to a staged file, or an unexpected error. A one-line reason prefixed with `tingle_js_complexity: ` goes to stderr. Nothing is printed on stdout. |
 
+### Merged JSON
+
+The JSON object printed on stdout. Tingle parses it with these types.
+
+**Keys and types**:
+
+| Key | Type | Rule |
+|-----|------|------|
+| `tool_versions` | object | Always present. |
+| `tool_versions.fta` | str | FTA's version (`"3.1.0"`), from `fta --version`. |
+| `tool_versions.jscpd` | str | jscpd's version (`"5.4.1"`), also when jscpd failed (see [jscpd run](#contract)). |
+| `tool_versions.escomplex` | str | typhonjs-escomplex's version (`"0.1.0"`), also when the wrapper failed (see [escomplex run](#contract)). |
+| `files` | list | Exactly one entry per input line, in input order. |
+| `files[].path` | str | The input line, exactly as received. |
+| `files[].parse_error` | bool | `true` when FTA could not parse the file, the file is not valid UTF-8, or a single-file component cannot be extracted. |
+| `files[].fta` | object or `null` | `null` when `parse_error` is `true`, when FTA dropped the file (no code line), or when the line was refused. |
+| `files[].fta.score` | number | FTA's `fta_score`, as reported (unrounded). |
+| `files[].fta.cyclo` | int ≥ 0 | FTA's `cyclo`. |
+| `files[].fta.lines` | int ≥ 0 | FTA's `line_count`: non-blank, non-comment lines. Tingle never recounts. |
+| `files[].fta.assessment` | str | FTA's `assessment`: `"Needs improvement"` (score above 60), `"Could be better"` (above 50) or `"OK"`. |
+| `files[].duplication` | object or `null` | `{"lines": <int ≥ 0>}`; `null` when jscpd failed, when jscpd did not read the file, or when `parse_error` is `true` (see the `duplication` table under [Contract](#contract)). |
+| `files[].functions` | list or `null` | A list of `{"name": str, "line": int ≥ 1, "cyclo": int ≥ 1, "sloc": int ≥ 1}` in source order; `[]` when the file has no function; `null` when escomplex failed on the file or as a whole, or when `parse_error` is `true` (see the `functions` table under [Contract](#contract)). |
+| `warnings` | list | Entries in the order they were produced. |
+| `warnings[].tool` | str | `"entrypoint"`, `"fta"`, `"jscpd"` or `"escomplex"`. |
+| `warnings[].message` | str | One line. |
+| `warnings[].path` | str (optional) | The input line the warning is about. Absent for a warning about a whole tool run. |
+
+Rules:
+
+- **`null` means not available; `[]` or `0` means available and empty.**
+  `"duplication": {"lines": 0}` means jscpd read the file and found no
+  clone. `"functions": []` means escomplex parsed the file and found no
+  function.
+- When `parse_error` is `true`, `fta`, `duplication` and `functions` are all
+  `null`.
+- **No version field, no negotiation.** The image and the CLI share the
+  tingle tag. Every key above is always present. For tingle, a missing key or
+  a value of the wrong type is an unparsable-output error (exit 1). Unknown
+  extra keys are ignored by tingle.
+
+**Per-file states**:
+
+| State | `parse_error` | `fta` | `warnings` entry for the path | Report |
+|-------|---------------|-------|-------------------------------|--------|
+| Normal | `false` | object | none (or a per-file `escomplex` one) | normal row |
+| Parse error | `true` | `null` | `tool: "fta"` (or `"entrypoint"` for a single-file component that cannot be extracted) | `⛔ PARSE` row |
+| Dropped by FTA (no code line) | `false` | `null` | none | `OK`, score 0 |
+| Refused line | `false` | `null` | `tool: "entrypoint"` | `OK`, score 0 |
+
 ### Single-file components
 
 None of the three tools reads `.vue`, `.svelte` or `.astro` files the way
@@ -371,9 +440,9 @@ tingle needs, so the entrypoint (`lib/sfc.js`) **extracts their script part**
 into one virtual module, and FTA, jscpd and escomplex analyse that module
 like any other staged file. The `<template>` markup and the styles are never
 analysed. The host selects these extensions in any letter case; the image
-compares the lower-cased last extension. The full design and its grounding
-are in [sfc.md](specs/code_check/js_complexity/sfc.md) while the specs
-exist; this section is the lasting contract.
+compares the lower-cased last extension. On the host side, tingle needs no
+code for single-file components beyond adding the three extensions to its
+selection.
 
 - **Script blocks**, after the file is decoded as UTF-8 (see
   [Encoding check](#contract)):
@@ -408,8 +477,10 @@ exist; this section is the lasting contract.
 
 - **Virtual module**: all kept blocks of a file are combined into **one**
   module, in file order, so the file gets one FTA score, one set of
-  duplication ranges and one list of functions (per-block scores are never
-  summed). Its extension `<vext>` is `tsx` if any block is TS and any is
+  duplication ranges and one list of functions. Per-block results are never
+  summed: FTA and Halstead scores are not additive. A file with no kept
+  block, or whose kept blocks are all empty, is still staged, as a module
+  with no code. Its extension `<vext>` is `tsx` if any block is TS and any is
   JSX, `ts` if any is TS, `jsx` if any is JSX, else `js`. It is staged at
   `/tmp/stage/sfc/<n>.<ext>.<vext>` (`<n>` the input line, `<ext>` the
   lower-cased SFC extension), for example `/tmp/stage/sfc/5.vue.ts`. The
@@ -464,7 +535,9 @@ exist; this section is the lasting contract.
 - **Read-only `/src`**: the sources are mounted with `:ro`. The entrypoint
   writes only under `/tmp`: the staged tree, `/tmp/fta.json`, FTA's output
   and jscpd's report (`/tmp/jscpd/`). The escomplex wrapper writes no
-  file; it talks to the entrypoint only through stdin and stdout.
+  file; it talks to the entrypoint only through stdin and stdout. The image
+  must also work with a read-only root file system
+  (`--read-only --tmpfs /tmp`).
 - **No network**: the canonical line uses `--network none`; the image needs
   no network at runtime. `--security-opt no-new-privileges` is always set.
 - **No git**: no stage installs git and the base image has none
@@ -633,10 +706,7 @@ image jobs (`/^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/`) and
   `build-and-publish-linux-image`, `build-and-publish-rubycritic-image`
   **and** `build-and-publish-js-complexity-image`, so a CLI release is never
   published without its images.
-- The `test` workflow is unchanged: no image is built on regular commits.
-- This pipeline must be merged before the tingle release tag that ships the
-  `js_complexity` subcommand (#320) is pushed, because the CLI defaults to
-  `darthjee/tingle_js_complexity:<tingle version>`.
+- The `test` workflow builds no image: nothing is built on regular commits.
 
 ## Docker Hub description
 
