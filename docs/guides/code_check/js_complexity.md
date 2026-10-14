@@ -8,7 +8,9 @@ This is a subcommand of [`tingle code_check`](../code_check.md).
 
 `tingle code_check js_complexity` finds the JavaScript and TypeScript files
 that are the hardest to read and maintain, so you know where to refactor
-first.
+first. It also analyses `.vue`, `.svelte` and `.astro` single-file
+components (their `<script>` blocks and Astro frontmatter only; see
+[Single-file components](#single-file-components)).
 
 It selects the JavaScript/TypeScript files under a file or directory on your
 machine, then runs [FTA](https://ftaproject.dev/) (Fast TypeScript Analyzer)
@@ -218,13 +220,17 @@ A file is analysed when its name ends in one of these extensions, in any
 case (`UPPER.JS` counts):
 
 ```
-.js .mjs .cjs .jsx .ts .mts .cts .tsx
+.js .mjs .cjs .jsx .ts .mts .cts .tsx .vue .svelte .astro
 ```
+
+`.vue`, `.svelte` and `.astro` files are single-file components: only their
+`<script>` blocks and Astro frontmatter are analysed (see
+[Single-file components](#single-file-components)).
 
 TypeScript **declaration files** (`.d.ts`, `.d.mts`, `.d.cts`, in any case)
 hold only types, so they are always skipped, even with
 `--no-default-excludes` or a matching `--include`. Other files, such as
-`.vue`, `.svelte` or `.json`, are not analysed.
+`.json` or `.css`, are not analysed.
 
 **Minified bundles** (names ending in `.min.js`, `.min.mjs` or `.min.cjs`, in
 any case, such as `app.min.js` or `VENDOR.MIN.JS`) are skipped by default,
@@ -242,6 +248,53 @@ Only the `.min` suffix counts:
 - a minified file without `.min` in its name (for example `bundle.js`) is
   analysed too, and usually shows up as CRITICAL. Skip it with
   [`--ignore`](#--ignore-and---include), for example `--ignore 'bundle.js'`.
+
+### Single-file components
+
+`.vue`, `.svelte` and `.astro` files (in any case, such as `Cart.VUE`) are
+selected like any other file: the default excludes, `.gitignore`, `--ignore`,
+`--include` and the symlink rule apply as usual, and no extra skip rule
+applies to them.
+
+Only the **script part** of a component is analysed. The image extracts it,
+runs FTA, jscpd and escomplex on it, and reports the result on the
+component's own row (for example `src/Cart.vue`). The `<template>` markup
+and the `<style>` blocks are **never** analysed.
+
+Which blocks are analysed:
+
+| File | Blocks |
+| --- | --- |
+| `.vue` | every `<script>` element, such as `<script>` and `<script setup>` |
+| `.svelte` | every `<script>` element, such as `<script>`, `<script context="module">` and `<script module>` |
+| `.astro` | the frontmatter (between the `---` fences at the top of the file), then every `<script>` element |
+
+- A `<script src="...">` block is **skipped**: the external file is analysed
+  on its own when it is selected.
+- A `<script>` whose `type` is not code is **skipped**, for example
+  `<script type="application/ld+json">`. Only no `type`, `module`,
+  `text/javascript` and `application/javascript` count as code.
+- The `lang` attribute sets the block's language: no `lang`, `js` or
+  `javascript` is JavaScript; `jsx` is JavaScript with JSX; `ts` or
+  `typescript` is TypeScript; `tsx` is TypeScript with JSX. In `.astro`
+  files, the frontmatter and the `<script>` blocks without `lang` are
+  TypeScript, as Astro compiles them. Any other `lang` (for example
+  `coffee`) cannot be analysed, and the file becomes a `⛔ PARSE` row (see
+  [Parse warnings](#parse-warnings)).
+- When a component has **several blocks** (for example `<script>` plus
+  `<script setup>`, or the frontmatter plus a `<script>`), they are combined
+  and analysed together: the file gets **one** row, with one FTA score, one
+  `Cyclo`, one `Dup` value and one list of functions. The scores of the
+  blocks are not added up.
+- **Line numbers are the original ones.** The function lines of
+  [`--details`](#--details) and the duplicated ranges point at the lines of
+  the component file itself, as your editor numbers them, not at a line
+  inside the script block.
+- A component with no script (a template-only component), or with only
+  skipped blocks, is shown as `✅ OK` with a score of `0.0` (see
+  [Files shown as `OK 0.0`](#files-shown-as-ok-00)).
+- `Cart.vue` and a separate `Cart.vue.ts` next to it are two different
+  files, with two separate rows.
 
 ### `--exclude`
 
@@ -806,6 +859,10 @@ score of `0.0` and `-` in the `Cyclo`, `Lines` and `Assessment` columns, so
 the file count matches the selection (`fixture/empty.js` above). jscpd still
 reads it, so its `Dup` column shows `0`.
 
+A [single-file component](#single-file-components) with no script to
+analyse is shown the same way: a template-only `.vue` or `.svelte` file, or
+one whose only `<script>` has a `src` attribute or a non-code `type`.
+
 In rare cases the image also refuses a file it was given, for example one
 deleted between the selection and the run. It prints a warning on standard
 error, and the file is listed the same way, as `✅ OK` with `0.0`:
@@ -822,6 +879,20 @@ UTF-8) prints a warning on standard error, before the report:
 ```
 Warning: cannot parse fixture/broken.js: <message>
 ```
+
+For a [single-file component](#single-file-components), a syntax error in
+one of its script blocks gives the same warning. Two more messages are
+specific to components:
+
+```
+Warning: cannot parse src/Legacy.vue: unsupported <script lang="coffee">
+Warning: cannot parse src/pages/Index.astro: unterminated frontmatter
+```
+
+The first one is printed when a `<script>` block uses a language other than
+JavaScript or TypeScript (the `lang` value is shown as written in the
+file). The second one is printed when an `.astro` file starts with a `---`
+line but has no closing `---`.
 
 It appears as a `⛔ PARSE` row, with `-` in every value column (`Dup`
 included), and in the
@@ -969,6 +1040,20 @@ Show the 3 most complex functions of each of the 5 most complex files:
 
 ```
 tingle code_check js_complexity ./src --top 5 --details 3
+```
+
+Analyse a Vue component and list its functions. The function line points at
+the component file itself (the `computed(() => ...)` callback starts on line
+13 of `Cart.vue`), and the score covers only its `<script setup>` block:
+
+```
+$ tingle code_check js_complexity ./src/Cart.vue --details
+...
+Status             FTA  Cyclo  Lines    Dup  Assessment         File
+──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
+✅ OK              33.6      3     12      0  OK                 Cart.vue
+                 cyclo   2  sloc    8  <anon method-1>  (Cart.vue:13)
+...
 ```
 
 Ignore your configuration file for one run:

@@ -241,7 +241,10 @@ reference for the full rules):
   score), the default excludes (`file_size`'s list plus `.turbo`,
   `.svelte-kit`, `.output`, `.vercel`, `.parcel-cache` and
   `storybook-static`), `EXTENSIONS` (`.js .mjs .cjs .jsx .ts .mts .cts
-  .tsx`), `DECLARATION_SUFFIXES` (`.d.ts`, `.d.mts`, `.d.cts`), the image
+  .tsx`), `SFC_EXTENSIONS` (`.vue .svelte .astro`, the single-file
+  components whose `<script>` blocks and Astro frontmatter the image
+  extracts; selected with the core list, with no skip rule),
+  `DECLARATION_SUFFIXES` (`.d.ts`, `.d.mts`, `.d.cts`), the image
   repository (`darthjee/tingle_js_complexity`) and `VERSION_FILE`, assigned
   from `docker_check`.
 - `errors.py` — `JsComplexityError(DockerCheckError)`, the user-facing error.
@@ -256,7 +259,7 @@ reference for the full rules):
   `"FTA"`; it re-exports `decode` and `write_stderr`.
 - `selection.py` — thin wrapper: `select_files(target, root, *,
   excludes=None, ignore=None, include=None, gitignore=False)` binds the
-  extensions, the default excludes and the `is_declaration` `skip` predicate
+  extensions (`EXTENSIONS` plus `SFC_EXTENSIONS`), the default excludes and the `is_declaration` `skip` predicate
   that drops declaration files (`path.name.lower()` ending with a
   declaration suffix);
   it re-exports `Selection`, `unsendable_reason` and `build_selection`.

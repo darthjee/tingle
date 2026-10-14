@@ -6,10 +6,10 @@ const fs = require("fs");
 const { EntrypointError } = require("./errors");
 
 // Decodes `bytes` as UTF-8, or returns null when they are not valid UTF-8.
-// A leading BOM is accepted.
-function decodeUtf8(bytes) {
+// A leading BOM is accepted, and dropped unless `keepBom` is true.
+function decodeUtf8(bytes, keepBom = false) {
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: keepBom }).decode(bytes);
   } catch (_error) {
     return null;
   }

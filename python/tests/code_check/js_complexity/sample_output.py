@@ -71,6 +71,36 @@ FILLED["files"][4]["duplication"] = {"lines": 0}
 FILLED["files"][4]["functions"] = []
 
 
+# Single-file components (#326): the image reports them under the original
+# path, with the original line numbers; an extraction error is a parse error
+# with an `entrypoint` warning.
+SFC_LINES: list[str] = ["src/Cart.vue", "src/Coffee.vue", "src/NoScript.vue"]
+
+SFC_COFFEE_MESSAGE = 'unsupported <script lang="coffee">'
+
+SFC: dict = {
+    "tool_versions": {"fta": "3.1.0", "jscpd": "5.4.1", "escomplex": "0.1.0"},
+    "files": [
+        {
+            "path": "src/Cart.vue",
+            "parse_error": False,
+            "fta": {"score": 30.66, "cyclo": 3, "lines": 11, "assessment": "OK"},
+            "duplication": {"lines": 0},
+            "functions": [
+                {"name": "<anonymous>", "line": 13, "cyclo": 2, "sloc": 3},
+                {"name": "addItem", "line": 17, "cyclo": 1, "sloc": 2},
+            ],
+        },
+        {"path": "src/Coffee.vue", "parse_error": True, "fta": None, "duplication": None,
+         "functions": None},
+        {"path": "src/NoScript.vue", "parse_error": False, "fta": None,
+         "duplication": {"lines": 0}, "functions": []},
+    ],
+    "warnings": [
+        {"tool": "entrypoint", "path": "src/Coffee.vue", "message": SFC_COFFEE_MESSAGE},
+    ],
+}
+
 def sample(**changes) -> dict:
     """Return a deep copy of SAMPLE with top-level `changes` applied."""
     data = copy.deepcopy(SAMPLE)

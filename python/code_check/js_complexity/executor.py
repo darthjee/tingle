@@ -24,7 +24,9 @@ File selection follows `file_size`, applied in this order: default and
 `--exclude` directory names (`--no-default-excludes` drops the defaults),
 `.gitignore` (unless `--no-gitignore`), `--ignore` globs, then `--include`
 globs together with the fixed core extensions (`.js .mjs .cjs .jsx .ts .mts
-.cts .tsx`, case-insensitive), then the declaration files (`.d.ts`,
+.cts .tsx`, case-insensitive) and the .vue, .svelte and .astro single-file
+components (their <script> blocks and Astro frontmatter only; case-insensitive,
+no skip rule applies to them), then the declaration files (`.d.ts`,
 `.d.mts`, `.d.cts`), then the minified bundles (`.min.js`, `.min.mjs`,
 `.min.cjs`, case-insensitive; `--no-default-excludes` drops this skip too,
 and `--include` never brings them back). Symlinks resolving outside the

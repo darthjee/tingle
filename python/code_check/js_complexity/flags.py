@@ -9,7 +9,8 @@ the executor after the option merge.
 
 The file-selection flags (`--exclude`, `--no-default-excludes`,
 `--no-gitignore`, `--ignore`, `--include`) mirror `file_size`'s; the
-JavaScript/TypeScript extension filter is fixed, so there is no `--ext`.
+JavaScript/TypeScript extension filter (core extensions plus the .vue,
+.svelte and .astro single-file components) is fixed, so there is no `--ext`.
 Their parsing lives in `code_check.excludes` and `docker_check`, never here.
 
 `--no-config` skips the `js_complexity` section of

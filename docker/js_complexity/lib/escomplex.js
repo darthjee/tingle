@@ -7,7 +7,7 @@
 //   echo '["/tmp/stage/plain/1.ts"]' | node /opt/tingle_js_complexity/lib/escomplex.js
 //
 // Input:  stdin, a JSON array of staged file paths
-//         (/tmp/stage/plain/<n>.<ext>, /tmp/stage/sfc/<n>.<ext>.<ts|js>).
+//         (/tmp/stage/plain/<n>.<ext>, /tmp/stage/sfc/<n>.<ext>.<ts|tsx|js|jsx>).
 // Output: stdout, one JSON object mapping each path to
 //         {"functions": [{name, line, cyclo, sloc}, ...]} or
 //         {"error": "<one-line message>"}.

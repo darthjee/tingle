@@ -29,7 +29,8 @@ tingle always overrides the user.
 
 - **stdin:** one file path per line, relative to the working directory
   (`/src`). Nothing is trimmed. Supported extensions: `js mjs cjs jsx ts mts
-  cts tsx` (case-insensitive). Lines that are empty, absolute, contain a `..`
+  cts tsx`, plus the single-file components `vue svelte astro`
+  (case-insensitive). Lines that are empty, absolute, contain a `..`
   segment, are duplicates, are not a regular file under `/src` or have an
   unsupported extension are refused and never analysed.
 - **stdout:** exactly one JSON object:
@@ -57,9 +58,22 @@ tingle always overrides the user.
 - **exit status:** `0` when the JSON was printed (even with parse errors or
   refused lines), non-zero otherwise.
 
+### Single-file components
+
+For `.vue`, `.svelte` and `.astro` files, only the `<script>` blocks (and the
+Astro frontmatter) are analysed; the template and the styles never are. All
+the blocks of a file are combined into one module, so the file gets one row,
+and every line number (`functions[].line`, duplication) is the line in the
+original file. Blocks with a `src` attribute or a non-JavaScript `type` (for
+example `application/ld+json`) are skipped. A component with no script is a
+normal row with `fta: null` (OK, score 0), `duplication: {"lines": 0}` and
+`functions: []`. An unknown `lang` (for example `coffee`) or an Astro
+frontmatter with no closing `---` is a parse error with an `entrypoint`
+warning (`unsupported <script lang="coffee">`, `unterminated frontmatter`).
+
 The image works under any `--user <uid>:<gid>`, with no network and a
 read-only `/src`. It only writes under `/tmp`: accepted files are copied to
-a staging tree and FTA, jscpd and escomplex run there, never on `/src`.
+a staging tree (the extracted scripts, for a component) and FTA, jscpd and escomplex run there, never on `/src`.
 
 ## Usage
 
