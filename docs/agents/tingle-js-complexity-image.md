@@ -9,14 +9,18 @@ is described in [tingle-linux-image.md](tingle-linux-image.md) and the
 are released by the same script and the same CircleCI workflow.
 
 The image currently runs FTA (complexity), jscpd (duplication) and
-typhonjs-escomplex (per-function complexity, for `--details`). SFC
-extraction (#326) is added by that sub-issue; until then `.vue` files are
-refused. The full specs still live
+typhonjs-escomplex (per-function complexity, for `--details`). It also
+accepts `.vue`, `.svelte` and `.astro` single-file components (their
+`<script>` blocks and Astro frontmatter only), which the entrypoint extracts
+into a padded virtual module (see
+[Single-file components](#single-file-components)). The full specs still live
 under [specs/code_check/js_complexity/](specs/code_check/js_complexity/)
 (see [image.md](specs/code_check/js_complexity/image.md),
 [duplication.md](specs/code_check/js_complexity/duplication.md),
-[details.md](specs/code_check/js_complexity/details.md) and
-[release.md](specs/code_check/js_complexity/release.md)).
+[details.md](specs/code_check/js_complexity/details.md),
+[sfc.md](specs/code_check/js_complexity/sfc.md) and
+[release.md](specs/code_check/js_complexity/release.md)); this doc is
+self-sufficient once they are removed.
 
 - **Image**: `darthjee/tingle_js_complexity` on Docker Hub.
 - **Tag strategy**: the published Docker tag is exactly the plain semver git
@@ -39,7 +43,7 @@ under [specs/code_check/js_complexity/](specs/code_check/js_complexity/)
   | `package.json` | `"private": true`, the Node engine (`24.21.0`) , `"jscpd": "5.4.1"` and `"typhonjs-escomplex": "0.1.0"` (both exact). |
   | `package-lock.json` | The resolved lock (lockfile v3), committed. jscpd 5.4.1 is a Rust binary shipped as per-platform optional packages; the lock lists both `jscpd-linux-x64-gnu` and `jscpd-linux-arm64-gnu` `5.4.1`. It also pins the typhonjs-escomplex tree (see the versions tables below). |
   | `entrypoint.js` | The entrypoint (see [Contract](#contract)). |
-  | `lib/` | Entrypoint helpers: `input.js` (stdin), `selection.js` (refused lines), `staging.js` (staged tree), `fta.js` (FTA run and parsing), `jscpd.js` (jscpd run, report parsing and per-file duplicated lines), `escomplex.js` (the escomplex wrapper, run as its own process, plus the entrypoint helpers that spawn it and merge its output), `errors.js` (fatal errors). |
+  | `lib/` | Entrypoint helpers: `input.js` (stdin), `selection.js` (refused lines), `staging.js` (staged tree), `sfc.js` (single-file component extraction, no file system access), `fta.js` (FTA run and parsing), `jscpd.js` (jscpd run, report parsing and per-file duplicated lines), `escomplex.js` (the escomplex wrapper, run as its own process, plus the entrypoint helpers that spawn it and merge its output), `errors.js` (fatal errors). |
   | `fixture/` | The smoke-test fixture (see [Smoke test](#smoke-test)). |
   | `DOCKERHUB_SHORT_DESCRIPTION.txt`, `DOCKERHUB_DESCRIPTION.md` | The Docker Hub description (see [Docker Hub description](#docker-hub-description)). |
   | `.dockerignore` | Excludes `fixture/` and both Docker Hub description files from the build context. |
@@ -123,7 +127,7 @@ single file.
   | A `/`-separated segment is `..`. | `path has a '..' segment` |
   | The same line appeared earlier (refused or not). | `duplicate line` |
   | `/src/<line>` does not exist, is not a regular file, or its real path (symlinks resolved) is not inside `/src`. | `not a regular file under /src` |
-  | Its extension (after the last `.` of the name, lower-cased) is not one of `js mjs cjs jsx ts mts cts tsx`. | `unsupported extension` |
+  | Its extension (after the last `.` of the name, lower-cased) is not one of `js mjs cjs jsx ts mts cts tsx` or the single-file component extensions `vue svelte astro`. | `unsupported extension` |
 
   A refused line is never staged and never reaches FTA, jscpd or
   escomplex. It still gets its `files` entry, in its position, with
@@ -131,20 +135,28 @@ single file.
   `functions: null`,
   plus a warning `{"tool": "entrypoint", "path": <line>, "message": <message>}`.
   The image does not skip `.d.ts` or minified files; that is the host's job.
-- **Staged tree**: each accepted line `<n>` is read from its real path and
-  copied to `/tmp/stage/plain/<n>.<ext>` (`<ext>` lower-cased). FTA and
+- **Staged tree**: each accepted line `<n>` with a core extension is read
+  from its real path and copied to `/tmp/stage/plain/<n>.<ext>` (`<ext>`
+  lower-cased). A single-file component is not copied: its extracted virtual
+  module is written to `/tmp/stage/sfc/<n>.<ext>.<vext>` instead (see
+  [Single-file components](#single-file-components)). FTA and
   jscpd run on `/tmp/stage`, never on `/src`, so jscpd only sees the
   selected files. The opaque names avoid FTA's built-in
   filters (directories named `dist`, `bin` and `build`, `.d.ts`, `.min.js`,
   `.bundle.js`, hidden files, upper-case extensions), and the files are
   copied because FTA does not follow symlinks. FTA reports paths relative to
-  `/tmp/stage` (`plain/6.ts`); the entrypoint parses `<n>` from the name and
-  fills the `files` entry of line `<n>`. A reported path that does not map to
-  a staged file is a failure (exit 1).
+  `/tmp/stage` (`plain/6.ts`, `sfc/21.vue.js`); the entrypoint parses `<n>`
+  from the name and fills the `files` entry of line `<n>`. A reported path
+  that does not map to a staged file is a failure (exit 1).
 - **Encoding check**: before staging, the file is decoded as UTF-8 with a
   fatal decoder (a leading BOM is accepted). A file that is not valid UTF-8
-  is not staged; it gets `parse_error: true` and the warning
+  (single-file components included) is not staged; it gets
+  `parse_error: true` and the warning
   `{"tool": "fta", "path": <line>, "message": "file is not valid UTF-8"}`.
+- **Single-file components**: see
+  [Single-file components](#single-file-components) below for the
+  extraction, the virtual module, the line map and the two extraction-error
+  warnings.
 - **FTA run**: only when at least one file was staged. The entrypoint writes
   `/tmp/fta.json` (`{"extensions": [".mjs", ".cjs", ".mts", ".cts"]}`) and
   runs, in `/tmp` and with `DEBUG` removed from the environment:
@@ -182,8 +194,9 @@ single file.
   `/tmp/jscpd/jscpd.json`: for each staged file, it collects the set of line
   numbers covered by any `firstFile`/`secondFile` range (`start` and `end`
   1-based, inclusive) in which the file appears (a clone inside one file
-  contributes both ranges), and maps the name (`plain/<n>.<ext>`) back to
-  line `<n>`. `tool_versions.jscpd` is read from
+  contributes both ranges), and maps the name (`plain/<n>.<ext>` or
+  `sfc/<n>.<ext>.<vext>`) back to line `<n>`. jscpd picks the format of a
+  virtual module from its last extension (`<vext>`). `tool_versions.jscpd` is read from
   `node_modules/jscpd/package.json` (`"5.4.1"`), whether or not files were
   staged.
 - **jscpd failure**: jscpd exiting non-zero or killed, a missing or invalid
@@ -209,8 +222,8 @@ single file.
   ```
 
   - **Input**: on stdin, a JSON array of the staged paths
-    (`/tmp/stage/plain/<n>.<ext>`; from #326 also
-    `/tmp/stage/sfc/<n>.<ext>.<ts|js>`). The paths go on stdin, not on the
+    (`/tmp/stage/plain/<n>.<ext>` and
+    `/tmp/stage/sfc/<n>.<ext>.<vext>`). The paths go on stdin, not on the
     command line, so there is no argument-length limit.
   - **Output**: on stdout, one JSON object mapping each staged path to
     either `{"functions": [...]}` or `{"error": "<one-line message>"}`.
@@ -224,14 +237,14 @@ single file.
   - **Parser plugins**: escomplex's default plugin set enables `jsx` and
     `typescript` together, which fails on `<T>value` type assertions in
     `.ts` files. The wrapper passes its own `plugins`, chosen by the staged
-    file's **last** extension (so SFC virtual modules from #326 need no
-    change):
+    file's **last** extension (so SFC virtual modules need no special
+    case):
 
     | Staged extension | `plugins` |
     |------------------|-----------|
     | `ts`, `mts`, `cts` (and SFC `….ts`) | `["typescript", ...COMMON]` |
-    | `tsx` | `["typescript", "jsx", ...COMMON]` |
-    | `js`, `mjs`, `cjs`, `jsx` (and SFC `….js`) | `["jsx", ...COMMON]` |
+    | `tsx` (and SFC `….tsx`) | `["typescript", "jsx", ...COMMON]` |
+    | `js`, `mjs`, `cjs`, `jsx` (and SFC `….js`, `….jsx`) | `["jsx", ...COMMON]` |
 
     `COMMON` is `decorators-legacy`, `classProperties`,
     `classPrivateProperties`, `classPrivateMethods`, `dynamicImport`,
@@ -351,6 +364,94 @@ single file.
   | FTA's status (non-zero) | FTA exited non-zero. Nothing is printed on stdout. |
   | `1` | Any other failure: stdin not valid UTF-8, `fta --version` failing, FTA killed by a signal, FTA's stdout not a JSON array, an FTA path that does not map to a staged file, or an unexpected error. A one-line reason prefixed with `tingle_js_complexity: ` goes to stderr. Nothing is printed on stdout. |
 
+### Single-file components
+
+None of the three tools reads `.vue`, `.svelte` or `.astro` files the way
+tingle needs, so the entrypoint (`lib/sfc.js`) **extracts their script part**
+into one virtual module, and FTA, jscpd and escomplex analyse that module
+like any other staged file. The `<template>` markup and the styles are never
+analysed. The host selects these extensions in any letter case; the image
+compares the lower-cased last extension. The full design and its grounding
+are in [sfc.md](specs/code_check/js_complexity/sfc.md) while the specs
+exist; this section is the lasting contract.
+
+- **Script blocks**, after the file is decoded as UTF-8 (see
+  [Encoding check](#contract)):
+
+  | Kind | Blocks |
+  |------|--------|
+  | `.vue` | every `<script ...>...</script>` element (`<script>`, `<script setup>`) |
+  | `.svelte` | every `<script ...>...</script>` element (`<script>`, `<script context="module">`, `<script module>`) |
+  | `.astro` | the frontmatter, then every `<script ...>...</script>` element |
+
+  - A `<script>` element is an opening tag matching `<script\b[^>]*>`
+    (case-insensitive); its content runs to the first following
+    `</script\s*>`. HTML comments and `<template>` contents are not
+    special-cased.
+  - The **Astro frontmatter** is present when the first line (after an
+    optional BOM) is exactly `---`; its content runs to the next line that is
+    exactly `---`. With no closing fence, the file is an extraction error.
+  - A block with a `src` attribute is **skipped** (the external file is
+    analysed on its own when it is selected).
+  - A block with a `type` other than `module`, `text/javascript` or
+    `application/javascript` (case-insensitive) is skipped: it is data (for
+    example `application/ld+json`), not code.
+- **Language of a block**, from its `lang` attribute (case-insensitive):
+
+  | `lang` | Language |
+  |--------|----------|
+  | absent, `js`, `javascript` | JS (TS for Astro: the frontmatter and Astro `<script>` blocks without `lang`) |
+  | `jsx` | JS + JSX |
+  | `ts`, `typescript` | TS |
+  | `tsx` | TS + JSX |
+  | anything else (for example `coffee`) | extraction error |
+
+- **Virtual module**: all kept blocks of a file are combined into **one**
+  module, in file order, so the file gets one FTA score, one set of
+  duplication ranges and one list of functions (per-block scores are never
+  summed). Its extension `<vext>` is `tsx` if any block is TS and any is
+  JSX, `ts` if any is TS, `jsx` if any is JSX, else `js`. It is staged at
+  `/tmp/stage/sfc/<n>.<ext>.<vext>` (`<n>` the input line, `<ext>` the
+  lower-cased SFC extension), for example `/tmp/stage/sfc/5.vue.ts`. The
+  `sfc/` subtree is separate from `plain/`, so a real `Cart.vue.ts` (staged
+  as `plain/<m>.ts`) never collides with the virtual module of `Cart.vue`.
+  Every tool picks the language from the last extension.
+- **Line map (identity)**: the virtual module is the original text with
+  every character outside the kept script contents replaced by a space and
+  every line terminator (`\r\n`, `\n`, `\r`) kept as it is. Tags, markup,
+  styles, skipped blocks, the Astro `---` fences and a leading BOM all become
+  spaces. Line `L` of the module is line `L` of the original file, so
+  `functions[].line` and the jscpd ranges are the component's own line
+  numbers with no offset. FTA ignores blank lines, so the padding does not
+  change its score or `lines` (`Cart.vue` gives the same result as its bare
+  script: score about `30.66`, cyclo 3, 11 lines).
+- **Mapping back**: the tools report `sfc/<n>.<ext>.<vext>`; the entrypoint
+  parses `<n>` and fills the `files` entry of line `<n>`, whose `path` is the
+  original line (for example `src/Cart.vue`). The JSON shape is unchanged. A
+  `Failed to analyze /tmp/stage/sfc/<n>…` line from FTA (a syntax error in a
+  script block) makes the component a parse error, as for any file.
+- **Edge cases**:
+
+  | Case | Result |
+  |------|--------|
+  | No kept block (template only, or only `src`/data blocks) | Staged as a module with no code: `parse_error: false`, `fta: null` (dropped by FTA), `duplication: {"lines": 0}`, `functions: []`. Tingle shows `OK 0.0`. |
+  | Several blocks (`<script>` + `<script setup>`, `context="module"` + instance script, frontmatter + `<script>`) | One combined module. |
+  | Two blocks declaring the same name | Analysed as one module; if a tool rejects it, the usual rules apply (FTA → parse error; escomplex only → `functions: null` plus a per-file `escomplex` warning). |
+  | Unknown `lang` | Extraction error. |
+  | Astro frontmatter with no closing `---` | Extraction error. |
+  | Not valid UTF-8 | Parse error with the `file is not valid UTF-8` warning, as for any file. |
+
+- **Extraction errors**: the file is not staged and gets
+  `parse_error: true`, `fta: null`, `duplication: null`, `functions: null`
+  and one warning `{"tool": "entrypoint", "path": <line>, "message": <msg>}`,
+  where `<msg>` is either:
+  - `unsupported <script lang="<lang>">`, with `<lang>` as written in the
+    file (for example `unsupported <script lang="coffee">`);
+  - `unterminated frontmatter`.
+
+  Tingle shows the row as `⛔ PARSE` and prints
+  `Warning: cannot parse <file>: <msg>` on stderr.
+
 ## Runtime user and hardening
 
 - **Arbitrary uid**: the image ends with `USER 1000:1000`, but tingle always
@@ -432,13 +533,14 @@ For each platform, `smoke_test_js_complexity` runs the local `<tag>-<arch>`
 image with the canonical run line plus `--platform <platform>`
 (`--pull never --network none --security-opt no-new-privileges`,
 `--user 501:20`, `-v docker/js_complexity/fixture:/src:ro -w /src`). On
-stdin it pipes the 21 fixture files, one per line, in this order:
+stdin it pipes the 28 fixture files, one per line, in this order:
 
 `simple.js`, `complex.ts`, `component.tsx`, `widget.jsx`, `dup_a.js`,
 `dup_b.js`, `broken.js`, `empty.js`, `short.js`, `bundle.min.js`,
 `build/out.js`, `ext/a.mjs`, `ext/b.cjs`, `ext/c.mts`, `ext/d.cts`,
 `ext/UPPER.JS`, `ext/types.d.ts`, `crlf.js`, `bom.ts`, `latin1.js`,
-`Cart.vue`
+`Cart.vue`, `Cart.vue.ts`, `NoScript.vue`, `TwoBlocks.vue`,
+`External.vue`, `Coffee.vue`, `Counter.svelte`, `Page.astro`
 
 followed by five hostile lines: an empty line, `/etc/passwd`,
 `../outside.js`, a second `simple.js` and `missing.js`. The output is
@@ -460,7 +562,14 @@ checked with `python3`. The fixture:
 | `crlf.js` | A small function with CRLF line endings. | Normal row, same `score` as `ext/a.mjs`. |
 | `bom.ts` | A small function with a UTF-8 BOM. | Normal row, same `score` as `ext/c.mts`. |
 | `latin1.js` | ISO-8859-1 bytes. | `parse_error: true`, `fta: null`, `duplication: null`, an `fta` warning `file is not valid UTF-8`. |
-| `Cart.vue` | A Vue SFC. | Refused: `parse_error: false`, `fta: null`, `duplication: null`, `functions: null`, an `entrypoint` warning `unsupported extension` (until #326). |
+| `Cart.vue` | A Vue SFC with one `<script>` block. | Normal row, `score` between 25 and 40, `fta.lines` `11`, `duplication.lines` `0`, and one function at `line` `13` (the original line, not the script's). |
+| `Cart.vue.ts` | A real TypeScript file named next to `Cart.vue`. | Its own normal row, separate from `Cart.vue` (staged under `plain/`, not `sfc/`). |
+| `NoScript.vue` | A template-only component. | `parse_error: false`, `fta: null`, `duplication.lines` `0`, `functions: []`, no warning. |
+| `TwoBlocks.vue` | `<script>` + `<script setup lang="ts">`, with functions in both. | Normal row; its functions come from both blocks, at their original lines. |
+| `External.vue` | Only `<script src="./external.js"></script>`. | Like `NoScript.vue`. |
+| `Coffee.vue` | `<script lang="coffee">`. | `parse_error: true`, `fta: null`, `duplication: null`, `functions: null`, an `entrypoint` warning `unsupported <script lang="coffee">`. |
+| `Counter.svelte` | `<script context="module">` + `<script lang="ts">`. | Normal row. |
+| `Page.astro` | Frontmatter + `<script>`, with functions in both. | Normal row; functions at their original lines. |
 
 Every other staged fixture file is in no clone and gets `duplication.lines`
 `0`.
@@ -487,6 +596,8 @@ It asserts that:
   named `reducer` and one whose name starts with `Store.`; `empty.js` and
   `short.js` have `[]`; `broken.js` and `latin1.js` have `null`; every
   `line`, `cyclo` and `sloc` in every list is an int ≥ 1 (not a boolean);
+- the single-file component expectations in the table hold, including the
+  original line numbers for `Cart.vue`, `TwoBlocks.vue` and `Page.astro`;
 - there is no `escomplex` warning without a `path` (the wrapper did not
   fail);
 - each of the last five entries (the hostile lines) has
@@ -501,9 +612,7 @@ It asserts that:
 - empty stdin exits 0 and prints a JSON object with `"files": []` and
   `"warnings": []`.
 
-Any failed check prints `<reason> on <platform>` on stderr and exits 1. The
-check for `Cart.vue` as a normal row (#326) is added by that sub-issue, in
-the same PR as the image change.
+Any failed check prints `<reason> on <platform>` on stderr and exits 1.
 
 ### CircleCI
 
@@ -537,10 +646,12 @@ image jobs (`/^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/`) and
   the stdin/stdout contract, the canonical run line, the pinned Node, FTA,
   jscpd and typhonjs-escomplex versions, the exact-clone duplication
   (`duplication` field), the per-function complexity (`functions` field),
-  the tag strategy (same tag as tingle, no `latest`) and a link to
-  the tingle repository. Links must be absolute URLs, because Docker Hub
-  cannot resolve paths relative to the repository. Both files describe FTA,
-  jscpd and escomplex; #326 updates them for SFC support in its own PR.
+  the accepted extensions and the single-file component support (script
+  blocks and Astro frontmatter only, original line numbers, no-script
+  components scored OK 0, unknown `lang` or unterminated frontmatter as a
+  parse error), the tag strategy (same tag as tingle, no `latest`) and a
+  link to the tingle repository. Links must be absolute URLs, because Docker
+  Hub cannot resolve paths relative to the repository.
 - Both files are excluded from the build context by
   `docker/js_complexity/.dockerignore`.
 - `scripts/release_image.sh update-description js_complexity` pushes both in
