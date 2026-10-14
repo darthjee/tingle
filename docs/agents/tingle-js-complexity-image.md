@@ -424,6 +424,25 @@ Rules:
   a value of the wrong type is an unparsable-output error (exit 1). Unknown
   extra keys are ignored by tingle.
 
+**Tingle's checks** (`python/code_check/js_complexity/output_parser.py`).
+The output is unparsable when a check fails;
+`Error: could not parse the output of <image>: <reason>` names the first
+failure:
+
+| Check | Reason |
+|-------|--------|
+| stdout is valid JSON | `invalid JSON: <error>` |
+| it is an object | `expected a JSON object` |
+| `tool_versions` is an object with `fta` (str), `jscpd` and `escomplex` (str or `null`; the image always prints a string) | `unexpected tool_versions` |
+| `files` is a list with exactly one entry per sent line | `files do not match the sent lines` |
+| each `files[i]` is an object whose `path` equals sent line `i`, with the types above, and `fta`, `duplication` and `functions` all `null` when `parse_error` is `true` | `unexpected files entry: <i>` |
+| `warnings` is a list of objects with a known `tool`, a str `message` and an optional str `path` | `unexpected warnings` |
+
+JSON booleans are not numbers or ints here. The entrypoint never rewrites
+paths, so tingle maps entry `i` to sent line `i` and turns it back into
+`<root>/<line>` for the report; warnings are matched to files by exact
+`path`.
+
 **Per-file states**:
 
 | State | `parse_error` | `fta` | `warnings` entry for the path | Report |
