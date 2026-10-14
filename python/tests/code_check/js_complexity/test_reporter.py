@@ -17,7 +17,8 @@ HEADER = (
 SEPARATOR = f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 17}  {'─' * 50}"
 RULE = "─" * 78
 
-# Spec duplication.md §4 full example (#320 with #324).
+# Full report for the smoke-test fixture set (docs/agents/tingle-js-complexity-image.md,
+# "Smoke test"; rendered in docs/guides/code_check/js_complexity.md, "Reading the output").
 FULL_EXAMPLE = """\
 Status             FTA  Cyclo  Lines    Dup  Assessment         File
 ──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
