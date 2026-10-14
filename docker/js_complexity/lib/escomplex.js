@@ -1,7 +1,7 @@
 "use strict";
 
 // typhonjs-escomplex wrapper and the entrypoint helpers that drive it
-// (docs/agents/specs/code_check/js_complexity/details.md).
+// (docs/agents/tingle-js-complexity-image.md, "Contract").
 //
 // Wrapper usage (inside the container):
 //   echo '["/tmp/stage/plain/1.ts"]' | node /opt/tingle_js_complexity/lib/escomplex.js
@@ -33,7 +33,7 @@ const ESCOMPLEX_HOME = "/opt/tingle_js_complexity/node_modules/typhonjs-escomple
 const WRAPPER = __filename;
 const MAX_BUFFER = 1024 * 1024 * 1024;
 
-// escomplex's defaults, made explicit (spec section 2).
+// escomplex's defaults, made explicit (see the escomplex part of "Contract").
 const MODULE_OPTIONS = { logicalor: true, switchcase: true, forin: false, trycatch: false, newmi: false };
 
 const COMMON = [

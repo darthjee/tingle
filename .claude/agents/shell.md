@@ -27,8 +27,7 @@ The `tingle_js_complexity` build context is `docker/js_complexity/`. Build it
 locally with `make js-complexity-image`, which produces
 `tingle_js_complexity:dev`. Version bumps (Node base image, Rust build image,
 FTA crate, npm tools) follow the "Bumping versions" section of
-[`docs/agents/specs/code_check/js_complexity/image.md`](../../docs/agents/specs/code_check/js_complexity/image.md#13-bumping-versions)
-(moving to `docs/agents/tingle-js-complexity-image.md` in #319).
+[`docs/agents/tingle-js-complexity-image.md`](../../docs/agents/tingle-js-complexity-image.md#bumping-versions).
 
 Do NOT touch `python/`, `node/`, `bin/`, or `docs/agents/`.
 

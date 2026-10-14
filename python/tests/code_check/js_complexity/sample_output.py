@@ -1,4 +1,4 @@
-"""Container output sample (docs/agents/specs/code_check/js_complexity/image.md §7)."""
+"""Container output sample (docs/agents/tingle-js-complexity-image.md, "Merged JSON")."""
 
 from __future__ import annotations
 

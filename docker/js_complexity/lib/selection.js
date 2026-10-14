@@ -1,7 +1,8 @@
 "use strict";
 
-// Refused lines (image.md section 4, "Refused lines"). Every line is checked
-// in order; the first rule that matches refuses it.
+// Refused lines (docs/agents/tingle-js-complexity-image.md, "Contract",
+// "Refused lines"). Every line is checked in order; the first rule that
+// matches refuses it.
 
 const fs = require("fs");
 const path = require("path");

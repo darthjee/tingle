@@ -1,6 +1,7 @@
 "use strict";
 
-// FTA invocation and parsing (image.md section 6).
+// FTA invocation and parsing (docs/agents/tingle-js-complexity-image.md,
+// "Contract", "FTA run").
 
 const fs = require("fs");
 const { spawnSync } = require("child_process");

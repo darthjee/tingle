@@ -172,6 +172,14 @@ How the check-specific parts are passed in:
 - Display filtering (`--min-level` then `--top`) stays in each reporter:
   the column layout and the row type differ, so only the rule is shared.
 
+Changes to `docker_check` must not change the behaviour of an existing
+check: `rubycritic`'s output, help, completion and config validation stay
+byte-for-byte the same, tool-specific wording is passed as a parameter
+(never a shared message that would change one check's output), and a new
+parameter on a shared helper (`docker_check` or `file_size`) is optional,
+with the current behaviour as its default. Each check keeps its own error
+class, config section and image.
+
 The Docker runner contract, in short (the code and its tests are the
 reference for the full rules):
 
@@ -225,29 +233,35 @@ reference for the full rules):
   display filtering.
 
 `python/code_check/js_complexity/` follows the same layout, built on
-`docker_check`. It has no `config.py` yet (the config section arrives with
-#322):
+`docker_check`:
 
 - `executor.py` — `CheckJsComplexity(DockerCheck)`
-  (`PROG = "tingle code_check js_complexity"`), with `_select_files`,
-  `_gate_value` (the rounded FTA score), `_parse_output`, `_print_warnings`
-  and `_execute`. Until #321/#322 it overrides three hooks: `_parse` adds
-  `no_config: False` (read by `DockerCheck.run` before `_load_config`; there
-  is no `--no-config` yet), `_load_config` returns `({}, None)` without
-  reading the config file, and `_selection_options` forces
-  `gitignore=False`, `ignore=[]` and `include=[]`, so only the default
-  excludes apply.
+  (`PROG = "tingle code_check js_complexity"`, `CONFIG_SECTION =
+  "js_complexity"`), with `_load_section` and `_select_files` (reached
+  through this module so tests can patch them), `_selection_options` (the
+  base options plus `skip_minified`, true unless `no_default_excludes`),
+  `_gate_value` (the rounded FTA score), `_parse_output` (and its
+  `could not parse the output of <image>: <reason>` message),
+  `_print_warnings` (refused lines, unparsable files, then one warning per
+  path-less `jscpd` or `escomplex` warning; per-file `escomplex` warnings are
+  not printed) and `_execute`. `run` comes from `DockerCheck`, which catches
+  `JsComplexityError` in one place, printing it and exiting 1.
 - `constants.py` — thresholds (`50`/`60`/`75`, applied to the rounded FTA
-  score), the default excludes (`file_size`'s list plus `.turbo`,
-  `.svelte-kit`, `.output`, `.vercel`, `.parcel-cache` and
-  `storybook-static`), `EXTENSIONS` (`.js .mjs .cjs .jsx .ts .mts .cts
-  .tsx`), `SFC_EXTENSIONS` (`.vue .svelte .astro`, the single-file
-  components whose `<script>` blocks and Astro frontmatter the image
-  extracts; selected with the core list, with no skip rule),
-  `DECLARATION_SUFFIXES` (`.d.ts`, `.d.mts`, `.d.cts`), the image
+  score), `DEFAULT_DETAILS` (`5`, for `--details` without N), the default
+  excludes (`file_size`'s list plus `.turbo`, `.svelte-kit`, `.output`,
+  `.vercel`, `.parcel-cache` and `storybook-static`), `EXTENSIONS` (`.js
+  .mjs .cjs .jsx .ts .mts .cts .tsx`), `SFC_EXTENSIONS` (`.vue .svelte
+  .astro`, the single-file components whose `<script>` blocks and Astro
+  frontmatter the image extracts; selected with the core list, with no skip
+  rule), `DECLARATION_SUFFIXES` (`.d.ts`, `.d.mts`, `.d.cts`),
+  `MINIFIED_SUFFIXES` (`.min.js`, `.min.mjs`, `.min.cjs`), the image
   repository (`darthjee/tingle_js_complexity`) and `VERSION_FILE`, assigned
   from `docker_check`.
 - `errors.py` — `JsComplexityError(DockerCheckError)`, the user-facing error.
+- `config.py` — the `js_complexity` config section schema and `validate`
+  (keys `warn`, `error`, `critical`, `top`, `exclude`, `ignore`, `include`,
+  `no_default_excludes`, `gitignore`, `fail_on`, `min_level`, `image` and
+  `details`; there is no `ext` key, so `ext` is reported as unknown).
 - `flags.py` — the import-light `FLAGS` list (shared by the parser and
   completion).
 - `image.py` — thin wrapper: `resolve_image(cli_image, version_file=None)`
@@ -258,20 +272,23 @@ reference for the full rules):
   binds `JsComplexityError`, `"tingle code_check js_complexity"` and
   `"FTA"`; it re-exports `decode` and `write_stderr`.
 - `selection.py` — thin wrapper: `select_files(target, root, *,
-  excludes=None, ignore=None, include=None, gitignore=False)` binds the
-  extensions (`EXTENSIONS` plus `SFC_EXTENSIONS`), the default excludes and the `is_declaration` `skip` predicate
-  that drops declaration files (`path.name.lower()` ending with a
-  declaration suffix);
-  it re-exports `Selection`, `unsendable_reason` and `build_selection`.
-- `output_parser.py` — checks the container's merged JSON and maps its paths
-  back to the sent lines (`OutputFormatError` on a contract break). It
-  validates the whole shape, including `duplication`, `functions` and the
-  `jscpd`/`escomplex` tool versions that nothing displays yet, so later
-  issues never change the checks. The JSON shape is pinned in
-  [tingle-js-complexity-image.md](tingle-js-complexity-image.md#contract).
-- `reporter.py` — the table (`Status FTA Cyclo Lines Assessment File`),
-  summary and `FTA score:` line, plus its display filtering. The header comes
-  from `DockerCheck`.
+  excludes=None, ignore=None, include=None, gitignore=False,
+  skip_minified=True)` binds the extensions (`EXTENSIONS` plus
+  `SFC_EXTENSIONS`), the default excludes and a `skip` predicate that
+  always drops declaration files (`is_declaration`) and drops minified
+  bundles (`is_minified`) when `skip_minified` is true; both match the
+  lower-cased file name, and `--include` never brings them back. The
+  executor always passes `gitignore` (on unless `--no-gitignore`). It
+  re-exports `Selection`, `unsendable_reason` and `build_selection`.
+- `output_parser.py` — checks the container's merged JSON (FTA results,
+  `duplication`, `functions`, the tool versions and the warnings) and maps
+  its paths back to the sent lines (`OutputFormatError` on a contract
+  break). The JSON shape is pinned in
+  [tingle-js-complexity-image.md](tingle-js-complexity-image.md#merged-json).
+- `reporter.py` — the table (`Status FTA Cyclo Lines Dup Assessment File`),
+  the `--details` function lines (or the `(per-function data unavailable)`
+  note), the summary and the `FTA score:` line, plus its display filtering.
+  The header comes from `DockerCheck`.
 
 **`FileCollector` reuse.** `docker_check.selection` imports `FileCollector`
 straight from `code_check.file_size.file_collector` and passes the

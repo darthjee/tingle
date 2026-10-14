@@ -1,6 +1,7 @@
 "use strict";
 
-// Staged tree (image.md section 5). Accepted line <n> is copied to
+// Staged tree (docs/agents/tingle-js-complexity-image.md,
+// "Contract", "Staged tree"). Accepted line <n> is copied to
 // /tmp/stage/plain/<n>.<ext>: opaque names dodge FTA's built-in filters, and
 // copies (not symlinks) because FTA does not follow symlinks.
 //
@@ -8,7 +9,7 @@
 // extracted (lib/sfc.js) into a padded virtual module written to
 // /tmp/stage/sfc/<n>.<ext>.<vext> (<vext> = ts, tsx, js or jsx), which keeps
 // the component's line numbers
-// (docs/agents/specs/code_check/js_complexity/sfc.md).
+// (docs/agents/tingle-js-complexity-image.md, "Single-file components").
 
 const fs = require("fs");
 const path = require("path");
