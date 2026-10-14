@@ -16,6 +16,9 @@ from tests.code_check.js_complexity.sample_output import (
     FILLED,
     LINES,
     SAMPLE,
+    SFC,
+    SFC_COFFEE_MESSAGE,
+    SFC_LINES,
     dumps,
     entry,
     output,
@@ -331,4 +334,30 @@ def test_whole_run_warning_without_path_is_accepted():
     parsed = parse(dumps(data), ["a.js"])
 
     assert parsed.warnings == [{"tool": "escomplex", "message": "failed"}]
+    assert parsed.refused == []
+
+
+# --- single-file components (#326) -------------------------------------------------
+
+
+def test_sfc_row_keeps_the_original_path_and_lines():
+    result = parse(dumps(SFC), SFC_LINES).results["src/Cart.vue"]
+
+    assert result == FileResult(
+        "src/Cart.vue", 30.7, 3, 11, "OK", {"lines": 0}, SFC["files"][0]["functions"]
+    )
+    assert [f["line"] for f in result.functions] == [13, 17]
+
+
+def test_sfc_without_script_scores_zero():
+    result = parse(dumps(SFC), SFC_LINES).results["src/NoScript.vue"]
+
+    assert result == FileResult("src/NoScript.vue", 0.0, None, None, None, {"lines": 0}, [])
+
+
+def test_sfc_extraction_error_is_a_parse_error_not_a_refused_line():
+    parsed = parse(dumps(SFC), SFC_LINES)
+
+    assert parsed.parse_errors == {"src/Coffee.vue": SFC_COFFEE_MESSAGE}
+    assert "src/Coffee.vue" not in parsed.results
     assert parsed.refused == []
