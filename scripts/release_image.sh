@@ -559,27 +559,23 @@ JS_COMPLEXITY_FIXTURE_FILES=(simple.js complex.ts component.tsx widget.jsx dup_a
 # a ".." segment, a duplicate and a missing file. Each must be refused.
 JS_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.js simple.js missing.js)
 
-# Runs the fixture checks from docs/agents/specs/code_check/js_complexity/image.md
-# (section 9, "Smoke-test fixture") against a local tingle_js_complexity image,
-# with the canonical run line (--network none, read-only /src, foreign uid
-# 501:20): the fixture list plus the hostile lines on stdin (exit 0, one JSON
-# object checked with python3: tool versions, one files[] entry per input line
-# in order, the FTA expectations per fixture, the jscpd duplication
-# expectations from docs/agents/specs/code_check/js_complexity/duplication.md
-# (section 6: the dup_a.js/dup_b.js clone, 0 for simple.js and empty.js, null
-# for broken.js, latin1.js and the hostile lines, no jscpd warning), the
-# escomplex expectations from
-# docs/agents/specs/code_check/js_complexity/details.md (section 8: version
-# 0.1.0, >= 20 functions for complex.ts with "reducer" and a "Store." method,
-# [] for empty.js and short.js, null for broken.js, latin1.js and the refused
-# lines, every line/cyclo/sloc an int >= 1, no path-less escomplex warning),
-# the single-file component expectations from
-# docs/agents/specs/code_check/js_complexity/sfc.md (section 7: normal rows
-# for Cart.vue, TwoBlocks.vue, Counter.svelte, Page.astro and Cart.vue.ts with
-# the original line numbers, an empty row for NoScript.vue and External.vue,
-# a PARSE row with an entrypoint warning for Coffee.vue), refused hostile
-# lines), no git in the image, and empty files/warnings on empty stdin. Any
-# failure prints "<reason> on <platform>" on stderr and exits 1.
+# Runs the fixture checks from docs/agents/tingle-js-complexity-image.md
+# ("Smoke test") against a local tingle_js_complexity image, with the
+# canonical run line (--network none, read-only /src, foreign uid 501:20): the
+# fixture list plus the hostile lines on stdin (exit 0, one JSON object checked
+# with python3: tool versions, one files[] entry per input line in order, the
+# FTA expectations per fixture, the jscpd duplication expectations (the
+# dup_a.js/dup_b.js clone, 0 for simple.js and empty.js, null for broken.js,
+# latin1.js and the hostile lines, no jscpd warning), the escomplex
+# expectations (version 0.1.0, >= 20 functions for complex.ts with "reducer"
+# and a "Store." method, [] for empty.js and short.js, null for broken.js,
+# latin1.js and the refused lines, every line/cyclo/sloc an int >= 1, no
+# path-less escomplex warning), the single-file component expectations (normal
+# rows for Cart.vue, TwoBlocks.vue, Counter.svelte, Page.astro and Cart.vue.ts
+# with the original line numbers, an empty row for NoScript.vue and
+# External.vue, a PARSE row with an entrypoint warning for Coffee.vue), refused
+# hostile lines), no git in the image, and empty files/warnings on empty stdin.
+# Any failure prints "<reason> on <platform>" on stderr and exits 1.
 smoke_test_js_complexity() {
   local image="$1"
   local platform="$2"
@@ -714,7 +710,7 @@ if normal("bom.ts")["score"] != normal("ext/c.mts")["score"]:
     fail("bom.ts score differs from ext/c.mts")
 parse_error("latin1.js", "file is not valid UTF-8")
 
-# Single-file components (sfc.md section 7).
+# Single-file components ("Smoke test").
 cart = normal("Cart.vue")
 if not 25 <= cart["score"] <= 40 or cart.get("lines") != 12:
     fail(f"Cart.vue fta is {cart}, expected 25 <= score <= 40 and lines 12")

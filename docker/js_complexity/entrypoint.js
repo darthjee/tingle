@@ -47,10 +47,7 @@
 // /opt/tingle_js_complexity/node_modules/typhonjs-escomplex
 // (typhonjs-escomplex 0.1.0, loaded only by lib/escomplex.js).
 //
-// Contract: docs/agents/specs/code_check/js_complexity/image.md,
-// docs/agents/specs/code_check/js_complexity/duplication.md,
-// docs/agents/specs/code_check/js_complexity/details.md and
-// docs/agents/specs/code_check/js_complexity/sfc.md.
+// Contract: docs/agents/tingle-js-complexity-image.md ("Contract").
 
 const { EntrypointError } = require("./lib/errors");
 const { readInputLines } = require("./lib/input");

@@ -1,7 +1,7 @@
 "use strict";
 
 // Script extraction for .vue, .svelte and .astro single-file components
-// (docs/agents/specs/code_check/js_complexity/sfc.md, sections 2-4).
+// (docs/agents/tingle-js-complexity-image.md, "Single-file components").
 //
 // Pure functions, no file system access. extractSfc(text, ext) returns
 // {error: "<message>"} or {code, vext}: `code` is the original text with

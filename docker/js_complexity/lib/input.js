@@ -1,6 +1,7 @@
 "use strict";
 
-// Reads stdin and splits it into input lines (image.md section 4, "Lines").
+// Reads stdin and splits it into input lines
+// (docs/agents/tingle-js-complexity-image.md, "Contract").
 
 const fs = require("fs");
 const { EntrypointError } = require("./errors");

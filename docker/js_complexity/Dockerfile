@@ -20,7 +20,7 @@
 #     binary shipped as per-platform optional npm packages; the lock lists
 #     both jscpd-linux-x64-gnu and jscpd-linux-arm64-gnu, and `npm ci`
 #     installs the one matching the build platform.
-#   See docs/agents/specs/code_check/js_complexity/image.md ("Bumping
+#   See docs/agents/tingle-js-complexity-image.md ("Bumping
 #   versions") for the bump procedure.
 #
 # Build context is this folder, not the repo root:

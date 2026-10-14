@@ -1,7 +1,7 @@
 "use strict";
 
 // jscpd invocation and per-file duplicated lines
-// (docs/agents/specs/code_check/js_complexity/duplication.md).
+// (docs/agents/tingle-js-complexity-image.md, "Contract").
 //
 // A jscpd failure is never fatal: every file keeps `duplication: null` and
 // one path-less {tool: "jscpd", message} warning is added.
