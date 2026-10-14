@@ -1051,8 +1051,8 @@ $ tingle code_check js_complexity ./src/Cart.vue --details
 ...
 Status             FTA  Cyclo  Lines    Dup  Assessment         File
 ──────────────── ─────  ─────  ─────  ─────  ─────────────────  ──────────────────────────────────────────────────
-✅ OK              30.7      3     11      0  OK                 Cart.vue
-                 cyclo   3  sloc    8  <anon method-1>  (Cart.vue:13)
+✅ OK              33.6      3     12      0  OK                 Cart.vue
+                 cyclo   2  sloc    8  <anon method-1>  (Cart.vue:13)
 ...
 ```
 
