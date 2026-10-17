@@ -881,9 +881,11 @@ PHP_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.php Calculator.php missi
 # list plus the hostile lines on stdin (exit 0, one JSON object checked with
 # python3: tool versions php 8.5.11, pdepend 3.0.0 and jscpd null, one files[]
 # entry per input line in order, the per-file parse_error and pdepend values
-# (min_mi compared with round(..., 1)), functions and duplication null on every
-# row, and exactly the expected warnings, in order), no git in the image, and
-# empty files/warnings on empty stdin.
+# (min_mi compared with round(..., 1)), the per-file functions (null, [] or
+# the expected (name, line, ccn) list, every line/ccn/npath an int >= 1 and
+# sum(ccn) == pdepend.ccn), duplication null on every row, and exactly the
+# expected warnings, in order), no git in the image, and empty files/warnings
+# on empty stdin.
 # Any failure prints "<reason> on <platform>" on stderr and exits 1.
 smoke_test_php_complexity() {
   local image="$1"
@@ -971,6 +973,33 @@ def is_int(value):
     return not isinstance(value, bool) and isinstance(value, int)
 
 pdepend_keys = {"ccn", "max_ccn", "max_npath", "min_mi", "lloc"}
+function_keys = {"name", "line", "ccn", "npath"}
+
+# Per-file functions (image.md section 9, details.md section 3), aligned with
+# expected_rows: None for null, else the (name, line, ccn) list in order.
+expected_function_rows = [
+    [("Factory::make", 9, 2)],
+    [("legacy", 3, 2)],
+    [("Calculator::add", 7, 1), ("Calculator::sign", 12, 3), ("Calculator::grade", 22, 7)],
+    [("Point::__construct", 21, 1), ("Point::withX", 25, 1)],
+    [("Square::__construct", 12, 1), ("Square::area", 16, 1), ("Circle::__construct", 24, 1),
+     ("Circle::area", 28, 2), ("Describes::describe", 36, 1)],
+    [("shout", 3, 2)],
+    None,
+    [("bom", 3, 2)],
+    [],
+    None,
+    [("crlf", 3, 2)],
+    [("normalize_a", 3, 3)],
+    [("normalize_b", 3, 3)],
+    [],
+    [("clamp", 3, 3), ("greet", 14, 1)],
+    [("latin", 4, 1)],
+    None,
+    [("title", 4, 2)],
+    None,
+    None, None, None, None, None, None,
+]
 for index, (entry, (path, parse_error, expected)) in enumerate(zip(files, expected_rows)):
     label = f"files[{index}] ({path!r})"
     flag = entry.get("parse_error")
@@ -992,11 +1021,37 @@ for index, (entry, (path, parse_error, expected)) in enumerate(zip(files, expect
         actual_mi = pdepend["min_mi"]
         if isinstance(actual_mi, bool) or not isinstance(actual_mi, (int, float)) or round(actual_mi, 1) != min_mi:
             fail(f"{label} pdepend.min_mi is {actual_mi!r}, not {min_mi} (rounded to one decimal)")
-    for key in ("functions", "duplication"):
-        if key not in entry:
-            fail(f"{label} has no {key} key")
-        if entry[key] is not None:
-            fail(f"{label} {key} is {entry[key]!r}, not null")
+    if "functions" not in entry:
+        fail(f"{label} has no functions key")
+    functions = entry["functions"]
+    expected_functions = expected_function_rows[index]
+    if expected_functions is None:
+        if functions is not None:
+            fail(f"{label} functions is {functions!r}, not null")
+    else:
+        if not isinstance(functions, list) or not all(
+            isinstance(f, dict) and set(f) == function_keys for f in functions
+        ):
+            fail(f"{label} functions is {functions!r}, not a list of objects with keys {sorted(function_keys)}")
+        for function in functions:
+            name = function["name"]
+            if not isinstance(name, str):
+                fail(f"{label} function name {name!r} is not a string")
+            for key in ("line", "ccn", "npath"):
+                if not is_int(function[key]) or function[key] < 1:
+                    fail(f"{label} function {name!r} {key} is {function[key]!r}, not an int >= 1")
+        actual_functions = [(f["name"], f["line"], f["ccn"]) for f in functions]
+        if actual_functions != expected_functions:
+            fail(f"{label} functions are {actual_functions!r}, expected {expected_functions!r}")
+        total = pdepend["ccn"] if isinstance(pdepend, dict) else 0
+        ccn_sum = sum(f["ccn"] for f in functions)
+        if ccn_sum != total:
+            fail(f"{label} functions ccn sum to {ccn_sum}, not pdepend.ccn {total}")
+    if "duplication" not in entry:
+        fail(f"{label} has no duplication key")
+    duplication = entry["duplication"]
+    if duplication is not None:
+        fail(f"{label} duplication is {duplication!r}, not null")
 
 expected_warnings = [
     {"tool": "php", "path": "broken.php", "message": "syntax error, unexpected token \":\", expecting variable on line 10"},
