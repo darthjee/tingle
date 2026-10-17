@@ -7,7 +7,7 @@ namespaces, and pods, backed by ~/.tingle/kube/config.json.
 Usage:
     tingle kube switch <context_alias>
     tingle kube list namespace
-    tingle kube list pods --namespace <alias>
+    tingle kube list pods --namespace <alias> [--all]
     tingle kube shell <namespace_alias> <pod_alias>
     tingle kube configure context
     tingle kube configure namespace
