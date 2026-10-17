@@ -1,7 +1,8 @@
 """Unit tests for code_check.php_complexity.executor.CheckPhpComplexity (Docker is mocked).
 
 HOME points at an empty temp dir (autouse fixture in tests/code_check/conftest.py);
-the config file is never read before #350 anyway.
+the config file is never read before #350 anyway. `GitIgnore.ignored_paths` is
+stubbed (autouse), so no real git runs here.
 """
 
 from __future__ import annotations
@@ -89,7 +90,6 @@ def test_help_exits_zero(capsys):
         [".", "--min-level", "bad"],
         [".", "--fail-on", "ok"],
         [".", "--no-config"],
-        [".", "--exclude", "a"],
         [".", "--details"],
         [".", "--unknown"],
     ],
@@ -131,17 +131,53 @@ def test_merge_fills_the_built_in_defaults():
     }
 
 
-def test_selection_options_are_fixed():
-    options = {"exclude": ["x"], "no_default_excludes": True, "ignore": ["a"],
+def test_selection_options_use_the_merged_options():
+    options = {"exclude": ["x"], "no_default_excludes": False, "ignore": ["a"],
                "include": ["b"], "gitignore": True}
 
     assert CheckPhpComplexity._selection_options(options) == {
-        "excludes": Constants.DEFAULT_EXCLUDES,
+        "excludes": [*Constants.DEFAULT_EXCLUDES, "x"],
+        "ignore": ["a"],
+        "include": ["b"],
+        "gitignore": True,
+        "skip_bootstrap_cache": True,
+    }
+
+
+def test_no_default_excludes_drops_defaults_and_bootstrap_cache_rule():
+    options = {"exclude": ["x"], "no_default_excludes": True, "ignore": [],
+               "include": [], "gitignore": False}
+
+    assert CheckPhpComplexity._selection_options(options) == {
+        "excludes": ["x"],
         "ignore": [],
         "include": [],
         "gitignore": False,
-        "skip_bootstrap_cache": True,
+        "skip_bootstrap_cache": False,
     }
+
+
+def test_merge_carries_the_selection_options():
+    cli = {"path": ".", "exclude": " a, ,b", "no_default_excludes": True,
+           "no_gitignore": True, "ignore": ["x", "x"], "include": ["y"]}
+
+    merged = CheckPhpComplexity._merge(cli, {})
+
+    assert merged["exclude"] == ["a", "b"]
+    assert merged["no_default_excludes"] is True
+    assert merged["gitignore"] is False
+    assert merged["ignore"] == ["x"]
+    assert merged["include"] == ["y"]
+
+
+def test_merge_defaults_turn_gitignore_on():
+    merged = CheckPhpComplexity._merge({"path": "."}, {})
+
+    assert merged["exclude"] == []
+    assert merged["no_default_excludes"] is False
+    assert merged["gitignore"] is True
+    assert merged["ignore"] == []
+    assert merged["include"] == []
 
 
 def test_validate_config_accepts_no_key(tmp_path):
@@ -246,10 +282,18 @@ def test_unsendable_name_is_warned(tmp_path, capsys, no_docker):
     assert NO_FILES in captured.out
 
 
-def test_gitignore_is_not_consulted(tmp_path, capsys, no_docker, fake_git):
+def test_gitignore_is_consulted_by_default(tmp_path, capsys, no_docker, fake_git):
     fake_git["result"] = GitIgnored(set(), [])
 
     _run([str(tmp_path), "--image", "img"])
+
+    assert len(fake_git["calls"]) == 1
+
+
+def test_no_gitignore_does_not_consult_git(tmp_path, capsys, no_docker, fake_git):
+    fake_git["result"] = GitIgnored(set(), [])
+
+    _run([str(tmp_path), "--no-gitignore", "--image", "img"])
 
     assert fake_git["calls"] == []
 

@@ -7,10 +7,16 @@ classified by thresholds on the file's total cyclomatic complexity (CCN, the
 sum over its functions and methods). `Max`, `NPath`, `MI` and `Lines` are
 information only. The host needs Docker, not PHP.
 
-File selection: `.php` files (case-insensitive) minus the default excludes,
-the Blade templates (`*.blade.php`) and the files under a `bootstrap/cache`
-directory pair. Symlinks resolving outside the mount root are skipped. There
-are no selection flags, no `.gitignore` filtering and no config file yet.
+File selection follows `js_complexity`, applied in this order: default and
+`--exclude` directory names (`--no-default-excludes` drops the defaults),
+`.gitignore` (unless `--no-gitignore`), `--ignore` globs, then `--include`
+globs together with the fixed `.php` extension (case-insensitive), then the
+Blade templates (`*.blade.php`, always skipped; `--include` never brings
+them back), then the files under a `bootstrap/cache` directory pair
+(`--no-default-excludes` drops this skip too). Symlinks resolving outside
+the mount root are skipped. For a single-file `<path>` the directory
+excludes and the `bootstrap/cache` rule don't apply and the globs match the
+file name. There is no config file yet.
 
 Exit status: 0 on success (also when no file is selected), 1 on errors (bad
 option, path missing or unreadable, Docker missing or failing, image pull
@@ -29,6 +35,11 @@ Examples
     tingle code_check php_complexity ./src --top 10 --min-level warn
     tingle code_check php_complexity ./src --fail-on error
     tingle code_check php_complexity ./src --image tingle_php_complexity:dev
+    tingle code_check php_complexity ./src --exclude tests,fixtures
+    tingle code_check php_complexity ./src --no-default-excludes --exclude vendor
+    tingle code_check php_complexity ./src --ignore 'tests/**'
+    tingle code_check php_complexity ./src --include 'src/**'
+    tingle code_check php_complexity ./src --no-gitignore
 
 """
 
@@ -120,18 +131,13 @@ class CheckPhpComplexity(DockerCheck):
 
     @classmethod
     def _selection_options(cls, options: dict) -> dict:
-        """Return the fixed selection: default excludes and skip rules, no globs, no `.gitignore`.
+        """Extend the base selection options with the `bootstrap/cache` skip.
 
-        #349 replaces this with the merged selection options when the
-        selection flags land (`skip_bootstrap_cache` then follows
-        `--no-default-excludes`).
+        The `bootstrap/cache` rule applies unless `no_default_excludes` is set.
         """
         return {
-            "excludes": list(cls.DEFAULT_EXCLUDES),
-            "ignore": [],
-            "include": [],
-            "gitignore": False,
-            "skip_bootstrap_cache": True,
+            **super()._selection_options(options),
+            "skip_bootstrap_cache": not bool(options.get("no_default_excludes")),
         }
 
     @staticmethod

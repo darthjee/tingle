@@ -68,12 +68,12 @@ def select_files(
 
     `excludes` are directory names (default: `Constants.DEFAULT_EXCLUDES`; not
     applied to a single file), `ignore`/`include` are globs relative to
-    `target` and `gitignore` skips the untracked files git ignores (off by
-    default until the selection flags land). There is no binary check, so
-    non-UTF-8 files still reach the image, and files resolving outside the
-    mount root are dropped. Blade templates are always skipped; the
-    `bootstrap/cache` rule applies when `skip_bootstrap_cache` is true and
-    `target` is a directory.
+    `target` and `gitignore` skips the untracked files git ignores (off
+    here; the executor always passes it, on unless `--no-gitignore`). There
+    is no binary check, so non-UTF-8 files still reach the image, and files
+    resolving outside the mount root are dropped. Blade templates are always
+    skipped and `include` never brings them back; the `bootstrap/cache` rule
+    applies when `skip_bootstrap_cache` is true and `target` is a directory.
     """
     check_cache = skip_bootstrap_cache and target.is_dir()
 
