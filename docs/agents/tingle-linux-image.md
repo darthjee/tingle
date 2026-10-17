@@ -8,6 +8,8 @@ The `darthjee/tingle_rubycritic` image, released by the same script and
 workflow, is described in [tingle-rubycritic-image.md](tingle-rubycritic-image.md).
 The `darthjee/tingle_js_complexity` image, also released by the same script
 and workflow, is described in [tingle-js-complexity-image.md](tingle-js-complexity-image.md).
+The `darthjee/tingle_php_complexity` image, also released by the same script
+and workflow, is described in [tingle-php-complexity-image.md](tingle-php-complexity-image.md).
 
 - **Image**: `darthjee/tingle` on Docker Hub.
 - **Tag strategy**: the published Docker tag is exactly the plain semver
@@ -416,8 +418,12 @@ triggers the linux image release (`build-and-publish-linux-image`,
 [tingle-rubycritic-image.md](tingle-rubycritic-image.md#release-pipeline)),
 the js_complexity image release (`build-and-publish-js-complexity-image`,
 `update-js-complexity-description`; see
-[tingle-js-complexity-image.md](tingle-js-complexity-image.md#release-pipeline))
+[tingle-js-complexity-image.md](tingle-js-complexity-image.md#release-pipeline)),
+the php_complexity image release (`build-and-publish-php-complexity-image`,
+`update-php-complexity-description`; see
+[tingle-php-complexity-image.md](tingle-php-complexity-image.md#release-pipeline))
 and the CLI release zip (`build-and-publish-release`), which waits for all
-three image jobs: `build-and-publish-linux-image`,
-`build-and-publish-rubycritic-image` and
-`build-and-publish-js-complexity-image`.
+four image jobs: `build-and-publish-linux-image`,
+`build-and-publish-rubycritic-image`,
+`build-and-publish-js-complexity-image` and
+`build-and-publish-php-complexity-image`.

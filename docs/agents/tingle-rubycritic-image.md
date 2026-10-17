@@ -3,9 +3,11 @@
 This is the implementation view of the image that runs RubyCritic for
 `tingle code_check rubycritic`. Tingle sends a list of files on stdin and
 reads one JSON object on stdout. The `darthjee/tingle` image (`tingle linux`)
-is described in [tingle-linux-image.md](tingle-linux-image.md) and the
+is described in [tingle-linux-image.md](tingle-linux-image.md), the
 `darthjee/tingle_js_complexity` image in
-[tingle-js-complexity-image.md](tingle-js-complexity-image.md); all three
+[tingle-js-complexity-image.md](tingle-js-complexity-image.md) and the
+`darthjee/tingle_php_complexity` image in
+[tingle-php-complexity-image.md](tingle-php-complexity-image.md); all four
 images are released by the same script and the same CircleCI workflow.
 
 - **Image**: `darthjee/tingle_rubycritic` on Docker Hub.
@@ -345,11 +347,13 @@ The image is released by `scripts/release_image.sh`, the same script as the
 linux image, through an optional image selector:
 
 ```sh
-scripts/release_image.sh <subcommand> [linux|rubycritic|js_complexity]
+scripts/release_image.sh <subcommand> [linux|rubycritic|js_complexity|php_complexity]
 ```
 
 The `js_complexity` selector and its settings are described in
-[tingle-js-complexity-image.md](tingle-js-complexity-image.md#release-pipeline).
+[tingle-js-complexity-image.md](tingle-js-complexity-image.md#release-pipeline),
+and the `php_complexity` selector in
+[tingle-php-complexity-image.md](tingle-php-complexity-image.md#release-pipeline).
 
 - The selector defaults to `linux`, so calls without it keep releasing
   `darthjee/tingle`. `setup-builder` ignores it (the buildx builder
@@ -450,15 +454,20 @@ ones (`/^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/`) and
 - A git tag `X.Y.Z` also triggers the js_complexity jobs
   (`build-and-publish-js-complexity-image`,
   `update-js-complexity-description`; see
-  [tingle-js-complexity-image.md](tingle-js-complexity-image.md#circleci)).
+  [tingle-js-complexity-image.md](tingle-js-complexity-image.md#circleci))
+  and the php_complexity jobs (`build-and-publish-php-complexity-image`,
+  `update-php-complexity-description`; see
+  [tingle-php-complexity-image.md](tingle-php-complexity-image.md#circleci)).
 - `build-and-publish-rubycritic-image` runs in parallel with
-  `build-and-publish-linux-image` and
-  `build-and-publish-js-complexity-image`; each runs its own
+  `build-and-publish-linux-image`,
+  `build-and-publish-js-complexity-image` and
+  `build-and-publish-php-complexity-image`; each runs its own
   `setup-builder`.
-- `build-and-publish-release` (the CLI release zip) requires all three image
+- `build-and-publish-release` (the CLI release zip) requires all four image
   jobs: `build-and-publish-linux-image`,
-  `build-and-publish-rubycritic-image` and
-  `build-and-publish-js-complexity-image`, so a CLI release is never
+  `build-and-publish-rubycritic-image`,
+  `build-and-publish-js-complexity-image` and
+  `build-and-publish-php-complexity-image`, so a CLI release is never
   published without its images.
 - The existing linux jobs keep calling the script without a selector.
 - The `test` workflow is unchanged: no image is built on regular commits.
