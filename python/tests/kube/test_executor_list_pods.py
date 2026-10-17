@@ -335,3 +335,323 @@ def test_list_partial_mode_failure_mentions_profile(
         "kube list: AWS credential check failed for profile 'prod': "
         "Unable to locate credentials"
     ) in out
+
+
+def _mixed_items():
+    return [
+        _pod("worker-old-name", "2024-01-03T00:00:00Z"),
+        _pod("api-server-aaaaaaaaaa", "2024-01-02T00:00:00Z"),
+        _pod("redis-0", "2024-01-01T00:00:00Z"),
+    ]
+
+
+def _mixed_config():
+    return _config(
+        namespaces={"prod": {"default": "prod-default-ns"}},
+        pods={
+            "prod": {
+                "api": {"prefix": "api-server-"},
+                "worker": {"prefix": "worker-"},
+            }
+        },
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+    )
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_text_appends_unmatched_block_ordered_by_creation(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (_mixed_items(), None)
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "all": True}, _mixed_config()
+    )
+
+    out = capsys.readouterr().out
+    assert out == (
+        "api:\n"
+        "  - api-server-aaaaaaaaaa\n"
+        "worker:\n"
+        "(unmatched):\n"
+        "  - redis-0\n"
+        "  - worker-old-name\n"
+    )
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_json_appends_null_alias_entry(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (_mixed_items(), None)
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "json": True, "all": True},
+        _mixed_config(),
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == [
+        {"alias": "api", "pods": ["api-server-aaaaaaaaaa"]},
+        {"alias": "worker", "pods": []},
+        {"alias": None, "pods": ["redis-0", "worker-old-name"]},
+    ]
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_without_all_text_output_is_unchanged(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (_mixed_items(), None)
+
+    Kube._list_pods({"list_target": "pods", "namespace": "default"}, _mixed_config())
+
+    out = capsys.readouterr().out
+    assert out == (
+        "api:\n"
+        "  - api-server-aaaaaaaaaa\n"
+        "worker:\n"
+        "  kube list: candidates discarded by id_pattern for 'worker':\n"
+        "    - worker-old-name\n"
+    )
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_without_all_json_output_is_unchanged(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (_mixed_items(), None)
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "json": True}, _mixed_config()
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == [
+        {"alias": "api", "pods": ["api-server-aaaaaaaaaa"]},
+        {"alias": "worker", "pods": []},
+    ]
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_suppresses_discarded_candidates_hint(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (
+        [_pod("my-pod-bad-suffix", "2024-01-01T00:00:00Z")],
+        None,
+    )
+    config = _config(
+        namespaces={"prod": {"default": "prod-default-ns"}},
+        pods={"prod": {"api": {"prefix": "my-pod-"}}},
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+    )
+
+    Kube._list_pods({"list_target": "pods", "namespace": "default", "all": True}, config)
+
+    out = capsys.readouterr().out
+    assert "candidates discarded by id_pattern" not in out
+    assert out == "api:\n(unmatched):\n  - my-pod-bad-suffix\n"
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_without_active_scope_lists_every_pod_as_unmatched(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = None
+    mock_list_pods.return_value = (_mixed_items(), None)
+    config = _config(pods={"prod": {"api": {"prefix": "api-server-"}}})
+
+    Kube._list_pods({"list_target": "pods", "namespace": "real-ns", "all": True}, config)
+
+    out = capsys.readouterr().out
+    assert out.endswith(
+        "(unmatched):\n"
+        "  - redis-0\n"
+        "  - api-server-aaaaaaaaaa\n"
+        "  - worker-old-name\n"
+    )
+    assert "api:" not in out
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_json_without_pod_aliases_has_single_null_entry(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (_mixed_items(), None)
+    config = _config(namespaces={"prod": {"default": "prod-default-ns"}})
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "json": True, "all": True}, config
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == [
+        {"alias": None, "pods": ["redis-0", "api-server-aaaaaaaaaa", "worker-old-name"]}
+    ]
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_empty_namespace_prints_empty_groups(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = ([], None)
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "all": True}, _mixed_config()
+    )
+
+    assert capsys.readouterr().out == "api:\nworker:\n(unmatched):\n"
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_json_empty_namespace_keeps_null_entry(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = ([], None)
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "json": True, "all": True},
+        _mixed_config(),
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[-1] == {"alias": None, "pods": []}
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_lists_overlapping_matches_under_each_alias_not_unmatched(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (
+        [_pod("api-admin-aaaaaaaaaa", "2024-01-01T00:00:00Z")],
+        None,
+    )
+    config = _config(
+        namespaces={"prod": {"default": "prod-default-ns"}},
+        pods={
+            "prod": {
+                "api": {"prefix": "api-", "id_pattern": r"^.+$"},
+                "admin": {"prefix": "api-admin-"},
+            }
+        },
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+    )
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "json": True, "all": True}, config
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == [
+        {"alias": "api", "pods": ["api-admin-aaaaaaaaaa"]},
+        {"alias": "admin", "pods": ["api-admin-aaaaaaaaaa"]},
+        {"alias": None, "pods": []},
+    ]
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_puts_pods_of_namespace_filtered_aliases_in_unmatched(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = (
+        [
+            _pod("app-aaaaaaaaaa", "2024-01-01T00:00:00Z"),
+            _pod("db-bbbbbbbbbb", "2024-01-02T00:00:00Z"),
+        ],
+        None,
+    )
+    config = _config(
+        namespaces={"prod": {"app": "prod-app-ns", "db": "prod-db-ns"}},
+        pods={
+            "prod": {
+                "app": {"prefix": "app-", "namespace": "app"},
+                "db": {"prefix": "db-", "namespace": "db"},
+            }
+        },
+        pod_id_pattern=r"^[a-z0-9]{10}$",
+    )
+
+    Kube._list_pods({"list_target": "pods", "namespace": "app", "all": True}, config)
+
+    out = capsys.readouterr().out
+    assert out == "app:\n  - app-aaaaaaaaaa\n(unmatched):\n  - db-bbbbbbbbbb\n"
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_prints_only_error_on_kubectl_failure(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (True, None)
+    mock_detect.return_value = "prod"
+    mock_list_pods.return_value = ([], "kubectl: boom")
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "all": True}, _mixed_config()
+    )
+
+    out = capsys.readouterr().out
+    assert "kubectl: boom" in out
+    assert "(unmatched)" not in out
+    assert "api:" not in out
+
+
+@patch("kube.executor.detect_active_scope")
+@patch("kube.executor.list_pods")
+@patch("kube.executor.check_aws_credentials")
+def test_list_pods_all_aborts_when_aws_precheck_fails(
+    mock_check, mock_list_pods, mock_detect, capsys
+):
+    mock_check.return_value = (False, "Unable to locate credentials")
+
+    Kube._list_pods(
+        {"list_target": "pods", "namespace": "default", "all": True}, _mixed_config()
+    )
+
+    mock_list_pods.assert_not_called()
+    assert "(unmatched)" not in capsys.readouterr().out
