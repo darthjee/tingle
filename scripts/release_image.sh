@@ -1,30 +1,31 @@
 #!/usr/bin/env bash
 #
 # release_image.sh — build, smoke-test, and publish the darthjee/tingle,
-# darthjee/tingle_rubycritic and darthjee/tingle_js_complexity Docker images,
-# plus update their Docker Hub descriptions.
+# darthjee/tingle_rubycritic, darthjee/tingle_js_complexity and
+# darthjee/tingle_php_complexity Docker images, plus update their Docker Hub
+# descriptions.
 #
 # Usage:
 #   scripts/release_image.sh setup-builder
-#   scripts/release_image.sh build [linux|rubycritic|js_complexity]
-#   scripts/release_image.sh smoke-test [linux|rubycritic|js_complexity]
-#   scripts/release_image.sh scan [linux|rubycritic|js_complexity]
-#   scripts/release_image.sh publish [linux|rubycritic|js_complexity]
-#   scripts/release_image.sh update-description [linux|rubycritic|js_complexity]
+#   scripts/release_image.sh build [linux|rubycritic|js_complexity|php_complexity]
+#   scripts/release_image.sh smoke-test [linux|rubycritic|js_complexity|php_complexity]
+#   scripts/release_image.sh scan [linux|rubycritic|js_complexity|php_complexity]
+#   scripts/release_image.sh publish [linux|rubycritic|js_complexity|php_complexity]
+#   scripts/release_image.sh update-description [linux|rubycritic|js_complexity|php_complexity]
 #
 # Image selector: the optional second argument picks the image; it defaults
 # to "linux", so calls without a selector behave as before. setup-builder
 # ignores it (the builder is shared). An unknown selector prints the usage
 # line on stderr and exits 1. Per-image settings (see select_image()):
 #
-#   Setting            linux                            rubycritic                                          js_complexity
-#   Image name         darthjee/tingle                  darthjee/tingle_rubycritic                          darthjee/tingle_js_complexity
-#   Dockerfile         shell/linux/Dockerfile           docker/rubycritic/Dockerfile                        docker/js_complexity/Dockerfile
-#   Build context      . (repo root)                    docker/rubycritic                                   docker/js_complexity
-#   Change detection   shell/linux/ since previous tag  none, always runs                                   none, always runs
-#   Smoke test         smoke_test_image                 smoke_test_rubycritic                               smoke_test_js_complexity
-#   Short description  DOCKERHUB_SHORT_DESCRIPTION.txt  docker/rubycritic/DOCKERHUB_SHORT_DESCRIPTION.txt  docker/js_complexity/DOCKERHUB_SHORT_DESCRIPTION.txt
-#   Full description   DOCKERHUB_DESCRIPTION.md         docker/rubycritic/DOCKERHUB_DESCRIPTION.md          docker/js_complexity/DOCKERHUB_DESCRIPTION.md
+#   Setting            linux                            rubycritic                                          js_complexity                                        php_complexity
+#   Image name         darthjee/tingle                  darthjee/tingle_rubycritic                          darthjee/tingle_js_complexity                        darthjee/tingle_php_complexity
+#   Dockerfile         shell/linux/Dockerfile           docker/rubycritic/Dockerfile                        docker/js_complexity/Dockerfile                      docker/php_complexity/Dockerfile
+#   Build context      . (repo root)                    docker/rubycritic                                   docker/js_complexity                                 docker/php_complexity
+#   Change detection   shell/linux/ since previous tag  none, always runs                                   none, always runs                                    none, always runs
+#   Smoke test         smoke_test_image                 smoke_test_rubycritic                               smoke_test_js_complexity                             smoke_test_php_complexity
+#   Short description  DOCKERHUB_SHORT_DESCRIPTION.txt  docker/rubycritic/DOCKERHUB_SHORT_DESCRIPTION.txt  docker/js_complexity/DOCKERHUB_SHORT_DESCRIPTION.txt  docker/php_complexity/DOCKERHUB_SHORT_DESCRIPTION.txt
+#   Full description   DOCKERHUB_DESCRIPTION.md         docker/rubycritic/DOCKERHUB_DESCRIPTION.md          docker/js_complexity/DOCKERHUB_DESCRIPTION.md        docker/php_complexity/DOCKERHUB_DESCRIPTION.md
 #
 # Tag resolution (all images): $CIRCLE_TAG when set (CI), else the trimmed
 # content of shell/linux/VERSION (local dev). In CI, the pin file must match
@@ -61,6 +62,8 @@
 #
 # Smoke test (js_complexity): see smoke_test_js_complexity().
 #
+# Smoke test (php_complexity): see smoke_test_php_complexity().
+#
 # Scan: scan runs the pinned Trivy image ($TRIVY_IMAGE) against each local
 # <image>:<tag>-<arch> image through the docker socket and prints the
 # vulnerability report. It is report-only: findings, and Trivy failures such
@@ -73,7 +76,9 @@
 # darthjee/tingle_rubycritic:X.Y.Z always exists for tingle X.Y.Z. The
 # js_complexity image has NO change detection either: its build, smoke-test,
 # scan and publish never skip, so darthjee/tingle_js_complexity:X.Y.Z always
-# exists for tingle X.Y.Z.
+# exists for tingle X.Y.Z. The php_complexity image has NO change detection
+# either: its build, smoke-test, scan and publish never skip, so
+# darthjee/tingle_php_complexity:X.Y.Z always exists for tingle X.Y.Z.
 #
 # Descriptions: update-description sends the image's one-line summary
 # (trimmed, 1-100 characters) as the Docker Hub "description" and its
@@ -87,7 +92,7 @@ set -euo pipefail
 
 VERSION_FILE="shell/linux/VERSION"
 SHORT_DESCRIPTION_MAX_LENGTH=100
-USAGE="Usage: $0 {setup-builder|build|smoke-test|scan|publish|update-description} [linux|rubycritic|js_complexity]"
+USAGE="Usage: $0 {setup-builder|build|smoke-test|scan|publish|update-description} [linux|rubycritic|js_complexity|php_complexity]"
 
 # Per-image settings, set by select_image().
 IMAGE_NAME=""
@@ -158,6 +163,15 @@ select_image() {
       FULL_DESCRIPTION_FILE="docker/js_complexity/DOCKERHUB_DESCRIPTION.md"
       CHANGE_DETECTION_PATH=""
       SMOKE_TEST_FUNCTION="smoke_test_js_complexity"
+      ;;
+    php_complexity)
+      IMAGE_NAME="darthjee/tingle_php_complexity"
+      DOCKERFILE="docker/php_complexity/Dockerfile"
+      BUILD_CONTEXT="docker/php_complexity"
+      SHORT_DESCRIPTION_FILE="docker/php_complexity/DOCKERHUB_SHORT_DESCRIPTION.txt"
+      FULL_DESCRIPTION_FILE="docker/php_complexity/DOCKERHUB_DESCRIPTION.md"
+      CHANGE_DETECTION_PATH=""
+      SMOKE_TEST_FUNCTION="smoke_test_php_complexity"
       ;;
     *)
       usage
@@ -823,6 +837,182 @@ for path, expected in expected_lines.items():
 cart_functions = functions_of("Cart.vue")
 if len(cart_functions) != 1:
     fail(f"Cart.vue functions are {cart_functions}, expected exactly one")
+' "$platform" "${lines[@]}" <<< "$output"
+
+  local git_check
+  git_check=$(docker run --rm --network none --platform "$platform" --entrypoint sh "$image" \
+    -c 'if command -v git >/dev/null 2>&1; then echo present; else echo absent; fi')
+  if [ "$git_check" != "absent" ]; then
+    smoke_fail "git is present in the image on $platform"
+  fi
+
+  status=0
+  output=$("${run[@]}" "$image" < /dev/null) || status=$?
+  if [ "$status" -ne 0 ]; then
+    smoke_fail "Empty stdin exited with status $status on $platform"
+  fi
+
+  python3 -c '
+import json, sys
+
+platform = sys.argv[1]
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError:
+    report = None
+if not isinstance(report, dict) or report.get("files") != [] or report.get("warnings") != []:
+    print(f"Empty stdin did not print empty files and warnings on {platform}", file=sys.stderr)
+    sys.exit(1)
+' "$platform" <<< "$output"
+}
+
+PHP_COMPLEXITY_FIXTURE_DIR="docker/php_complexity/fixture"
+PHP_COMPLEXITY_FIXTURE_FILES=(Anon.php CVS/legacy.php Calculator.php Modern.php Shapes.php UPPER.PHP
+  attr_anon.php bom.php bootstrap.php broken.php crlf.php dup_a.php dup_b.php empty.php helpers.php
+  latin1.php lenient.php page.php welcome.blade.php)
+# Hostile lines piped after the fixture list: an empty line, an absolute path,
+# a ".." segment, a duplicate, a missing file and an unsupported extension.
+# Each must be refused.
+PHP_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.php Calculator.php missing.php notes.txt)
+
+# Runs the fixture checks from docs/agents/specs/code_check/php_complexity/image.md
+# (section 9) against a local tingle_php_complexity image, with the canonical
+# run line (--network none, read-only /src, foreign uid 501:20): the fixture
+# list plus the hostile lines on stdin (exit 0, one JSON object checked with
+# python3: tool versions php 8.5.11, pdepend 3.0.0 and jscpd null, one files[]
+# entry per input line in order, the per-file parse_error and pdepend values
+# (min_mi compared with round(..., 1)), functions and duplication null on every
+# row, and exactly the expected warnings, in order), no git in the image, and
+# empty files/warnings on empty stdin.
+# Any failure prints "<reason> on <platform>" on stderr and exits 1.
+smoke_test_php_complexity() {
+  local image="$1"
+  local platform="$2"
+  local run=(docker run --rm -i --pull never --network none --security-opt no-new-privileges
+    --platform "$platform" --user "$FOREIGN_USER"
+    -v "$PWD/$PHP_COMPLEXITY_FIXTURE_DIR:/src:ro" -w /src)
+  local lines=("${PHP_COMPLEXITY_FIXTURE_FILES[@]}" "${PHP_COMPLEXITY_HOSTILE_LINES[@]}")
+
+  local output status=0
+  output=$(printf '%s\n' "${lines[@]}" | "${run[@]}" "$image") || status=$?
+  if [ "$status" -ne 0 ]; then
+    smoke_fail "Fixture run exited with status $status on $platform"
+  fi
+
+  python3 -c '
+import json, sys
+
+platform = sys.argv[1]
+lines = sys.argv[2:]
+
+def fail(reason):
+    print(f"{reason} on {platform}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError as error:
+    fail(f"Fixture output is not valid JSON ({error})")
+if not isinstance(report, dict):
+    fail("Fixture output is not a JSON object")
+
+versions = report.get("tool_versions")
+if not isinstance(versions, dict):
+    fail(f"tool_versions is {versions!r}, not an object")
+for tool, expected_version in (("php", "8.5.11"), ("pdepend", "3.0.0")):
+    if versions.get(tool) != expected_version:
+        fail(f"tool_versions.{tool} is {versions.get(tool)!r}, not \"{expected_version}\"")
+if "jscpd" not in versions:
+    fail("tool_versions has no jscpd key")
+jscpd_version = versions["jscpd"]
+if jscpd_version is not None:
+    fail(f"tool_versions.jscpd is {jscpd_version!r}, not null")
+
+files = report.get("files")
+if not isinstance(files, list) or not all(isinstance(f, dict) for f in files):
+    fail(f"files is {files!r}, not a list of objects")
+if len(files) != 25:
+    fail(f"files has {len(files)} entries, not 25")
+paths = [f.get("path") for f in files]
+if paths != lines:
+    fail(f"files paths are {paths}, expected the input lines {lines}")
+
+# Per-file expectations (image.md section 9): parse_error, then pdepend as
+# (ccn, max_ccn, max_npath, round(min_mi, 1), lloc) or None.
+expected_rows = [
+    ("Anon.php", False, (2, 2, 4, 66.3, 6)),
+    ("CVS/legacy.php", False, (2, 2, 2, 79.5, 2)),
+    ("Calculator.php", False, (11, 7, 36, 53.9, 22)),
+    ("Modern.php", False, (2, 1, 1, 79.3, 11)),
+    ("Shapes.php", False, (6, 2, 2, 77.6, 11)),
+    ("UPPER.PHP", False, (2, 2, 2, 77.7, 2)),
+    ("attr_anon.php", True, None),
+    ("bom.php", False, (2, 2, 2, 79.5, 2)),
+    ("bootstrap.php", False, None),
+    ("broken.php", True, None),
+    ("crlf.php", False, (2, 2, 2, 79.5, 2)),
+    ("dup_a.php", False, (3, 3, 4, 58.1, 9)),
+    ("dup_b.php", False, (3, 3, 4, 58.1, 9)),
+    ("empty.php", False, None),
+    ("helpers.php", False, (4, 3, 4, 66.5, 12)),
+    ("latin1.php", False, (1, 1, 1, 83.1, 2)),
+    ("lenient.php", True, None),
+    ("page.php", False, (2, 2, 2, 89.7, 4)),
+    ("welcome.blade.php", False, None),
+    ("", False, None),
+    ("/etc/passwd", False, None),
+    ("../outside.php", False, None),
+    ("Calculator.php", False, None),
+    ("missing.php", False, None),
+    ("notes.txt", False, None),
+]
+
+def is_int(value):
+    return not isinstance(value, bool) and isinstance(value, int)
+
+pdepend_keys = {"ccn", "max_ccn", "max_npath", "min_mi", "lloc"}
+for index, (entry, (path, parse_error, expected)) in enumerate(zip(files, expected_rows)):
+    label = f"files[{index}] ({path!r})"
+    flag = entry.get("parse_error")
+    if flag is not parse_error:
+        fail(f"{label} parse_error is {flag!r}, not {parse_error!r}")
+    if "pdepend" not in entry:
+        fail(f"{label} has no pdepend key")
+    pdepend = entry["pdepend"]
+    if expected is None:
+        if pdepend is not None:
+            fail(f"{label} pdepend is {pdepend!r}, not null")
+    else:
+        if not isinstance(pdepend, dict) or set(pdepend) != pdepend_keys:
+            fail(f"{label} pdepend is {pdepend!r}, not an object with keys {sorted(pdepend_keys)}")
+        ccn, max_ccn, max_npath, min_mi, lloc = expected
+        for key, value in (("ccn", ccn), ("max_ccn", max_ccn), ("max_npath", max_npath), ("lloc", lloc)):
+            if not is_int(pdepend[key]) or pdepend[key] != value:
+                fail(f"{label} pdepend.{key} is {pdepend[key]!r}, not {value}")
+        actual_mi = pdepend["min_mi"]
+        if isinstance(actual_mi, bool) or not isinstance(actual_mi, (int, float)) or round(actual_mi, 1) != min_mi:
+            fail(f"{label} pdepend.min_mi is {actual_mi!r}, not {min_mi} (rounded to one decimal)")
+    for key in ("functions", "duplication"):
+        if key not in entry:
+            fail(f"{label} has no {key} key")
+        if entry[key] is not None:
+            fail(f"{label} {key} is {entry[key]!r}, not null")
+
+expected_warnings = [
+    {"tool": "php", "path": "broken.php", "message": "syntax error, unexpected token \":\", expecting variable on line 10"},
+    {"tool": "php", "path": "lenient.php", "message": "syntax error, unexpected token \";\" on line 5"},
+    {"tool": "entrypoint", "path": "welcome.blade.php", "message": "Blade template"},
+    {"tool": "entrypoint", "path": "", "message": "empty line"},
+    {"tool": "entrypoint", "path": "/etc/passwd", "message": "absolute path"},
+    {"tool": "entrypoint", "path": "../outside.php", "message": "path has a \x27..\x27 segment"},
+    {"tool": "entrypoint", "path": "Calculator.php", "message": "duplicate line"},
+    {"tool": "entrypoint", "path": "missing.php", "message": "not a regular file under /src"},
+    {"tool": "entrypoint", "path": "notes.txt", "message": "unsupported extension"},
+    {"tool": "pdepend", "path": "attr_anon.php", "message": "Unexpected token: #[, line: 14, col: 20"},
+]
+warnings = report.get("warnings")
+if warnings != expected_warnings:
+    fail(f"warnings are {warnings!r}, expected {expected_warnings!r}")
 ' "$platform" "${lines[@]}" <<< "$output"
 
   local git_check

@@ -1,0 +1,1 @@
+PDepend complexity metrics as JSON for tingle code_check php_complexity.

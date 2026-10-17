@@ -59,7 +59,11 @@ contract as its authoritative spec.
   `https://github.com/darthjee/tingle/releases/download/<tag>/tingle-<tag>.zip`
   (and `…/tingle-<tag>.zip.sha256` for the sidecar).
 - **CI job**: `build-and-publish-release`, in the `release` workflow,
-  `requires: [build-and-publish-linux-image]`. Uses the `GITHUB_RELEASE_TOKEN`
+  `requires` the four image jobs (`build-and-publish-linux-image`,
+  `build-and-publish-rubycritic-image`,
+  `build-and-publish-js-complexity-image` and
+  `build-and-publish-php-complexity-image`), so a CLI release is never
+  published without its images. Uses the `GITHUB_RELEASE_TOKEN`
   secret (CircleCI project env var, not a context) to authenticate the
   publish step.
 - **Build/publish script**: `scripts/release_cli.sh` (sibling of
