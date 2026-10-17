@@ -104,6 +104,41 @@ FILLED["files"][2]["functions"] = [
 FILLED["files"][11]["functions"] = [{"name": "normalize_a", "line": 3, "ccn": 3, "npath": 4}]
 FILLED["files"][11]["duplication"] = {"lines": 13}
 
+# Per-function data of the grounding image (details.md §3) for the files the
+# spec lists; every other analysed file keeps `functions: null`.
+FUNCTIONS: dict[str, list[dict]] = {
+    "Anon.php": [{"name": "Factory::make", "line": 9, "ccn": 2, "npath": 4}],
+    "Calculator.php": [
+        {"name": "Calculator::add", "line": 7, "ccn": 1, "npath": 1},
+        {"name": "Calculator::sign", "line": 12, "ccn": 3, "npath": 3},
+        {"name": "Calculator::grade", "line": 22, "ccn": 7, "npath": 36},
+    ],
+    "Modern.php": [
+        {"name": "Point::__construct", "line": 21, "ccn": 1, "npath": 1},
+        {"name": "Point::withX", "line": 25, "ccn": 1, "npath": 1},
+    ],
+    "Shapes.php": [
+        {"name": "Square::__construct", "line": 12, "ccn": 1, "npath": 1},
+        {"name": "Square::area", "line": 16, "ccn": 1, "npath": 1},
+        {"name": "Circle::__construct", "line": 24, "ccn": 1, "npath": 1},
+        {"name": "Circle::area", "line": 28, "ccn": 2, "npath": 2},
+        {"name": "Describes::describe", "line": 36, "ccn": 1, "npath": 1},
+    ],
+    "bootstrap.php": [],
+    "empty.php": [],
+    "helpers.php": [
+        {"name": "clamp", "line": 3, "ccn": 3, "npath": 4},
+        {"name": "greet", "line": 14, "ccn": 1, "npath": 1},
+    ],
+    "page.php": [{"name": "title", "line": 4, "ccn": 2, "npath": 2}],
+}
+
+# SAMPLE with the FUNCTIONS data filled in (#351).
+DETAILED: dict = copy.deepcopy(SAMPLE)
+for _entry in DETAILED["files"]:
+    if _entry["path"] in FUNCTIONS:
+        _entry["functions"] = copy.deepcopy(FUNCTIONS[_entry["path"]])
+
 
 def sample(**changes) -> dict:
     """Return a deep copy of SAMPLE with top-level `changes` applied."""

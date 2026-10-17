@@ -4,7 +4,7 @@ The file is read by the generic `code_check.config.load_section`; `SCHEMA`
 and `validate` hold the rules for the `php_complexity` section. The validators
 come from `code_check.validators`. There is no `ext` key: the `.php`
 extension set is fixed, so `ext` is reported as an unknown key. `details` is
-an unknown key until #351. The thresholds are not compared with each other.
+an integer >= 0 or null. The thresholds are not compared with each other.
 `ConfigError` is re-exported from `code_check.config`.
 
 Dependencies: standard library only.
@@ -22,6 +22,7 @@ from code_check.validators import (
     non_empty_str,
     non_negative_int,
     non_negative_number,
+    nullable_non_negative_int,
     one_of,
     validate_section,
 )
@@ -42,6 +43,7 @@ SCHEMA: dict[str, Validator] = {
     "fail_on": one_of(["warn", "error", "critical"], nullable=True),
     "min_level": one_of(["ok", "warn", "error", "critical"]),
     "image": non_empty_str,
+    "details": nullable_non_negative_int,
 }
 
 
@@ -49,6 +51,6 @@ def validate(section: dict, path: Path) -> dict:
     """Check a `php_complexity` section against `SCHEMA` and return it unchanged.
 
     Keys are checked in the section's order. Raises `ConfigError(path, ...)`
-    for the first unknown key (`ext` and `details` included) or bad value.
+    for the first unknown key (`ext` included) or bad value.
     """
     return validate_section(section, SCHEMA, path)

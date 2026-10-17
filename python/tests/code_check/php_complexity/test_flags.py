@@ -16,7 +16,7 @@ def _flag(name):
 def test_flag_names_in_order():
     assert [f["name"] for f in FLAGS] == [
         "path", "--warn", "--error", "--critical", "--top",
-        "--min-level", "--fail-on", "--image", "--exclude", "--no-default-excludes",
+        "--min-level", "--fail-on", "--details", "--image", "--exclude", "--no-default-excludes",
         "--no-gitignore", "--ignore", "--include", "--no-config",
     ]
 
@@ -32,6 +32,7 @@ def test_single_value_flags_default_to_none():
         "top": None,
         "min_level": None,
         "fail_on": None,
+        "details": None,
         "image": None,
         "exclude": None,
         "no_default_excludes": False,
@@ -60,6 +61,7 @@ def test_types():
     assert _flag("--error")["type"] is float
     assert _flag("--critical")["type"] is float
     assert _flag("--top")["type"] is int
+    assert _flag("--details")["type"] is int
     assert _flag("--image")["type"] is str
     assert _flag("--exclude")["type"] is str
     assert _flag("--ignore")["type"] is str
@@ -105,6 +107,13 @@ def test_choices():
         ("--min-level", "Show only files at this level or higher (default: ok)"),
         ("--fail-on", "Exit with status 2 if any file reaches this level or higher"),
         (
+            "--details",
+            (
+                "Show the N most complex functions and methods under each file "
+                "(default when given without N: 5; 0 = all)"
+            ),
+        ),
+        (
             "--image",
             "Docker image to run (default: darthjee/tingle_php_complexity:<tingle version>)",
         ),
@@ -146,9 +155,41 @@ def test_no_config_parses_to_true():
     assert ArgParser(FLAGS).parse(["src", "--no-config"])["no_config"] is True
 
 
-@pytest.mark.parametrize("name", ["--details", "--ext"])
-def test_later_flags_are_absent(name):
-    assert all(f["name"] != name for f in FLAGS)
+def test_ext_flag_is_absent():
+    assert all(f["name"] != "--ext" for f in FLAGS)
+
+
+def test_details_flag_definition():
+    flag = _flag("--details")
+
+    assert flag["nargs"] == "?"
+    assert flag["const"] == Constants.DEFAULT_DETAILS == 5
+    assert flag["default"] is None
+
+
+def test_details_alone_is_the_default():
+    assert ArgParser(FLAGS).parse(["src", "--details"])["details"] == 5
+
+
+def test_details_with_n():
+    assert ArgParser(FLAGS).parse(["src", "--details", "3"])["details"] == 3
+
+
+def test_details_zero_means_all():
+    assert ArgParser(FLAGS).parse(["src", "--details", "0"])["details"] == 0
+
+
+def test_details_absent_is_none():
+    assert ArgParser(FLAGS).parse(["src"])["details"] is None
+
+
+def test_details_before_path_without_n():
+    assert ArgParser(FLAGS).parse(["--details", "--top", "2", "src"])["details"] == 5
+
+
+def test_details_not_an_int_is_a_usage_error():
+    with pytest.raises(SystemExit):
+        ArgParser(FLAGS).parse(["src", "--details", "x"])
 
 
 def test_exclude_help_lists_all_sixteen_defaults():

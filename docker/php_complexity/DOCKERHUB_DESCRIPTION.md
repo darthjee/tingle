@@ -35,8 +35,12 @@ always overrides the user.
   CCN, highest per-unit CCN and NPath, lowest maintainability index and
   logical lines of code) or `null` (parse error, refused line, or a file
   with no class, trait or function). Files that PHP's own parser or PDepend
-  rejects get `"parse_error": true`. `functions`, `duplication` and
-  `tool_versions.jscpd` are reserved and always `null` in this version.
+  rejects get `"parse_error": true`. `functions` lists the file's methods
+  and functions as `{"name", "line", "ccn", "npath"}` entries in source
+  order (`Class::method` or `function`, short names), the same units that
+  add up to `pdepend.ccn`; it is `[]` for a file with none and `null` for
+  a parse error or refused line. `duplication` and `tool_versions.jscpd`
+  are reserved and always `null` in this version.
   `warnings` lists `{"tool", "path", "message"}` entries for refused lines
   (`entrypoint`) and parse errors (`php` or `pdepend`). With empty stdin it
   prints empty `files` and `warnings`.

@@ -17,6 +17,9 @@ class Constants:
     DEFAULT_ERROR: ClassVar[float] = 40
     DEFAULT_CRITICAL: ClassVar[float] = 60
 
+    # --details given without N: show this many functions and methods per file
+    DEFAULT_DETAILS: ClassVar[int] = 5
+
     # file_size's default excludes plus PHP framework output directories
     DEFAULT_EXCLUDES: ClassVar[list[str]] = [
         *FileSizeConstants.DEFAULT_EXCLUDES, "var", "storage", ".phpunit.cache",

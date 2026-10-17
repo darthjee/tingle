@@ -21,7 +21,13 @@ from code_check.php_complexity import docker_runner
 from code_check.php_complexity.constants import Constants
 from code_check.php_complexity.errors import PhpComplexityError
 from code_check.php_complexity.executor import CheckPhpComplexity
-from tests.code_check.php_complexity.sample_output import LINES, SAMPLE, entry, output
+from tests.code_check.php_complexity.sample_output import (
+    DETAILED,
+    LINES,
+    SAMPLE,
+    entry,
+    output,
+)
 
 NO_FILES = "No PHP files found for analysis."
 
@@ -60,7 +66,7 @@ def test_class_attributes():
     assert CheckPhpComplexity.error_class is PhpComplexityError
     assert CheckPhpComplexity.SINGLE_DEFAULTS == {
         "warn": 20, "error": 40, "critical": 60, "top": 0, "fail_on": None,
-        "min_level": "ok", "image": None,
+        "min_level": "ok", "image": None, "details": None,
     }
 
 
@@ -89,7 +95,7 @@ def test_help_exits_zero(capsys):
         [".", "--top", "1.5"],
         [".", "--min-level", "bad"],
         [".", "--fail-on", "ok"],
-        [".", "--details"],
+        [".", "--details", "x"],
         [".", "--unknown"],
     ],
 )
@@ -107,6 +113,7 @@ def test_argparse_usage_errors_exit_one(capsys, args):
         (["--critical", "-3"], "Error: --critical must be a number >= 0"),
         (["--warn", "nan"], "Error: --warn must be a number >= 0"),
         (["--top", "-1"], "Error: --top must be an integer >= 0"),
+        (["--details", "-1"], "Error: --details must be an integer >= 0"),
         (["--image", ""], "Error: --image must not be empty"),
     ],
 )
@@ -120,13 +127,14 @@ def test_validation_errors_exit_one(tmp_path, capsys, args, message):
 
 def test_merge_fills_the_built_in_defaults():
     cli = {"path": "x", "warn": None, "error": 35.5, "critical": None, "top": None,
-           "min_level": None, "fail_on": None, "image": None, "no_config": False}
+           "min_level": None, "fail_on": None, "image": None, "details": None,
+           "no_config": False}
 
     options = CheckPhpComplexity._merge(cli, {})
 
     assert {k: options[k] for k in CheckPhpComplexity.SINGLE_DEFAULTS} == {
         "warn": 20, "error": 35.5, "critical": 60, "top": 0, "fail_on": None,
-        "min_level": "ok", "image": None,
+        "min_level": "ok", "image": None, "details": None,
     }
 
 
@@ -183,8 +191,11 @@ def test_validate_config_uses_the_php_complexity_schema(tmp_path):
     from code_check.config import ConfigError
 
     assert CheckPhpComplexity.validate_config({"warn": 1}, tmp_path / "c.json") == {"warn": 1}
-    with pytest.raises(ConfigError, match="unknown key 'details'"):
-        CheckPhpComplexity.validate_config({"details": 1}, tmp_path / "c.json")
+    assert CheckPhpComplexity.validate_config({"details": 1}, tmp_path / "c.json") == {
+        "details": 1,
+    }
+    with pytest.raises(ConfigError, match="unknown key 'ext'"):
+        CheckPhpComplexity.validate_config({"ext": [".php"]}, tmp_path / "c.json")
 
 
 # --- path and image ----------------------------------------------------------------
@@ -477,6 +488,92 @@ def test_end_to_end_low_thresholds_and_min_level(fixture_dir, capsys, docker):
     assert out[-2] == (
         "Summary: 18 file(s) | 12 OK | 1 WARN | 1 ERROR | 1 CRITICAL | 3 skipped (parse error)"
     )
+
+
+def test_end_to_end_details_under_shown_rows(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(DETAILED))
+
+    status = _run([
+        str(fixture_dir), "--image", "img",
+        "--warn", "4", "--error", "6", "--critical", "10", "--min-level", "warn",
+        "--details", "2",
+    ])
+
+    assert status == 0
+    out = capsys.readouterr().out.splitlines()
+    pad = " " * 16
+    assert out[6:18] == [
+        "🟣 CRITICAL          11      7       36     54     22  fixture/Calculator.php",
+        f"{pad} ccn   7  npath      36  Calculator::grade  (fixture/Calculator.php:22)",
+        f"{pad} ccn   3  npath       3  Calculator::sign  (fixture/Calculator.php:12)",
+        "🔴 ERROR              6      2        2     78     11  fixture/Shapes.php",
+        f"{pad} ccn   2  npath       2  Circle::area  (fixture/Shapes.php:28)",
+        f"{pad} ccn   1  npath       1  Square::__construct  (fixture/Shapes.php:12)",
+        "⚠️  WARN             4      3        4     66     12  fixture/helpers.php",
+        f"{pad} ccn   3  npath       4  clamp  (fixture/helpers.php:3)",
+        f"{pad} ccn   1  npath       1  greet  (fixture/helpers.php:14)",
+        "⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php",
+        "⛔ PARSE              -      -        -      -      -  fixture/broken.php",
+        "⛔ PARSE              -      -        -      -      -  fixture/lenient.php",
+    ]
+
+
+def test_end_to_end_details_alone_means_five(fixture_dir, capsys, docker):
+    functions = [
+        {"name": f"f{i}", "line": i, "ccn": 1, "npath": 1} for i in range(1, 9)
+    ]
+    data = output([entry("Calculator.php", 8, functions=functions)])
+    docker.configure(stdout=json.dumps(data))
+
+    assert _run([str(fixture_dir / "Calculator.php"), "--image", "img", "--details"]) == 0
+
+    out = capsys.readouterr().out
+    assert [f"f{i}  (Calculator.php:{i})" in out for i in range(1, 9)] == [True] * 5 + [False] * 3
+
+
+def test_end_to_end_details_zero_lists_every_unit(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(DETAILED))
+
+    assert _run([str(fixture_dir), "--image", "img", "--details", "0"]) == 0
+
+    out = capsys.readouterr().out
+    for name in ("Square::__construct", "Square::area", "Circle::__construct",
+                 "Circle::area", "Describes::describe"):
+        assert f"  {name}  (fixture/Shapes.php:" in out
+
+
+def test_end_to_end_without_details_prints_no_unit_lines(fixture_dir, capsys, docker):
+    docker.configure(stdout=json.dumps(DETAILED))
+
+    assert _run([str(fixture_dir), "--image", "img"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Calculator::grade" not in out
+    assert "unavailable" not in out
+
+
+def test_end_to_end_details_with_an_older_image_shows_the_note(fixture_dir, capsys, docker):
+    # SAMPLE is what an image older than #351 emits: `functions: null` everywhere.
+    status = _run([
+        str(fixture_dir), "--image", "img:old", "--min-level", "ok", "--top", "1",
+        "--details",
+    ])
+
+    assert status == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[6] == "✅ OK                11      7       36     54     22  fixture/Calculator.php"
+    assert out[7] == f"{' ' * 16} (per-function data unavailable)"
+    assert out[8].startswith("⛔ PARSE")
+
+
+@pytest.mark.parametrize("details", [None, "0"])
+def test_details_do_not_change_the_exit_code(fixture_dir, capsys, docker, details):
+    docker.configure(stdout=json.dumps(DETAILED))
+    extra = [] if details is None else ["--details", details]
+
+    assert _run([str(fixture_dir), "--image", "img", "--warn", "11", "--fail-on", "warn",
+                 *extra]) == 2
+    assert _run([str(fixture_dir), "--image", "img", "--fail-on", "warn", *extra]) == 0
 
 
 def test_end_to_end_pulls_missing_image(fixture_dir, capsys, docker):

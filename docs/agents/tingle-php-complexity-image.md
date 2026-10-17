@@ -12,8 +12,8 @@ image (`tingle linux`) is described in
 images are released by the same script and the same CircleCI workflow.
 
 The image currently runs PHP's parser (the parse check) and PDepend
-(complexity). It has no per-function data and no duplication data yet:
-`functions`, `duplication` and `tool_versions.jscpd` are always `null` (see
+(complexity, per file and per function). It has no duplication data yet:
+`duplication` and `tool_versions.jscpd` are always `null` (see
 [Merged JSON](#merged-json)).
 
 - **Image**: `darthjee/tingle_php_complexity` on Docker Hub.
@@ -170,6 +170,23 @@ docker run --rm -i --pull never --network none --security-opt no-new-privileges 
 
   Without a file entry (top-level code only, an empty file, only enums or
   interfaces), `pdepend` is `null`.
+
+  `functions` lists the same counted units, one entry each, read from the
+  same summary XML:
+
+  | Key | Value |
+  |-----|-------|
+  | `name` | `<class or trait @name>::<method @name>` for a method, `<function @name>` for a function. Short names, without the namespace (UTF-8). |
+  | `line` | The unit's `@start`: the 1-based line of the declaration in the original file (staging keeps the bytes, so CRLF and BOM files keep their lines). |
+  | `ccn` | The unit's `@ccn` (int ≥ 1). |
+  | `npath` | The unit's `@npath` (int ≥ 1), written as a JSON integer of any size (it can exceed 2^53). |
+
+  The list is in source order (by `line`, then `name`). It is `[]` when the
+  file has no counted unit, including when `pdepend` is `null` (top-level
+  code only, an empty file). It is `null` for a parse error (PHP or PDepend)
+  and for a refused line. For every analysed file,
+  `sum(f.ccn for f in functions) == pdepend.ccn` (`0` when `pdepend` is
+  `null`).
 - **stdout**: exactly one JSON object followed by `\n`, the merged JSON,
   encoded with `JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`:
 
@@ -181,10 +198,14 @@ docker run --rm -i --pull never --network none --security-opt no-new-privileges 
         "path": "Calculator.php",
         "parse_error": false,
         "pdepend": {"ccn": 11, "max_ccn": 7, "max_npath": 36, "min_mi": 53.875623305512, "lloc": 22},
-        "functions": null,
+        "functions": [
+          {"name": "Calculator::add", "line": 7, "ccn": 1, "npath": 1},
+          {"name": "Calculator::sign", "line": 12, "ccn": 3, "npath": 3},
+          {"name": "Calculator::grade", "line": 22, "ccn": 7, "npath": 36}
+        ],
         "duplication": null
       },
-      {"path": "bootstrap.php", "parse_error": false, "pdepend": null, "functions": null, "duplication": null},
+      {"path": "bootstrap.php", "parse_error": false, "pdepend": null, "functions": [], "duplication": null},
       {"path": "broken.php", "parse_error": true, "pdepend": null, "functions": null, "duplication": null}
     ],
     "warnings": [
@@ -221,7 +242,7 @@ docker run --rm -i --pull never --network none --security-opt no-new-privileges 
 | `files[].path` | str | The input line, exactly as received. |
 | `files[].parse_error` | bool | `true` when PHP's parser or PDepend rejected the file. |
 | `files[].pdepend` | object or `null` | See [Contract](#contract). `null` when `parse_error` is `true`, when the line was refused, or when PDepend listed no file entry for it. |
-| `files[].functions` | `null` | Always `null` in this version (reserved). |
+| `files[].functions` | list or `null` | The counted units, `{"name": str, "line": int, "ccn": int, "npath": int}` each, in source order (see [Contract](#contract)). `[]` for an analysed file with no counted unit (also when `pdepend` is `null`); `null` when `parse_error` is `true` or the line was refused. |
 | `files[].duplication` | `null` | Always `null` in this version (reserved). |
 | `warnings` | list | The `entrypoint` and `php` warnings in input order, then the `pdepend` warnings (per-file ones in input order, then path-less ones in output order). |
 | `warnings[].tool` | str | `"entrypoint"`, `"php"` or `"pdepend"`. |
@@ -238,13 +259,13 @@ Rules:
 
 **Per-file states**:
 
-| State | `parse_error` | `pdepend` | `warnings` entry for the path |
-|-------|---------------|-----------|-------------------------------|
-| Normal | `false` | object | none |
-| Rejected by PHP | `true` | `null` | `tool: "php"` |
-| Rejected by PDepend | `true` | `null` | `tool: "pdepend"` |
-| No class, trait or function | `false` | `null` | none |
-| Refused line | `false` | `null` | `tool: "entrypoint"` |
+| State | `parse_error` | `pdepend` | `functions` | `warnings` entry for the path |
+|-------|---------------|-----------|-------------|-------------------------------|
+| Normal | `false` | object | list | none |
+| Rejected by PHP | `true` | `null` | `null` | `tool: "php"` |
+| Rejected by PDepend | `true` | `null` | `null` | `tool: "pdepend"` |
+| No class, trait or function | `false` | `null` | `[]` | none |
+| Refused line | `false` | `null` | `null` | `tool: "entrypoint"` |
 
 ## Runtime user and hardening
 
@@ -346,27 +367,27 @@ followed by the six `PHP_COMPLEXITY_HOSTILE_LINES`: an empty line,
 (does not exist) and `notes.txt` (a fixture file that is not PHP). The
 output is checked with `python3`. The fixture:
 
-| File | What it proves | `parse_error` | `pdepend` (`ccn`, `max_ccn`, `max_npath`, `round(min_mi, 1)`, `lloc`) |
-|------|----------------|---------------|------------------------------------------------------------------------|
-| `Anon.php` | A method returning an anonymous class: the bare `label` is not counted. | `false` | 2, 2, 4, 66.3, 6 |
-| `CVS/legacy.php` | PDepend's `CVS` filter is bypassed. | `false` | 2, 2, 2, 79.5, 2 |
-| `Calculator.php` | A class with methods of CCN 1, 3 and 7. | `false` | 11, 7, 36, 53.9, 22 |
-| `Modern.php` | PHP 8.3 syntax (enum, readonly class, typed constant); enum methods not counted. | `false` | 2, 1, 1, 79.3, 11 |
-| `Shapes.php` | An interface, two classes and a trait in one file. | `false` | 6, 2, 2, 77.6, 11 |
-| `UPPER.PHP` | Upper-case extension; PDepend's suffix filter is bypassed. | `false` | 2, 2, 2, 77.7, 2 |
-| `attr_anon.php` | Valid PHP that PDepend rejects. | `true` | `null` |
-| `bom.php` | UTF-8 BOM. | `false` | 2, 2, 2, 79.5, 2 |
-| `bootstrap.php` | Top-level code only. | `false` | `null` |
-| `broken.php` | A syntax error. | `true` | `null` |
-| `crlf.php` | CRLF line endings. | `false` | 2, 2, 2, 79.5, 2 |
-| `dup_a.php`, `dup_b.php` | Two near-identical functions. | `false` | 3, 3, 4, 58.1, 9 |
-| `empty.php` | Empty (0 bytes). | `false` | `null` |
-| `helpers.php` | Two functions plus top-level closures (not counted). | `false` | 4, 3, 4, 66.5, 12 |
-| `latin1.php` | ISO-8859-1 bytes. | `false` | 1, 1, 1, 83.1, 2 |
-| `lenient.php` | Invalid PHP that PDepend accepts. | `true` | `null` |
-| `page.php` | Mixed HTML/PHP with one inline function. | `false` | 2, 2, 2, 89.7, 4 |
-| `welcome.blade.php` | A Blade template, refused. | `false` | `null` |
-| the six hostile lines | Refused. | `false` | `null` |
+| File | What it proves | `parse_error` | `pdepend` (`ccn`, `max_ccn`, `max_npath`, `round(min_mi, 1)`, `lloc`) | `functions` (name and line) |
+|------|----------------|---------------|------------------------------------------------------------------------|-----------------------------|
+| `Anon.php` | A method returning an anonymous class: the bare `label` is not counted. | `false` | 2, 2, 4, 66.3, 6 | `Factory::make` (9, ccn 2, npath 4) only |
+| `CVS/legacy.php` | PDepend's `CVS` filter is bypassed. | `false` | 2, 2, 2, 79.5, 2 | `legacy` (3) |
+| `Calculator.php` | A class with methods of CCN 1, 3 and 7. | `false` | 11, 7, 36, 53.9, 22 | `Calculator::add` (7, ccn 1, npath 1), `Calculator::sign` (12, ccn 3, npath 3), `Calculator::grade` (22, ccn 7, npath 36) |
+| `Modern.php` | PHP 8.3 syntax (enum, readonly class, typed constant); enum methods not counted. | `false` | 2, 1, 1, 79.3, 11 | `Point::__construct` (21), `Point::withX` (25); no `Suit::color` |
+| `Shapes.php` | An interface, two classes and a trait in one file. | `false` | 6, 2, 2, 77.6, 11 | `Square::__construct` (12), `Square::area` (16), `Circle::__construct` (24), `Circle::area` (28, ccn 2), `Describes::describe` (36) |
+| `UPPER.PHP` | Upper-case extension; PDepend's suffix filter is bypassed. | `false` | 2, 2, 2, 77.7, 2 | `shout` (3) |
+| `attr_anon.php` | Valid PHP that PDepend rejects. | `true` | `null` | `null` |
+| `bom.php` | UTF-8 BOM. | `false` | 2, 2, 2, 79.5, 2 | `bom` (3) |
+| `bootstrap.php` | Top-level code only. | `false` | `null` | `[]` |
+| `broken.php` | A syntax error. | `true` | `null` | `null` |
+| `crlf.php` | CRLF line endings. | `false` | 2, 2, 2, 79.5, 2 | `crlf` (3) |
+| `dup_a.php`, `dup_b.php` | Two near-identical functions. | `false` | 3, 3, 4, 58.1, 9 | `normalize_a` (3), `normalize_b` (3) |
+| `empty.php` | Empty (0 bytes). | `false` | `null` | `[]` |
+| `helpers.php` | Two functions plus top-level closures (not counted). | `false` | 4, 3, 4, 66.5, 12 | `clamp` (3, ccn 3, npath 4), `greet` (14) |
+| `latin1.php` | ISO-8859-1 bytes. | `false` | 1, 1, 1, 83.1, 2 | `latin` (4) |
+| `lenient.php` | Invalid PHP that PDepend accepts. | `true` | `null` | `null` |
+| `page.php` | Mixed HTML/PHP with one inline function. | `false` | 2, 2, 2, 89.7, 4 | `title` (4) |
+| `welcome.blade.php` | A Blade template, refused. | `false` | `null` | `null` |
+| the six hostile lines | Refused. | `false` | `null` | `null` |
 
 It asserts that:
 
@@ -380,7 +401,13 @@ It asserts that:
   `pdepend` object has exactly the keys `ccn`, `max_ccn`, `max_npath`,
   `min_mi` and `lloc`, the ints are ints (not booleans), and `min_mi` is
   compared with `round(..., 1)`;
-- `functions` and `duplication` are present and `null` on every entry;
+- `functions` matches the table: the names, lines and `ccn` of every entry
+  for `Calculator.php`, `Shapes.php`, `Modern.php`, `Anon.php` and
+  `helpers.php`; `[]` for `bootstrap.php` and `empty.php`; `null` for the
+  parse errors and refused lines; every `line`, `ccn` and `npath` is an int
+  ≥ 1 (not a boolean); and `sum(ccn) == pdepend.ccn` for every analysed
+  file;
+- `duplication` is present and `null` on every entry;
 - `warnings` is exactly this list, in this order:
 
   | `tool` | `path` | `message` |

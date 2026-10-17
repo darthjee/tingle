@@ -40,7 +40,7 @@ def _run(args) -> int:
 
 def _cli(**overrides) -> dict:
     cli = {"path": "x", "warn": None, "error": None, "critical": None, "top": None,
-           "min_level": None, "fail_on": None, "image": None,
+           "min_level": None, "fail_on": None, "image": None, "details": None,
            "exclude": None, "no_default_excludes": False, "no_gitignore": False,
            "ignore": None, "include": None, "no_config": False}
     cli.update(overrides)
@@ -126,6 +126,7 @@ def test_cli_overrides_config_single_values(project, capsys, no_docker):
         ("fail_on", None, "error", "critical"),
         ("min_level", "ok", "warn", "error"),
         ("image", None, "img:config", "img:cli"),
+        ("details", None, 3, 7),
     ],
 )
 def test_single_value_precedence(key, default, config_value, cli_value):
@@ -137,6 +138,31 @@ def test_single_value_precedence(key, default, config_value, cli_value):
 
 def test_cli_zero_top_wins_over_config():
     assert CheckPhpComplexity._merge(_cli(top=0), {"top": 5})["top"] == 0
+
+
+def test_cli_zero_details_wins_over_config():
+    assert CheckPhpComplexity._merge(_cli(details=0), {"details": 5})["details"] == 0
+
+
+def test_config_null_details_means_off():
+    assert CheckPhpComplexity._merge(_cli(), {"details": None})["details"] is None
+
+
+def test_config_details_reaches_the_reporter(monkeypatch):
+    _write_config({"php_complexity": {"details": 2}})
+    seen = {}
+
+    def fake_execute(self, options, config_file=None):
+        seen.update(options=options)
+        return 0
+
+    monkeypatch.setattr(CheckPhpComplexity, "_execute", fake_execute)
+
+    assert _run(["src"]) == 0
+    assert seen["options"]["details"] == 2
+
+    assert _run(["src", "--details"]) == 0
+    assert seen["options"]["details"] == Constants.DEFAULT_DETAILS
 
 
 def test_config_null_means_unset():
@@ -391,7 +417,7 @@ def test_load_config_returns_section_and_path():
         ("[1, 2]", "top level must be an object"),
         ({"php_complexity": []}, "'php_complexity' must be an object"),
         ({"php_complexity": {"ext": [".php"]}}, "unknown key 'ext'"),
-        ({"php_complexity": {"details": 5}}, "unknown key 'details'"),
+        ({"php_complexity": {"details": -1}}, "'details' must be an integer >= 0 or null"),
         ({"php_complexity": {"bogus": 1}}, "unknown key 'bogus'"),
         ({"php_complexity": {"warn": -1}}, "'warn' must be a number >= 0"),
         ({"php_complexity": {"warn": True}}, "'warn' must be a number >= 0"),
@@ -459,6 +485,14 @@ def test_cli_validation_still_applies_after_merge(tmp_path, capsys):
     assert _run([str(tmp_path / "missing"), "--top", "-1"]) == 1
 
     assert capsys.readouterr().err.strip() == "Error: --top must be an integer >= 0"
+
+
+def test_negative_cli_details_is_rejected_after_merge(tmp_path, capsys):
+    _write_config({"php_complexity": {"details": 3}})
+
+    assert _run([str(tmp_path / "missing"), "--details", "-1"]) == 1
+
+    assert capsys.readouterr().err.strip() == "Error: --details must be an integer >= 0"
 
 
 # --- image and VERSION ------------------------------------------------------------

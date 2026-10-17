@@ -162,18 +162,27 @@ function tpc_staged_number(string $name, array $staged): int
  * unchecked: PDepend still writes partial data for it (for example a class
  * with start="0").
  *
- * `max_npath` is kept as a decimal digit string (it may not fit a PHP int);
- * see tpc_encode_output().
+ * The same walk collects one `{name, line, ccn, npath}` entry per counted
+ * unit (details.md section 3): `<class or trait>::<method>` or `<function>`
+ * (short names), sorted by line, then name. Every file PDepend listed gets a
+ * list, possibly empty.
+ *
+ * `max_npath` and each function's `npath` are kept as decimal digit strings
+ * (they may not fit a PHP int); see tpc_encode_output().
  *
  * @param array<int, true> $staged
  * @param array<int, string> $rejected files PDepend rejected, by line number
- * @return array<int, array{ccn: int, max_ccn: ?int, max_npath: ?string, min_mi: ?float, lloc: int}>
+ * @return array{
+ *     0: array<int, array{ccn: int, max_ccn: ?int, max_npath: ?string, min_mi: ?float, lloc: int}>,
+ *     1: array<int, list<array{name: string, line: int, ccn: int, npath: string}>>
+ * } the `pdepend` objects and the `functions` lists, by line number
  */
 function tpc_summarize(DOMDocument $doc, array $staged, array $rejected): array
 {
     $xpath = new DOMXPath($doc);
 
     $result = [];
+    $functions = [];
     foreach ($xpath->query('/metrics/files/file') as $file) {
         $n = tpc_staged_number($file->getAttribute('name'), $staged);
         if (isset($rejected[$n])) {
@@ -184,6 +193,7 @@ function tpc_summarize(DOMDocument $doc, array $staged, array $rejected): array
             throw new EntrypointError('pdepend summary XML has a malformed entry');
         }
         $result[$n] = ['ccn' => 0, 'max_ccn' => null, 'max_npath' => null, 'min_mi' => null, 'lloc' => (int) $lloc];
+        $functions[$n] = [];
     }
 
     $owners = $xpath->query('/metrics/package/class | /metrics/package/trait | /metrics/package/function');
@@ -219,19 +229,36 @@ function tpc_summarize(DOMDocument $doc, array $staged, array $rejected): array
         if (!isset($result[$n])) {
             throw new EntrypointError('pdepend summary XML has a malformed entry');
         }
+        $prefix = $owner->nodeName === 'function' ? '' : tpc_unit_name($owner) . '::';
         foreach ($units as $unit) {
-            tpc_add_unit($result[$n], $unit);
+            $functions[$n][] = tpc_add_unit($result[$n], $unit, $prefix . tpc_unit_name($unit));
         }
     }
-    return $result;
+    foreach ($functions as &$list) {
+        usort($list, static fn (array $a, array $b): int => $a['line'] <=> $b['line'] ?: strcmp($a['name'], $b['name']));
+    }
+    unset($list);
+    return [$result, $functions];
+}
+
+/** The `name` attribute of a class, trait, method or function, or fails. */
+function tpc_unit_name(DOMElement $element): string
+{
+    $name = $element->getAttribute('name');
+    if ($name === '') {
+        throw new EntrypointError('pdepend summary XML has a malformed entry');
+    }
+    return $name;
 }
 
 /**
- * Adds one counted unit to a file's `pdepend` object.
+ * Adds one counted unit to a file's `pdepend` object and returns its
+ * `functions` entry (`npath` kept as a digit string).
  *
  * @param array{ccn: int, max_ccn: ?int, max_npath: ?string, min_mi: ?float, lloc: int} $entry
+ * @return array{name: string, line: int, ccn: int, npath: string}
  */
-function tpc_add_unit(array &$entry, DOMElement $unit): void
+function tpc_add_unit(array &$entry, DOMElement $unit, string $name): array
 {
     $start = $unit->getAttribute('start');
     $ccn = $unit->getAttribute('ccn');
@@ -261,6 +288,7 @@ function tpc_add_unit(array &$entry, DOMElement $unit): void
             }
         }
     }
+    return ['name' => $name, 'line' => (int) $start, 'ccn' => $ccn, 'npath' => $npath];
 }
 
 /** Compares two decimal digit strings without leading zeros. */
