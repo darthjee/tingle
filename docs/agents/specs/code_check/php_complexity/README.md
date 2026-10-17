@@ -133,7 +133,7 @@ There is no `--ext` flag and no `ext` config key: the extension is fixed
 
 The defaults `warn=20 | error=40 | critical=60` from #344 are **kept**. They
 were checked with the pinned PDepend through the staged-copy flow
-([image.md](image.md#5-staged-tree)) on three shallow clones, selected the
+([image.md](image.md#5-parse-check-and-staged-tree)) on three shallow clones, selected the
 way #348 and #349 select files (`.php` only, `*.blade.php` skipped, the
 default excludes and the `bootstrap/cache` rule applied; tests included,
 because a user running `tingle code_check php_complexity .` sees them too).
@@ -189,9 +189,11 @@ Matching is on the file name, case-insensitive, as in `file_size`'s
   template.
 - The same rules apply to a single-file `<path>`: a `*.blade.php` or a
   non-`.php` file leaves nothing to analyse (exit 0).
-- The image does not skip Blade templates: that is the host's job. A Blade
-  file that reaches the image is analysed as plain PHP (in the grounding run
-  it parsed as inline HTML and had no function).
+- Skipping is the host's job, but the image also refuses a `*.blade.php`
+  line (defence in depth, message `Blade template`, see
+  [image.md](image.md#4-entrypoint-input)). Without that rule, PDepend would
+  read a Blade file as inline HTML and report nothing for it (checked in the
+  grounding run).
 - Details: [selection.md](selection.md#2-extensions-and-skip-rules).
 
 ## 5. Default excludes
@@ -303,7 +305,7 @@ these keys, and no others:
   UTF-8, POSIX separators, each line ending in `\n`, sorted.
 - **Parse check:** each accepted file is parsed by PHP's own parser first; a
   file it rejects is a parse error and is never staged. See
-  [image.md](image.md#5-staged-tree).
+  [image.md](image.md#5-parse-check-and-staged-tree).
 - **Tool input:** the entrypoint **copies** (never symlinks) each accepted
   line `<n>` (1-based stdin line number) to `/tmp/stage/<n>.php`, runs
   PDepend (and later jscpd) on `/tmp/stage`, never on `/src`, and maps the
@@ -438,7 +440,7 @@ is binding. "Grounding" means the run recorded in
 [image.md](image.md#10-grounding-run).
 
 1. **PHP's parser decides parse errors, not only PDepend** (#346, #348,
-   [image.md](image.md#5-staged-tree)). #344: "a file PDepend can't parse is
+   [image.md](image.md#5-parse-check-and-staged-tree)). #344: "a file PDepend can't parse is
    shown as a `⛔ PARSE` row". Grounding: PDepend 3.0.0 accepted
    `return $x /;` (`lenient.php`) without any message and reported metrics
    for it. **Resolution:** the entrypoint runs `token_get_all($code,
@@ -483,12 +485,14 @@ is binding. "Grounding" means the run recorded in
 7. **Enum methods are not counted, and some anonymous-class methods neither**
    (#346, #348). Grounding: PDepend 3.0.0 has no enum visitor in its summary
    report, so enum methods appear as bare `<method>` elements directly under
-   `<package>`, with no `<file>` (`Suit::color` in `Modern.php`). Methods of
-   an anonymous class whose parent class or trait is in the analysed set
-   appear the same way; depending on the case their decisions are already
-   folded into the enclosing method's `ccn` (a probe file) or not
-   (`Anon.php`: `make` ccn 2, the bare `label` ccn 2). Calibration: 572 bare
-   methods in `laravel/framework`, 107 in `symfony/console`.
+   `<package>`, with no `<file>` (`Suit::color` in `Modern.php`). Some
+   anonymous-class methods appear the same way. Anonymous-class methods are
+   reported inconsistently: depending on the case their decisions are folded
+   into the enclosing method's `ccn` or not, and a bare copy may or may not
+   be emitted (`Anon.php`: `make` ccn 2 without the bare `label`'s
+   decision; a probe: folded **and** bare; see
+   [image.md](image.md#10-grounding-run)). Calibration: 572 bare methods in
+   `laravel/framework`, 107 in `symfony/console`.
    **Resolution:** bare `<method>` elements are never counted: they cannot be
    mapped to a file, and counting them could count a decision twice. A file
    whose only methods are enum methods has total CCN 0. The guide documents
