@@ -1,0 +1,12 @@
+{
+    "name": "tingle/php_complexity",
+    "type": "project",
+    "require": {
+        "pdepend/pdepend": "3.0.0"
+    },
+    "config": {
+        "platform": {
+            "php": "8.5.11"
+        }
+    }
+}
