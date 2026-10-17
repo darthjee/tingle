@@ -83,6 +83,7 @@ limit on the number of files, and the run has no timeout.
 | `--no-gitignore` | off | Do not skip files ignored by git (`.gitignore`, `.git/info/exclude`, global excludes). |
 | `--ignore GLOB` | none | Skip files whose path relative to `<path>` matches `GLOB`. Can be repeated. |
 | `--include GLOB` | all | Only analyse PHP files whose path relative to `<path>` matches `GLOB`. Can be repeated. |
+| `--no-config` | off | Do not read `~/.tingle/code_check/config.json` (see [Configuration file](#configuration-file)). |
 
 The thresholds accept decimals (`--warn 22.5`) and must be `0` or more.
 `--top` must be a whole number, `0` or more, and `--image` must not be
@@ -92,6 +93,11 @@ empty. The order of the thresholds is not checked: keep `warn` < `error` <
 The file selection options are described in
 [File selection](#file-selection). There is no option to change the analysed
 extension (no `--ext`).
+
+The defaults in this table are the built-in ones. Every option except
+`--no-config` can also be set in the
+[configuration file](#configuration-file); an option given on the command
+line wins over it.
 
 ### `--min-level` and `--top`
 
@@ -505,6 +511,191 @@ you will refactor, so you may want to leave both out:
   (such as `var/` or `build/`), or analyse only your source folder, for
   example `tingle code_check php_complexity ./src`.
 
+## Configuration file
+
+If you always pass the same options, store them once in a configuration
+file instead:
+
+```
+~/.tingle/code_check/config.json
+```
+
+This is the same file that [`file_size`](file_size.md#configuration-file),
+[`rubycritic`](rubycritic.md#configuration-file) and
+[`js_complexity`](js_complexity.md#configuration-file) use. It is looked up
+in your home directory (`$HOME`); its location cannot be changed, and there
+is no per-project configuration file. The file is optional: if it does not
+exist, the built-in defaults are used and nothing is printed about it.
+
+The file holds a JSON object. The options for this command go under the
+`php_complexity` key:
+
+```json
+{
+  "php_complexity": {
+    "warn": 25,
+    "top": 20,
+    "ignore": ["tests/**"],
+    "fail_on": "error"
+  }
+}
+```
+
+Other top-level keys (such as `file_size`, `rubycritic` or `js_complexity`)
+are ignored: they belong to the other
+[`tingle code_check`](../code_check.md) subcommands that share this file,
+and those subcommands ignore the `php_complexity` key in turn. If the file
+exists but has no `php_complexity` key, the built-in defaults are used, as
+if the file did not exist. An empty section (`"php_complexity": {}`) is
+valid: it changes nothing, but it counts as loaded, so the header shows the
+`Config:` line (see [Header](#header)).
+
+### Keys
+
+Every key is optional and matches a command-line option:
+
+| Key | Type | Default | Option |
+| --- | --- | --- | --- |
+| `warn` | number >= 0 | `20` | `--warn` |
+| `error` | number >= 0 | `40` | `--error` |
+| `critical` | number >= 0 | `60` | `--critical` |
+| `top` | integer >= 0 | `0` | `--top` |
+| `fail_on` | `"warn"`, `"error"`, `"critical"` or `null` | `null` | `--fail-on` (`null` means no gate) |
+| `min_level` | `"ok"`, `"warn"`, `"error"` or `"critical"` | `"ok"` | `--min-level` |
+| `image` | non-empty string | `darthjee/tingle_php_complexity:<tingle version>` | `--image` |
+| `exclude` | list of strings | `[]` | `--exclude` (comma-separated on the command line) |
+| `ignore` | list of strings | `[]` | `--ignore` |
+| `include` | list of strings | `[]` | `--include` |
+| `no_default_excludes` | `true` or `false` | `false` | `--no-default-excludes` (`true` drops the default directories and the `bootstrap/cache` rule) |
+| `gitignore` | `true` or `false` | `true` | `--no-gitignore` (inverted: `"gitignore": false` is the same as `--no-gitignore`) |
+
+Notes:
+
+- The thresholds accept decimals (`"critical": 60.5`). Numbers must be
+  real, finite JSON numbers: `true`, `"20"`, `NaN` and `Infinity` are
+  errors. `top` must be a whole number (`"top": 20.0` is an error).
+- A `null` value for a single-value key means "not set": the built-in
+  default (or the command-line option) is used.
+- `image` must not be empty or only spaces. Setting it also means tingle
+  does not need to read its version file to pick the default image.
+- In lists, write each item as its own string:
+  `"exclude": ["tests", "fixtures"]`, not `"tests,fixtures"`. An empty list
+  is valid and adds nothing.
+- There is **no `ext` key**: the analysed extension is fixed (see
+  [Extension](#extension)), so `"ext"` is reported as `unknown key 'ext'`.
+  The path to analyse is not a config key either: you always give it on the
+  command line.
+- `no_default_excludes: true` turns off the `bootstrap/cache` rule too, but
+  never the Blade skip (see [Skip rules](#skip-rules)). There is no key for
+  either rule on its own.
+- The order of the thresholds is not checked, as on the command line.
+
+### How the config and the command line combine
+
+- **Single values** (`warn`, `error`, `critical`, `top`, `fail_on`,
+  `min_level`, `image`): the command line wins over the config, which wins
+  over the built-in default.
+- **Lists** (`exclude`, `ignore`, `include`): the config values come first,
+  then the command-line values are **added**. Duplicates are dropped (the
+  first occurrence is kept). The command line never replaces a config list.
+  The [default excludes](#--exclude) are added on top, unless
+  `no_default_excludes` ends up true.
+- **`no_default_excludes` and `gitignore`**: the config can set either
+  value. `--no-default-excludes` and `--no-gitignore` can only turn the
+  behaviour off, and they win over the config: `--no-gitignore` skips the
+  `.gitignore` step even when the config says `"gitignore": true`, but there
+  is no option to turn it back on when the config says `"gitignore": false`.
+
+For example, with this file:
+
+```json
+{
+  "js_complexity": {
+    "warn": 40
+  },
+  "php_complexity": {
+    "warn": 25,
+    "error": 50,
+    "critical": 80.5,
+    "top": 20,
+    "exclude": ["generated"],
+    "no_default_excludes": false,
+    "ignore": ["tests/**"],
+    "include": ["src/**"],
+    "gitignore": true,
+    "fail_on": "error",
+    "min_level": "warn",
+    "image": "darthjee/tingle_php_complexity:0.9.0"
+  }
+}
+```
+
+this command:
+
+```
+tingle code_check php_complexity . --warn 30 --exclude fixtures --ignore '**/legacy/**'
+```
+
+runs with:
+
+- `warn=30` (the command line wins), `error=50` and `critical=80.5` (from
+  the config);
+- the default excludes (and the `bootstrap/cache` rule) plus `generated`
+  and `fixtures`;
+- the ignore globs `tests/**` and `**/legacy/**`;
+- the image `darthjee/tingle_php_complexity:0.9.0`, and the other values
+  (`top`, `include`, `fail_on`, `min_level`) from the config.
+
+The `js_complexity` section is ignored here.
+
+### Running without the config: `--no-config`
+
+Some config values cannot be undone from the command line. For example,
+there is no option to turn the gate off when the config sets `fail_on`, or
+to turn `.gitignore` back on when it sets `"gitignore": false`. Pass
+`--no-config` to ignore the file completely:
+
+```
+tingle code_check php_complexity . --no-config
+```
+
+With `--no-config`, the file is not read or checked at all (even an invalid
+one), and only the built-in defaults and the options you pass are used. No
+`Config:` line is printed.
+
+### Config errors
+
+The file is checked every time it is read, even when you pass every option
+on the command line. If something is wrong, the command prints one error
+line in red on standard error and exits with status `1`, before selecting
+any file or calling Docker:
+
+```
+Error: /home/me/.tingle/code_check/config.json: <reason>
+```
+
+| Problem | Reason |
+| --- | --- |
+| The file cannot be read | `cannot read file: <OS error>` |
+| The file is not valid JSON | `invalid JSON: <details>` |
+| The top level is not a JSON object | `top level must be an object` |
+| The `php_complexity` section is not a JSON object | `'php_complexity' must be an object` |
+| An unknown key, such as a typo or `ext` | `unknown key '<key>'` |
+| A wrong type or value | for example `'warn' must be a number >= 0`, `'top' must be an integer >= 0`, `'exclude' must be a list of strings`, `'gitignore' must be a boolean`, `'image' must be a non-empty string`, `'fail_on' must be one of warn, error, critical or null` or `'min_level' must be one of ok, warn, error or critical` |
+
+For example:
+
+```
+Error: /home/me/.tingle/code_check/config.json: unknown key 'ext'
+Error: /home/me/.tingle/code_check/config.json: 'warn' must be a number >= 0
+Error: /home/me/.tingle/code_check/config.json: 'php_complexity' must be an object
+```
+
+Only the first problem is reported. Fix the file, or run with `--no-config`
+in the meantime. An invalid `php_complexity` section only breaks this
+command: `file_size`, `rubycritic` and `js_complexity` read only their own
+sections, and the reverse is true too.
+
 ## Reading the output
 
 Sample run against a small project, with the default thresholds:
@@ -576,6 +767,10 @@ CCN: avg 2.80 | max 11.00
 - `Analyzing:` shows the target as an absolute path.
 - `Thresholds:` shows the `warn`, `error` and `critical` values in use.
 - `Image:` shows the Docker image that runs PHP and PDepend.
+- `Config:` (dimmed) shows the path of the configuration file, when a
+  `php_complexity` section was loaded from it, even an empty one. It is not
+  printed when the file or the section does not exist, or with
+  `--no-config` (see [Configuration file](#configuration-file)).
 
 ### Columns
 
@@ -741,6 +936,12 @@ Run a locally built image:
 tingle code_check php_complexity ./src --image tingle_php_complexity:dev
 ```
 
+Ignore your configuration file for one run:
+
+```
+tingle code_check php_complexity . --no-config
+```
+
 ### Using in CI
 
 Fail the build when any file under `./src` reaches the ERROR threshold:
@@ -764,10 +965,11 @@ Errors are printed on **standard error** as `Error: <message>`.
 | Negative threshold | `Error: --warn must be a number >= 0` (`--error`, `--critical` likewise) | `1` |
 | Negative `--top` | `Error: --top must be an integer >= 0` | `1` |
 | Empty `--image` | `Error: --image must not be empty` | `1` |
+| Invalid configuration file (unreadable, bad JSON, unknown key, wrong value, ...) | `Error: <config file>: <reason>` (see [Config errors](#config-errors)) | `1` |
 | `<path>` does not exist | `Error: path not found: <absolute path>` | `1` |
 | `<path>` cannot be read | `Error: path not readable: <absolute path>` | `1` |
 | The folder to mount contains `:` | `Error: cannot mount <folder>: Docker volume paths cannot contain ':'` | `1` |
-| Tingle version unreadable, and no `--image` | `Error: cannot read the tingle version from <file>; use --image to choose the image` | `1` |
+| Tingle version unreadable, and no `--image` or `image` in the config | `Error: cannot read the tingle version from <file>; use --image to choose the image` | `1` |
 | No PHP files to analyse | The header, then `No PHP files found for analysis.` | `0` |
 | `docker` not on `PATH` | `Error: docker not found on PATH; tingle code_check php_complexity needs Docker to run PDepend` | `1` |
 | Docker daemon not running (`docker info` failed or took over 30 seconds) | `Error: the Docker daemon is not responding (docker info failed); start Docker and retry` | `1` |
@@ -785,7 +987,7 @@ In short:
 | Code | Meaning |
 | --- | --- |
 | `0` | Success, nothing to analyse, or the complexity gate passed / was not requested |
-| `1` | Usage error, path problem, or Docker / PDepend failure |
+| `1` | Usage error, invalid configuration file, path problem, or Docker / PDepend failure |
 | `2` | The complexity gate failed (`--fail-on`) |
 
 Unparsable files (`⛔ PARSE` rows), files shown as `OK 0` and refused-file
@@ -817,10 +1019,6 @@ to standard output and error messages to standard error.
   host with Docker.
 - **Tests and generated code are analysed** unless they are left out by the
   selection rules (see [Tests and generated code](#tests-and-generated-code)).
-- **No configuration file yet.** Unlike `file_size`, `rubycritic` and
-  `js_complexity`, this subcommand does not read
-  `~/.tingle/code_check/config.json` yet: pass the options on the command
-  line.
 
 ## Quick help
 
