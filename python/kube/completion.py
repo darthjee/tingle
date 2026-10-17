@@ -11,7 +11,7 @@ The trailing element is dropped before positional scanning (it is
 in-progress input, not a committed argument) and the remaining tokens are
 scanned positionally rather than parsed with `argparse` — an empty trailing
 element would otherwise be significant/rejected by a strict parser. Flags
-(`--json`, `--namespace <value>`) may appear before or after positional
+(`--json`, `--all`, `--namespace <value>`) may appear before or after positional
 tokens, mirroring `KubeArgParser`'s own tolerance for both orders.
 
 Only `KubeConfig()` (a local file read) and `scope.detect_active_scope()`
@@ -36,7 +36,7 @@ CONFIGURE_TARGETS = ["context", "namespace", "pod"]
 def complete(argv: list[str]) -> list[str]:
     """Return the full candidate set for the cursor position implied by `argv`."""
     committed = argv[:-1] if argv else []
-    subcommand, positionals, _flags, pending_flag = _scan(committed)
+    subcommand, positionals, flags, pending_flag = _scan(committed)
 
     if subcommand is None:
         return list(SUBCOMMANDS)
@@ -51,7 +51,7 @@ def complete(argv: list[str]) -> list[str]:
     if subcommand == "switch":
         return _complete_switch(positionals, config)
     if subcommand == "list":
-        return _complete_list(positionals, pending_flag, config, active_scope)
+        return _complete_list(positionals, flags, pending_flag, config, active_scope)
     if subcommand == "shell":
         return _complete_shell(positionals, config, active_scope)
 
@@ -76,6 +76,9 @@ def _scan(tokens: list[str]) -> tuple[str | None, list[str], dict, str | None]:
         token = tokens[index]
         if token == "--json":  # nosec B105 - CLI flag literal, not a credential
             flags["json"] = True
+            pending_flag = None
+        elif token == "--all":  # nosec B105 - CLI flag literal, not a credential
+            flags["all"] = True
             pending_flag = None
         elif token == "--namespace":  # nosec B105 - CLI flag literal, not a credential
             if index + 1 < count:
@@ -111,6 +114,7 @@ def _complete_switch(positionals: list[str], config: KubeConfig) -> list[str]:
 
 def _complete_list(
     positionals: list[str],
+    flags: dict,
     pending_flag: str | None,
     config: KubeConfig,
     active_scope: str | None,
@@ -120,7 +124,10 @@ def _complete_list(
     if not positionals:
         return list(LIST_TARGETS)
     if positionals == ["pods"]:
-        return ["--namespace"]
+        candidates = ["--namespace"]
+        if not flags.get("all"):
+            candidates.append("--all")
+        return candidates
     return []
 
 
