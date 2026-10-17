@@ -16,12 +16,27 @@ them back), then the files under a `bootstrap/cache` directory pair
 (`--no-default-excludes` drops this skip too). Symlinks resolving outside
 the mount root are skipped. For a single-file `<path>` the directory
 excludes and the `bootstrap/cache` rule don't apply and the globs match the
-file name. There is no config file yet.
+file name.
+
+Personal defaults are read from the `php_complexity` section of
+`~/.tingle/code_check/config.json` (keys: warn, error, critical, top, exclude,
+ignore, include, no_default_excludes, gitignore, fail_on, min_level, image;
+there is no `ext`, and `details` is unknown until #351). Single values given
+on the CLI win over the config, which wins over the built-in defaults; list
+values (exclude, ignore, include) are concatenated, config first, and
+deduplicated. `--no-default-excludes` and `--no-gitignore` win over the
+config. An invalid config prints `Error: <path>: <reason>` and exits with
+status 1 before any file selection or Docker call. `--no-config` skips the
+file entirely.
+
+Example config:
+    {"php_complexity": {"warn": 15, "ignore": ["tests/**"], "fail_on": "error"}}
 
 Exit status: 0 on success (also when no file is selected), 1 on errors (bad
-option, path missing or unreadable, Docker missing or failing, image pull
-failure, container failure, unparsable output) and 2 when `--fail-on` is set
-and any file reaches that level (files PHP or PDepend cannot parse never do).
+option, invalid config file, path missing or unreadable, Docker missing or
+failing, image pull failure, container failure, unparsable output) and 2 when
+`--fail-on` is set and any file reaches that level (files PHP or PDepend
+cannot parse never do).
 
 Dependencies: standard library only; Docker on the host at run time.
 
@@ -40,6 +55,7 @@ Examples
     tingle code_check php_complexity ./src --ignore 'tests/**'
     tingle code_check php_complexity ./src --include 'src/**'
     tingle code_check php_complexity ./src --no-gitignore
+    tingle code_check php_complexity . --no-config
 
 """
 
@@ -50,6 +66,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from code_check.config import load_section
 from code_check.docker_check.executor import DockerCheck
 from code_check.file_size.file_analyzer import FileAnalyzer
 from code_check.palette import Palette
@@ -67,15 +84,14 @@ from code_check.php_complexity.output_parser import (
 )
 from code_check.php_complexity.reporter import Reporter
 from code_check.php_complexity.selection import Selection, select_files
-from common.arg_parser import ArgParser
 
 # Program name shown in the help usage line.
 PROG = "tingle code_check php_complexity"
 
-# Section of the config file holding this command's options (read from #350).
+# Section of the config file holding this command's options.
 CONFIG_SECTION = "php_complexity"
 
-# Built-in defaults for single-value options, applied after the option merge.
+# Built-in defaults for single-value options, applied after the config merge.
 SINGLE_DEFAULTS: dict = {
     "warn": Constants.DEFAULT_WARN,
     "error": Constants.DEFAULT_ERROR,
@@ -106,23 +122,9 @@ class CheckPhpComplexity(DockerCheck):
     validate_config = staticmethod(validate)
 
     @staticmethod
-    def _parse(arg_parser: ArgParser, args: list[str]) -> dict:
-        """Parse args like the base class, adding `no_config` (read by `DockerCheck.run`).
-
-        There is no `--no-config` flag yet; #350 adds it and removes this override.
-        """
-        cli = DockerCheck._parse(arg_parser, args)
-        cli.setdefault("no_config", False)
-        return cli
-
-    @classmethod
-    def _load_config(cls, no_config: bool) -> tuple[dict, Path | None]:
-        """Return no config: the file is never read.
-
-        There is no `--no-config` flag and no `php_complexity` config section
-        yet; #350 replaces this override.
-        """
-        return {}, None
+    def _load_section(name: str, path: Path | None = None) -> dict | None:
+        """Read the config section through this module's `load_section`."""
+        return load_section(name, path)
 
     @staticmethod
     def _select_files(target: Path, root: Path, **kwargs) -> Selection:
