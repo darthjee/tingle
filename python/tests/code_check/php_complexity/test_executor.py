@@ -89,7 +89,7 @@ def test_help_exits_zero(capsys):
         [".", "--top", "1.5"],
         [".", "--min-level", "bad"],
         [".", "--fail-on", "ok"],
-        [".", "--details"],
+        [".", "--details", "x"],
         [".", "--unknown"],
     ],
 )
@@ -183,8 +183,11 @@ def test_validate_config_uses_the_php_complexity_schema(tmp_path):
     from code_check.config import ConfigError
 
     assert CheckPhpComplexity.validate_config({"warn": 1}, tmp_path / "c.json") == {"warn": 1}
-    with pytest.raises(ConfigError, match="unknown key 'details'"):
-        CheckPhpComplexity.validate_config({"details": 1}, tmp_path / "c.json")
+    assert CheckPhpComplexity.validate_config({"details": 1}, tmp_path / "c.json") == {
+        "details": 1,
+    }
+    with pytest.raises(ConfigError, match="unknown key 'ext'"):
+        CheckPhpComplexity.validate_config({"ext": [".php"]}, tmp_path / "c.json")
 
 
 # --- path and image ----------------------------------------------------------------

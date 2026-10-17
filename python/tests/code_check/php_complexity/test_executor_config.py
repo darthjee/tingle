@@ -391,7 +391,7 @@ def test_load_config_returns_section_and_path():
         ("[1, 2]", "top level must be an object"),
         ({"php_complexity": []}, "'php_complexity' must be an object"),
         ({"php_complexity": {"ext": [".php"]}}, "unknown key 'ext'"),
-        ({"php_complexity": {"details": 5}}, "unknown key 'details'"),
+        ({"php_complexity": {"details": -1}}, "'details' must be an integer >= 0 or null"),
         ({"php_complexity": {"bogus": 1}}, "unknown key 'bogus'"),
         ({"php_complexity": {"warn": -1}}, "'warn' must be a number >= 0"),
         ({"php_complexity": {"warn": True}}, "'warn' must be a number >= 0"),
