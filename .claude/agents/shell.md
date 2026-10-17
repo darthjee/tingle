@@ -15,7 +15,8 @@ You own everything inside `shell/` and `docker/`:
   other CLI tools.
 - Docker images for `tingle code_check` checks, one sub-folder per image
   (`docker/rubycritic/` builds `tingle_rubycritic`, `docker/js_complexity/`
-  builds `tingle_js_complexity`). Owned by the `shell` agent.
+  builds `tingle_js_complexity`, `docker/php_complexity/` builds
+  `tingle_php_complexity`). Owned by the `shell` agent.
 
 The `tingle_rubycritic` build context is `docker/rubycritic/`. Build it
 locally with `make rubycritic-image`, which produces `tingle_rubycritic:dev`.
@@ -28,6 +29,13 @@ locally with `make js-complexity-image`, which produces
 `tingle_js_complexity:dev`. Version bumps (Node base image, Rust build image,
 FTA crate, npm tools) follow the "Bumping versions" section of
 [`docs/agents/tingle-js-complexity-image.md`](../../docs/agents/tingle-js-complexity-image.md#bumping-versions).
+
+The `tingle_php_complexity` build context is `docker/php_complexity/`. Build
+it locally with `make php-complexity-image`, which produces
+`tingle_php_complexity:dev`. Version bumps (PHP base image, Composer build
+image, PDepend) follow the "Bumping versions" section of
+[`docs/agents/specs/code_check/php_complexity/image.md`](../../docs/agents/specs/code_check/php_complexity/image.md#13-bumping-versions)
+until #347 adds `docs/agents/tingle-php-complexity-image.md`.
 
 Do NOT touch `python/`, `node/`, `bin/`, or `docs/agents/`.
 
