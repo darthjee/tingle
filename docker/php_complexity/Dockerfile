@@ -53,6 +53,7 @@ FROM ${BASE_IMAGE}
 
 COPY --from=deps /opt/tingle_php_complexity/ /opt/tingle_php_complexity/
 COPY entrypoint.php /opt/tingle_php_complexity/
+COPY lib/ /opt/tingle_php_complexity/lib/
 
 USER 1000:1000
 
