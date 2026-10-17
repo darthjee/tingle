@@ -300,8 +300,9 @@ the image it runs is described in
   (`PROG = "tingle code_check php_complexity"`, `CONFIG_SECTION =
   "php_complexity"`, `NO_FILES_MESSAGE = "No PHP files found for
   analysis."`), with `_load_section` and `_select_files` (reached through
-  this module so tests can patch them), `_selection_options` (the base
-  options plus `skip_bootstrap_cache`, true unless `no_default_excludes`),
+  this module so tests can patch them), `_selection_options` (a fixed
+  selection until the selection flags land in #349: the default excludes,
+  no globs, no `.gitignore` filtering and `skip_bootstrap_cache` on),
   `_gate_value` (the file's total CCN), `_parse_output` (and its
   `could not parse the output of <image>: <reason>` message), the
   `Warning: cannot parse <file>: <message>` warnings for `PARSE` files, and
@@ -330,9 +331,9 @@ the image it runs is described in
   binds `PhpComplexityError`, `"tingle code_check php_complexity"` and
   `"PDepend"`; it re-exports `DOCKER`, `decode` and `write_stderr`.
 - `selection.py` — thin wrapper: `select_files(target, root, *,
-  excludes=None, ignore=None, include=None, gitignore,
-  skip_bootstrap_cache=True)` (the executor always passes `gitignore`)
-  binds the `.php` extension, the default
+  excludes=None, ignore=None, include=None, gitignore=False,
+  skip_bootstrap_cache=True)` (`.gitignore` filtering stays off until the
+  selection flags land in #349) binds the `.php` extension, the default
   excludes and a `skip` predicate that always drops Blade templates
   (`*.blade.php`) and, when `skip_bootstrap_cache` is true and the target
   is a directory, drops files under a `bootstrap/cache` directory pair
