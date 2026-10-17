@@ -18,9 +18,12 @@ declare(strict_types=1);
 // Output: stdout, exactly one JSON object followed by "\n":
 //           {"tool_versions": {"php", "pdepend", "jscpd": null},
 //            "files": [one entry per input line, in input order:
-//                      {path, parse_error, pdepend, functions: null,
+//                      {path, parse_error, pdepend, functions,
 //                       duplication: null}],
 //            "warnings": [{tool, path?, message}]}
+//         functions is null for a parse error or a refused line, else the
+//         file's counted units [{name, line, ccn, npath}] in source order
+//         ([] when there is none, or PDepend did not list the file).
 //         PDepend's stdout and stderr are passed through to stderr.
 // Exit:   0 when the JSON was printed; PDepend's status when PDepend exits
 //         non-zero; 1 on any other failure ("tingle_php_complexity: <reason>"
@@ -101,18 +104,23 @@ function tpc_main(): string
         }
         tpc_stage_file($n, $code);
         $staged[$n] = true;
+        $files[$n]['functions'] = [];
     }
 
     if ($staged !== []) {
         $stdout = tpc_run_pdepend();
         [$rejected, $pathless] = tpc_scan_pdepend_errors($stdout, $staged);
-        $summary = tpc_summarize(tpc_load_summary(), $staged, $rejected);
+        [$summary, $functions] = tpc_summarize(tpc_load_summary(), $staged, $rejected);
 
         foreach ($summary as $n => $pdepend) {
             $files[$n]['pdepend'] = $pdepend;
         }
+        foreach ($functions as $n => $list) {
+            $files[$n]['functions'] = $list;
+        }
         foreach ($rejected as $n => $message) {
             $files[$n]['parse_error'] = true;
+            $files[$n]['functions'] = null;
             $warnings[] = ['tool' => 'pdepend', 'path' => $files[$n]['path'], 'message' => $message];
         }
         foreach ($pathless as $message) {
