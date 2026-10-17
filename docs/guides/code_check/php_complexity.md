@@ -13,14 +13,17 @@ It selects the `.php` files under a file or directory on your machine, then
 runs [PDepend](https://pdepend.org/) on them inside the
 `darthjee/tingle_php_complexity` Docker image. Before PDepend runs, the
 image checks each file with PHP's own parser, so files with a syntax error
-are reported as such instead of getting a misleading score.
+are reported as such instead of getting a misleading score. The same
+PDepend run also measures each method and function, so you can drill down
+from a file to the methods that make it complex (see
+[`--details`](#--details)).
 
 Each file gets one row in a report, labelled OK, WARN, ERROR or CRITICAL.
 The label comes from the file's **total CCN** (see
 [The metric: total CCN](#the-metric-total-ccn)) compared with thresholds you
 can choose. The other columns (the highest method CCN, NPath, the
-maintainability index and the line count) are shown for information only:
-they never change the label or the exit status.
+maintainability index and the line count) and the per-method lines are
+shown for information only: they never change the label or the exit status.
 
 ## Requirements
 
@@ -77,6 +80,7 @@ limit on the number of files, and the run has no timeout.
 | `--top N` | `0` | Show only the `N` most complex files. `0` shows all files. |
 | `--min-level LEVEL` | `ok` | Show only files at `LEVEL` or higher. `LEVEL` is `ok`, `warn`, `error` or `critical`. |
 | `--fail-on LEVEL` | off | Exit with status `2` if any file is at `LEVEL` or higher. `LEVEL` is `warn`, `error` or `critical`. |
+| `--details [N]` | off | Under each shown file, list its `N` most complex methods and functions. `--details` alone means `5`; `0` lists every one. |
 | `--image IMAGE` | `darthjee/tingle_php_complexity:<tingle version>` | Docker image to run. |
 | `--exclude a,b` | none | Extra directory names to skip (comma-separated), **added** to the [default excludes](#--exclude). |
 | `--no-default-excludes` | off | Do not skip the default directories or `bootstrap/cache`; only `--exclude` names apply. |
@@ -86,8 +90,8 @@ limit on the number of files, and the run has no timeout.
 | `--no-config` | off | Do not read `~/.tingle/code_check/config.json` (see [Configuration file](#configuration-file)). |
 
 The thresholds accept decimals (`--warn 22.5`) and must be `0` or more.
-`--top` must be a whole number, `0` or more, and `--image` must not be
-empty. The order of the thresholds is not checked: keep `warn` < `error` <
+`--top` and `--details N` must be whole numbers, `0` or more, and `--image`
+must not be empty. The order of the thresholds is not checked: keep `warn` < `error` <
 `critical`, or the labels will not make sense.
 
 The file selection options are described in
@@ -140,6 +144,102 @@ analysis always exits `0`.
 - `⛔ PARSE` rows never trigger the gate: a file that cannot be parsed does
   not fail the build.
 - If there are no PHP files to analyse, the command exits `0`.
+
+### `--details`
+
+Drills down from a file to the methods and functions that make it complex.
+Under each shown level row, the command lists the file's most complex
+units, each with its own CCN, its NPath, its name and the line where it is
+declared:
+
+```
+$ tingle code_check php_complexity fixture --warn 4 --error 6 --critical 10 --min-level warn --details 2
+...
+Status             CCN    Max    NPath     MI  Lines  File
+──────────────── ─────  ─────  ───────  ─────  ─────  ──────────────────────────────────────────────────
+🟣 CRITICAL          11      7       36     54     22  fixture/Calculator.php
+                 ccn   7  npath      36  Calculator::grade  (fixture/Calculator.php:22)
+                 ccn   3  npath       3  Calculator::sign  (fixture/Calculator.php:12)
+🔴 ERROR              6      2        2     78     11  fixture/Shapes.php
+                 ccn   2  npath       2  Circle::area  (fixture/Shapes.php:28)
+                 ccn   1  npath       1  Square::__construct  (fixture/Shapes.php:12)
+⚠️  WARN             4      3        4     66     12  fixture/helpers.php
+                 ccn   3  npath       4  clamp  (fixture/helpers.php:3)
+                 ccn   1  npath       1  greet  (fixture/helpers.php:14)
+⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php
+⛔ PARSE              -      -        -      -      -  fixture/broken.php
+⛔ PARSE              -      -        -      -      -  fixture/lenient.php
+...
+```
+
+- `--details` without a number shows up to **5** units per file;
+  `--details N` shows up to `N`; `--details 0` shows **every** unit (with
+  `--details 0`, `Shapes.php` above lists all 5 of its methods). A negative
+  value is an error.
+- Without `--details`, no unit lines are printed.
+- Units are sorted by CCN, highest first, then by line, lowest first, then
+  by name. That is why `Square::__construct` (line 12) is shown before
+  `Square::area`, `Circle::__construct` and `Describes::describe`, which
+  also have a CCN of `1`. A file with fewer units shows only those it has;
+  a file with none (such as `bootstrap.php`, with only top-level code) gets
+  no unit lines.
+- Only the **shown** rows get unit lines: `--min-level` and `--top` pick
+  the files first, then `--details` adds lines under each of them. `⛔ PARSE`
+  rows never get unit lines.
+- Units have **no level**: they are not labelled OK/WARN/ERROR/CRITICAL,
+  are not counted in the `Summary:` line, and never affect `--fail-on` or
+  the exit status.
+
+Each unit line, dimmed in a terminal, shows:
+
+- `ccn`: the unit's own cyclomatic complexity (at least `1`);
+- `npath`: its NPath, the number of distinct paths through it (at least
+  `1`). Like the `NPath` column, a very large value is printed in full;
+- its name (see below);
+- in parentheses, the file (as in the `File` column) and the line where the
+  unit is declared, as your editor numbers it (Windows line endings and a
+  leading BOM do not shift it).
+
+#### Which units are listed
+
+The units are exactly the ones that make up the file's total CCN, so the
+`ccn` values of a file's units (with `--details 0`) always add up to its
+`CCN` column:
+
+- every method of every class and trait in the file, shown as
+  `Class::method` with the short class or trait name, without the namespace
+  (for example `Calculator::grade` or `Describes::describe`). Abstract
+  methods are listed too, with a CCN of `1`;
+- every function in the file, shown by its short name (for example
+  `clamp`), including functions declared inside an
+  `if (! function_exists(...))` block and functions in a mixed HTML/PHP
+  template.
+
+These are **not** listed, because PDepend does not report them as units of
+the file:
+
+- **closures and arrow functions**. Inside a method or function, their
+  decisions count toward it; at the top level they are not counted at all
+  (see [The metric: total CCN](#the-metric-total-ccn));
+- **enum methods** (see [Limitations](#limitations));
+- **methods of anonymous classes**. When PDepend folds their decisions into
+  the enclosing method, they show in that method's `ccn`;
+- interface methods.
+
+#### Per-function data unavailable
+
+When the per-function data is not available for a shown row, a single dim
+note replaces its unit lines:
+
+```
+                 (per-function data unavailable)
+```
+
+This happens with an older image passed through [`--image`](#--image) that
+does not report units, or for a file the image refused (see
+[Files shown as `OK 0`](#files-shown-as-ok-0)). The row keeps its level,
+and the exit status does not change. A file that simply has no method or
+function gets neither unit lines nor this note.
 
 ### `--image`
 
@@ -563,6 +663,7 @@ Every key is optional and matches a command-line option:
 | `fail_on` | `"warn"`, `"error"`, `"critical"` or `null` | `null` | `--fail-on` (`null` means no gate) |
 | `min_level` | `"ok"`, `"warn"`, `"error"` or `"critical"` | `"ok"` | `--min-level` |
 | `image` | non-empty string | `darthjee/tingle_php_complexity:<tingle version>` | `--image` |
+| `details` | integer >= 0 or `null` | `null` | `--details` (`0` lists every unit, `null` prints no unit lines) |
 | `exclude` | list of strings | `[]` | `--exclude` (comma-separated on the command line) |
 | `ignore` | list of strings | `[]` | `--ignore` |
 | `include` | list of strings | `[]` | `--include` |
@@ -573,7 +674,8 @@ Notes:
 
 - The thresholds accept decimals (`"critical": 60.5`). Numbers must be
   real, finite JSON numbers: `true`, `"20"`, `NaN` and `Infinity` are
-  errors. `top` must be a whole number (`"top": 20.0` is an error).
+  errors. `top` and `details` must be whole numbers (`"top": 20.0` is an
+  error).
 - A `null` value for a single-value key means "not set": the built-in
   default (or the command-line option) is used.
 - `image` must not be empty or only spaces. Setting it also means tingle
@@ -593,8 +695,8 @@ Notes:
 ### How the config and the command line combine
 
 - **Single values** (`warn`, `error`, `critical`, `top`, `fail_on`,
-  `min_level`, `image`): the command line wins over the config, which wins
-  over the built-in default.
+  `min_level`, `image`, `details`): the command line wins over the config,
+  which wins over the built-in default.
 - **Lists** (`exclude`, `ignore`, `include`): the config values come first,
   then the command-line values are **added**. Duplicates are dropped (the
   first occurrence is kept). The command line never replaces a config list.
@@ -625,7 +727,8 @@ For example, with this file:
     "gitignore": true,
     "fail_on": "error",
     "min_level": "warn",
-    "image": "darthjee/tingle_php_complexity:0.9.0"
+    "image": "darthjee/tingle_php_complexity:0.9.0",
+    "details": 5
   }
 }
 ```
@@ -644,7 +747,7 @@ runs with:
   and `fixtures`;
 - the ignore globs `tests/**` and `**/legacy/**`;
 - the image `darthjee/tingle_php_complexity:0.9.0`, and the other values
-  (`top`, `include`, `fail_on`, `min_level`) from the config.
+  (`top`, `include`, `fail_on`, `min_level`, `details`) from the config.
 
 The `js_complexity` section is ignored here.
 
@@ -681,7 +784,7 @@ Error: /home/me/.tingle/code_check/config.json: <reason>
 | The top level is not a JSON object | `top level must be an object` |
 | The `php_complexity` section is not a JSON object | `'php_complexity' must be an object` |
 | An unknown key, such as a typo or `ext` | `unknown key '<key>'` |
-| A wrong type or value | for example `'warn' must be a number >= 0`, `'top' must be an integer >= 0`, `'exclude' must be a list of strings`, `'gitignore' must be a boolean`, `'image' must be a non-empty string`, `'fail_on' must be one of warn, error, critical or null` or `'min_level' must be one of ok, warn, error or critical` |
+| A wrong type or value | for example `'warn' must be a number >= 0`, `'top' must be an integer >= 0`, `'details' must be an integer >= 0 or null`, `'exclude' must be a list of strings`, `'gitignore' must be a boolean`, `'image' must be a non-empty string`, `'fail_on' must be one of warn, error, critical or null` or `'min_level' must be one of ok, warn, error or critical` |
 
 For example:
 
@@ -893,6 +996,13 @@ Show only the 10 most complex files at WARN or higher:
 tingle code_check php_complexity ./src --top 10 --min-level warn
 ```
 
+Show the 3 most complex methods and functions of each of the 5 most
+complex files:
+
+```
+tingle code_check php_complexity ./src --top 5 --details 3
+```
+
 Analyse a single file:
 
 ```
@@ -964,6 +1074,7 @@ Errors are printed on **standard error** as `Error: <message>`.
 | Unknown option or invalid value (e.g. `--top abc`, `--fail-on foo`) | A usage error | `1` |
 | Negative threshold | `Error: --warn must be a number >= 0` (`--error`, `--critical` likewise) | `1` |
 | Negative `--top` | `Error: --top must be an integer >= 0` | `1` |
+| Negative `--details` | `Error: --details must be an integer >= 0` | `1` |
 | Empty `--image` | `Error: --image must not be empty` | `1` |
 | Invalid configuration file (unreadable, bad JSON, unknown key, wrong value, ...) | `Error: <config file>: <reason>` (see [Config errors](#config-errors)) | `1` |
 | `<path>` does not exist | `Error: path not found: <absolute path>` | `1` |
@@ -990,16 +1101,19 @@ In short:
 | `1` | Usage error, invalid configuration file, path problem, or Docker / PDepend failure |
 | `2` | The complexity gate failed (`--fail-on`) |
 
-Unparsable files (`⛔ PARSE` rows), files shown as `OK 0` and refused-file
-warnings never change the exit status on their own. The report always goes
-to standard output and error messages to standard error.
+Unparsable files (`⛔ PARSE` rows), files shown as `OK 0`, refused-file
+warnings and the `--details` unit lines (including the
+`(per-function data unavailable)` note) never change the exit status on
+their own. The report always goes to standard output and error messages to
+standard error.
 
 ## Limitations
 
 - **Enum methods are not counted.** PDepend 3.0.0 does not attribute enum
   methods to their file, so their decisions are left out of the total CCN.
   A file holding only an enum shows `OK 0`, and a file with a class and an
-  enum counts only the class.
+  enum counts only the class. Enum methods are not listed by
+  [`--details`](#--details) either.
 - **Some anonymous-class methods are undercounted.** PDepend reports the
   methods of anonymous classes inconsistently: sometimes their decisions are
   folded into the enclosing method, sometimes not. Tingle never counts a
