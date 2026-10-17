@@ -1,8 +1,8 @@
 """Unit tests for code_check.php_complexity.executor.CheckPhpComplexity (Docker is mocked).
 
-HOME points at an empty temp dir (autouse fixture in tests/code_check/conftest.py);
-the config file is never read before #350 anyway. `GitIgnore.ignored_paths` is
-stubbed (autouse), so no real git runs here.
+HOME points at an empty temp dir (autouse fixture in tests/code_check/conftest.py),
+so no config is loaded; the config tests live in test_executor_config.py.
+`GitIgnore.ignored_paths` is stubbed (autouse), so no real git runs here.
 """
 
 from __future__ import annotations
@@ -73,7 +73,7 @@ def test_no_args_prints_help_and_exits_zero(capsys):
     out = capsys.readouterr().out
     assert out.startswith("usage: tingle code_check php_complexity ")
     assert "--image" in out
-    assert "--no-config" not in out
+    assert "--no-config" in out
 
 
 def test_help_exits_zero(capsys):
@@ -89,7 +89,6 @@ def test_help_exits_zero(capsys):
         [".", "--top", "1.5"],
         [".", "--min-level", "bad"],
         [".", "--fail-on", "ok"],
-        [".", "--no-config"],
         [".", "--details"],
         [".", "--unknown"],
     ],
@@ -180,12 +179,12 @@ def test_merge_defaults_turn_gitignore_on():
     assert merged["include"] == []
 
 
-def test_validate_config_accepts_no_key(tmp_path):
+def test_validate_config_uses_the_php_complexity_schema(tmp_path):
     from code_check.config import ConfigError
 
-    assert CheckPhpComplexity.validate_config({}, tmp_path / "c.json") == {}
-    with pytest.raises(ConfigError, match="unknown key 'warn'"):
-        CheckPhpComplexity.validate_config({"warn": 1}, tmp_path / "c.json")
+    assert CheckPhpComplexity.validate_config({"warn": 1}, tmp_path / "c.json") == {"warn": 1}
+    with pytest.raises(ConfigError, match="unknown key 'details'"):
+        CheckPhpComplexity.validate_config({"details": 1}, tmp_path / "c.json")
 
 
 # --- path and image ----------------------------------------------------------------
@@ -298,12 +297,12 @@ def test_no_gitignore_does_not_consult_git(tmp_path, capsys, no_docker, fake_git
     assert fake_git["calls"] == []
 
 
-def test_broken_config_file_is_never_read(tmp_path, capsys, no_docker):
+def test_broken_config_file_is_skipped_with_no_config(tmp_path, capsys, no_docker):
     config = Path(os.environ["HOME"]) / ".tingle" / "code_check" / "config.json"
     config.parent.mkdir(parents=True)
     config.write_text("{ broken")
 
-    assert _run([str(tmp_path), "--image", "img"]) == 0
+    assert _run([str(tmp_path), "--image", "img", "--no-config"]) == 0
 
     captured = capsys.readouterr()
     assert "Config:" not in captured.out

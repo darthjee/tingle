@@ -11,6 +11,10 @@ The file-selection flags (`--exclude`, `--no-default-excludes`,
 `--no-gitignore`, `--ignore`, `--include`) mirror `js_complexity`'s; the
 `.php` extension filter is fixed, so there is no `--ext`. Their parsing
 lives in `code_check.excludes` and `docker_check`, never here.
+
+`--no-config` skips the `php_complexity` section of
+`~/.tingle/code_check/config.json`. The file is read and validated by the
+executor (`php_complexity.config`), which this module never imports.
 """
 
 from __future__ import annotations
@@ -117,5 +121,10 @@ FLAGS: list[dict] = [
             "Only analyse PHP files whose path relative to <path> "
             "matches this glob (can be repeated)"
         ),
+    },
+    {
+        "name": "--no-config",
+        "action": "store_true",
+        "help": "Do not read ~/.tingle/code_check/config.json",
     },
 ]

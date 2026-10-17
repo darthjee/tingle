@@ -300,9 +300,9 @@ the image it runs is described in
   (`PROG = "tingle code_check php_complexity"`, `CONFIG_SECTION =
   "php_complexity"`, `NO_FILES_MESSAGE = "No PHP files found for
   analysis."`), with `_load_section` and `_select_files` (reached through
-  this module so tests can patch them), `_selection_options` (a fixed
-  selection until the selection flags land in #349: the default excludes,
-  no globs, no `.gitignore` filtering and `skip_bootstrap_cache` on),
+  this module so tests can patch them), `_selection_options` (the base
+  selection options plus `skip_bootstrap_cache`, on unless
+  `no_default_excludes` is set),
   `_gate_value` (the file's total CCN), `_parse_output` (and its
   `could not parse the output of <image>: <reason>` message), the
   `Warning: cannot parse <file>: <message>` warnings for `PARSE` files, and
@@ -317,12 +317,18 @@ the image it runs is described in
   assigned from `docker_check`.
 - `errors.py` — `PhpComplexityError(DockerCheckError)`, the user-facing
   error.
-- `config.py` — the `php_complexity` config section schema and `validate`;
-  a stub that accepts nothing until #350.
+- `config.py` — the `php_complexity` config section schema and `validate`
+  (keys `warn`, `error`, `critical`, `top`, `exclude`, `ignore`, `include`,
+  `no_default_excludes`, `gitignore`, `fail_on`, `min_level` and `image`:
+  `js_complexity`'s keys minus `details`, which #351 adds; there is no `ext`
+  key, so `ext` and `details` are reported as unknown). `DockerCheck` loads,
+  validates and merges the section; see
+  [`specs/code_check/php_complexity/config.md`](specs/code_check/php_complexity/config.md).
 - `flags.py` — the import-light `FLAGS` list (shared by the parser and
   completion): `path`, `--warn`, `--error`, `--critical`, `--top`,
-  `--min-level`, `--fail-on` and `--image`. #349 to #351 add the selection
-  flags and `--details`.
+  `--min-level`, `--fail-on`, `--image`, the selection flags (`--exclude`,
+  `--no-default-excludes`, `--no-gitignore`, `--ignore`, `--include`) and
+  `--no-config`. #351 adds `--details`.
 - `image.py` — thin wrapper: `resolve_image(cli_image, version_file=None)`
   binds the php_complexity repository, `Constants.VERSION_FILE` and
   `PhpComplexityError`. The default image is
@@ -332,8 +338,7 @@ the image it runs is described in
   `"PDepend"`; it re-exports `DOCKER`, `decode` and `write_stderr`.
 - `selection.py` — thin wrapper: `select_files(target, root, *,
   excludes=None, ignore=None, include=None, gitignore=False,
-  skip_bootstrap_cache=True)` (`.gitignore` filtering stays off until the
-  selection flags land in #349) binds the `.php` extension, the default
+  skip_bootstrap_cache=True)` binds the `.php` extension, the default
   excludes and a `skip` predicate that always drops Blade templates
   (`*.blade.php`) and, when `skip_bootstrap_cache` is true and the target
   is a directory, drops files under a `bootstrap/cache` directory pair

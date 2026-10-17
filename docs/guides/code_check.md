@@ -55,8 +55,8 @@ Error: expected a subcommand before options (got '--top')
 
 ## Configuration file
 
-The `file_size`, `rubycritic` and `js_complexity` subcommands read defaults
-from the same file:
+The `file_size`, `rubycritic`, `js_complexity` and `php_complexity`
+subcommands read defaults from the same file:
 
 ```
 ~/.tingle/code_check/config.json
@@ -71,6 +71,7 @@ of each section are documented on the subcommand's page.
 | `file_size` | `file_size` | [Configuration file](code_check/file_size.md#configuration-file) |
 | `rubycritic` | `rubycritic` | [Configuration file](code_check/rubycritic.md#configuration-file) |
 | `js_complexity` | `js_complexity` | [Configuration file](code_check/js_complexity.md#configuration-file) |
+| `php_complexity` | `php_complexity` | [Configuration file](code_check/php_complexity.md#configuration-file) |
 
 For example:
 
@@ -88,15 +89,17 @@ For example:
     "warn": 40,
     "exclude": ["generated"],
     "fail_on": "error"
+  },
+  "php_complexity": {
+    "warn": 25,
+    "ignore": ["tests/**"],
+    "fail_on": "error"
   }
 }
 ```
 
 Options given on the command line win over the config file. Each
 subcommand also accepts `--no-config` to ignore the file for one run.
-
-`php_complexity` does not read this file yet: pass its options on the
-command line.
 
 ## Exit status
 
