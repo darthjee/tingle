@@ -158,19 +158,27 @@ function tpc_staged_number(string $name, array $staged): int
  * a `file` child. Bare methods, and classes, traits and functions without a
  * `file` child, are never counted.
  *
+ * The data of a file PDepend rejected (its error block) is discarded
+ * unchecked: PDepend still writes partial data for it (for example a class
+ * with start="0").
+ *
  * `max_npath` is kept as a decimal digit string (it may not fit a PHP int);
  * see tpc_encode_output().
  *
  * @param array<int, true> $staged
+ * @param array<int, string> $rejected files PDepend rejected, by line number
  * @return array<int, array{ccn: int, max_ccn: ?int, max_npath: ?string, min_mi: ?float, lloc: int}>
  */
-function tpc_summarize(DOMDocument $doc, array $staged): array
+function tpc_summarize(DOMDocument $doc, array $staged, array $rejected): array
 {
     $xpath = new DOMXPath($doc);
 
     $result = [];
     foreach ($xpath->query('/metrics/files/file') as $file) {
         $n = tpc_staged_number($file->getAttribute('name'), $staged);
+        if (isset($rejected[$n])) {
+            continue;
+        }
         $lloc = $file->getAttribute('lloc');
         if (!preg_match('/^(0|[1-9]\d*)$/', $lloc) || strlen($lloc) > 18) {
             throw new EntrypointError('pdepend summary XML has a malformed entry');
@@ -191,6 +199,9 @@ function tpc_summarize(DOMDocument $doc, array $staged): array
             continue;
         }
         $n = tpc_staged_number($fileNode->getAttribute('name'), $staged);
+        if (isset($rejected[$n])) {
+            continue;
+        }
 
         $units = [];
         if ($owner->nodeName === 'function') {

@@ -106,12 +106,10 @@ function tpc_main(): string
     if ($staged !== []) {
         $stdout = tpc_run_pdepend();
         [$rejected, $pathless] = tpc_scan_pdepend_errors($stdout, $staged);
-        $summary = tpc_summarize(tpc_load_summary(), $staged);
+        $summary = tpc_summarize(tpc_load_summary(), $staged, $rejected);
 
         foreach ($summary as $n => $pdepend) {
-            if (!isset($rejected[$n])) {
-                $files[$n]['pdepend'] = $pdepend;
-            }
+            $files[$n]['pdepend'] = $pdepend;
         }
         foreach ($rejected as $n => $message) {
             $files[$n]['parse_error'] = true;
