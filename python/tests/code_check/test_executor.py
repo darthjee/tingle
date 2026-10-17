@@ -10,6 +10,7 @@ from code_check.executor import CodeCheck
 from code_check.file_size.executor import CheckFileSize
 from code_check.js_complexity.executor import CheckJsComplexity
 from code_check.palette import Colors
+from code_check.php_complexity.executor import CheckPhpComplexity
 from code_check.rubycritic.executor import CheckRubycritic
 
 LIST_FOOTER = "Run 'tingle code_check <subcommand> --help' for its options."
@@ -65,8 +66,17 @@ def test_subcommands_maps_js_complexity_to_executor():
     assert description == "JavaScript/TypeScript code complexity via FTA (Docker)."
 
 
+def test_subcommands_maps_php_complexity_to_executor():
+    cls, description = CodeCheck.SUBCOMMANDS["php_complexity"]
+
+    assert cls is CheckPhpComplexity
+    assert description == "PHP code complexity via PDepend (Docker)."
+
+
 def test_subcommands_order():
-    assert list(CodeCheck.SUBCOMMANDS) == ["file_size", "rubycritic", "js_complexity"]
+    assert list(CodeCheck.SUBCOMMANDS) == [
+        "file_size", "rubycritic", "js_complexity", "php_complexity",
+    ]
 
 
 # --- listing --------------------------------------------------------------------
@@ -79,11 +89,13 @@ def test_list_on_no_args_or_help_exits_zero(capsys, args):
     captured = capsys.readouterr()
     assert "file_size" in captured.out
     assert "Token efficiency triage: file size analysis." in captured.out
-    assert "  file_size      Token efficiency triage: file size analysis." in captured.out
-    assert "  rubycritic     Ruby code complexity via RubyCritic (Docker)." in captured.out
+    assert "  file_size       Token efficiency triage: file size analysis." in captured.out
+    assert "  rubycritic      Ruby code complexity via RubyCritic (Docker)." in captured.out
     assert (
-        "  js_complexity  JavaScript/TypeScript code complexity via FTA (Docker)." in captured.out
+        "  js_complexity   JavaScript/TypeScript code complexity via FTA (Docker)."
+        in captured.out
     )
+    assert "  php_complexity  PHP code complexity via PDepend (Docker)." in captured.out
     assert captured.out.rstrip().endswith(LIST_FOOTER)
     assert captured.err == ""
 
@@ -167,6 +179,33 @@ def test_js_complexity_help_is_printed_and_exits_zero(capsys, args):
 
 def test_js_complexity_usage_error_exit_code_is_forwarded(tmp_path, capsys):
     assert _run(["js_complexity", str(tmp_path), "--warn", "x"]) == 1
+
+
+def test_dispatches_php_complexity_with_remaining_args(monkeypatch):
+    calls: list[list[str]] = []
+
+    class FakePhpComplexity:
+        def run(self, args):
+            calls.append(args)
+
+    monkeypatch.setitem(CodeCheck.SUBCOMMANDS, "php_complexity", (FakePhpComplexity, "desc"))
+
+    CodeCheck().run(["php_complexity", "src", "--top", "3"])
+
+    assert calls == [["src", "--top", "3"]]
+
+
+@pytest.mark.parametrize(
+    "args", [["-h", "php_complexity"], ["php_complexity", "--help"], ["php_complexity"]]
+)
+def test_php_complexity_help_is_printed_and_exits_zero(capsys, args):
+    assert _run(args) == 0
+
+    assert capsys.readouterr().out.startswith("usage: tingle code_check php_complexity ")
+
+
+def test_php_complexity_usage_error_exit_code_is_forwarded(tmp_path, capsys):
+    assert _run(["php_complexity", str(tmp_path), "--warn", "x"]) == 1
 
 
 # --- errors ---------------------------------------------------------------------

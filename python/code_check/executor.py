@@ -10,6 +10,7 @@ Usage:
     tingle code_check file_size <path> [options]
     tingle code_check rubycritic <path> [options]
     tingle code_check js_complexity <path> [options]
+    tingle code_check php_complexity <path> [options]
 
 Exit status: 0 for help, 1 for an unknown or misplaced word; a subcommand's
 own exit status (e.g. 2 for `file_size --fail-on`) is forwarded unchanged.
@@ -23,6 +24,7 @@ from typing import ClassVar
 from code_check.file_size.executor import CheckFileSize
 from code_check.js_complexity.executor import CheckJsComplexity
 from code_check.palette import Palette
+from code_check.php_complexity.executor import CheckPhpComplexity
 from code_check.rubycritic.executor import CheckRubycritic
 
 HELP_FLAGS = ("-h", "--help")
@@ -39,6 +41,7 @@ class CodeCheck:
         "js_complexity": (
             CheckJsComplexity, "JavaScript/TypeScript code complexity via FTA (Docker)."
         ),
+        "php_complexity": (CheckPhpComplexity, "PHP code complexity via PDepend (Docker)."),
     }
 
     def run(self, args: list[str]) -> None:

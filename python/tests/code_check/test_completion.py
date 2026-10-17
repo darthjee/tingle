@@ -12,6 +12,7 @@ from code_check.completion import FILES_SENTINEL, complete
 from code_check.executor import CodeCheck
 from code_check.file_size.flags import FLAGS
 from code_check.js_complexity.flags import FLAGS as JS_COMPLEXITY_FLAGS
+from code_check.php_complexity.flags import FLAGS as PHP_COMPLEXITY_FLAGS
 from code_check.rubycritic.flags import FLAGS as RUBYCRITIC_FLAGS
 from code_check.subcommands import SUBCOMMAND_NAMES
 
@@ -52,6 +53,9 @@ def test_completion_imports_no_heavy_module():
         "'code_check.js_complexity.executor', 'code_check.js_complexity.docker_runner', "
         "'code_check.js_complexity.output_parser', 'code_check.js_complexity.reporter', "
         "'code_check.js_complexity.selection', 'code_check.docker_check.executor', "
+        "'code_check.php_complexity.executor', 'code_check.php_complexity.docker_runner', "
+        "'code_check.php_complexity.output_parser', 'code_check.php_complexity.reporter', "
+        "'code_check.php_complexity.selection', 'code_check.php_complexity.config', "
         "'code_check.validators') if m in sys.modules]; "
         "print(','.join(heavy))"
     )
@@ -301,3 +305,58 @@ def test_js_complexity_store_true_flags_take_no_value(flag):
 
 def test_js_complexity_value_flag_before_path_does_not_count_as_path():
     assert complete(["js_complexity", "--image", "img:dev", ""]) == [FILES_SENTINEL]
+
+
+# --- php_complexity ---------------------------------------------------------------
+
+PHP_COMPLEXITY_EXPECTED_FLAGS = [
+    f["name"] for f in PHP_COMPLEXITY_FLAGS if f["name"].startswith("-")
+]
+
+
+def test_php_complexity_is_offered_as_a_subcommand():
+    assert complete([""])[-1] == "php_complexity"
+
+
+def test_php_complexity_flag_names():
+    assert PHP_COMPLEXITY_EXPECTED_FLAGS == [
+        "--warn", "--error", "--critical", "--top", "--min-level", "--fail-on", "--image",
+    ]
+
+
+@pytest.mark.parametrize("current", ["", "src", "./sr"])
+def test_php_complexity_without_path_returns_file_sentinel(current):
+    assert complete(["php_complexity", current]) == [FILES_SENTINEL]
+
+
+def test_help_then_php_complexity_behaves_like_php_complexity():
+    assert complete(["-h", "php_complexity", ""]) == [FILES_SENTINEL]
+
+
+@pytest.mark.parametrize("current", ["-", "--i"])
+def test_php_complexity_dash_word_returns_every_flag(current):
+    assert complete(["php_complexity", current]) == PHP_COMPLEXITY_EXPECTED_FLAGS
+
+
+def test_php_complexity_after_path_returns_every_flag():
+    assert complete(["php_complexity", "src", ""]) == PHP_COMPLEXITY_EXPECTED_FLAGS
+
+
+@pytest.mark.parametrize(
+    ("flag", "choices"),
+    [
+        ("--min-level", ["ok", "warn", "error", "critical"]),
+        ("--fail-on", ["warn", "error", "critical"]),
+    ],
+)
+def test_php_complexity_choice_flags_return_choices(flag, choices):
+    assert complete(["php_complexity", "src", flag, ""]) == choices
+
+
+@pytest.mark.parametrize("flag", ["--warn", "--error", "--critical", "--top", "--image"])
+def test_php_complexity_free_value_flags_return_nothing(flag):
+    assert complete(["php_complexity", "src", flag, ""]) == []
+
+
+def test_php_complexity_value_flag_before_path_does_not_count_as_path():
+    assert complete(["php_complexity", "--image", "img:dev", ""]) == [FILES_SENTINEL]
