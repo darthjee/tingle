@@ -7,7 +7,7 @@ namespaces, and pods, backed by ~/.tingle/kube/config.json.
 Usage:
     tingle kube switch <context_alias>
     tingle kube list namespace
-    tingle kube list pods --namespace <alias>
+    tingle kube list pods --namespace <alias> [--all]
     tingle kube shell <namespace_alias> <pod_alias>
     tingle kube configure context
     tingle kube configure namespace
@@ -196,7 +196,10 @@ class Kube:
 
     @staticmethod
     def _list_pods(parsed: dict, config: KubeConfig) -> None:
-        """Handle `kube list pods --namespace <alias>`: list matched pods per alias."""
+        """Handle `kube list pods --namespace <alias> [--all]`: list matched pods per alias.
+
+        With `--all`, also list the pods no displayed alias matched.
+        """
         if not Kube._check_aws_credentials(config, "list"):
             return
 
@@ -222,44 +225,81 @@ class Kube:
             if alias_config.get("namespace") in (None, parsed["namespace"])
         }
 
+        results = Kube._match_aliases(pods, items, default_id_pattern)
+        unmatched = Kube._unmatched_pods(items, results) if parsed.get("all") else None
+
         if parsed.get("json"):
-            payload = Kube._pods_json_payload(pods, items, default_id_pattern)
+            payload = Kube._pods_json_payload(results, unmatched)
             print(json.dumps(payload, indent=2))
             return
 
-        Kube._print_pods_text(pods, items, default_id_pattern)
+        Kube._print_pods_text(results, unmatched)
 
     @staticmethod
-    def _pods_json_payload(pods: dict, items: list, default_id_pattern: str) -> list:
-        """Build the `kube list pods --json` payload for each alias."""
-        payload = []
-        for alias, alias_config in pods.items():
-            matched, _discarded = Kube._match_pods_for_alias(
-                items, alias_config, default_id_pattern
-            )
-            payload.append(
-                {
-                    "alias": alias,
-                    "pods": [pod["metadata"]["name"] for pod in matched],
-                }
-            )
-        return payload
+    def _match_aliases(pods: dict, items: list, default_id_pattern: str) -> list:
+        """Match `items` once per alias in `pods`.
 
-    @staticmethod
-    def _print_pods_text(pods: dict, items: list, default_id_pattern: str) -> None:
-        """Print the `kube list pods` text output for each alias."""
+        Returns a list of `(alias, matched, discarded)` tuples, in alias order.
+        """
+        results = []
         for alias, alias_config in pods.items():
             matched, discarded = Kube._match_pods_for_alias(
                 items, alias_config, default_id_pattern
             )
+            results.append((alias, matched, discarded))
+        return results
+
+    @staticmethod
+    def _unmatched_pods(items: list, results: list) -> list:
+        """Return the `items` matched by none of the aliases in `results`.
+
+        Ordered by `creationTimestamp` ascending (oldest first), like
+        `match_pods`.
+        """
+        matched_names = {
+            pod["metadata"]["name"] for _alias, matched, _discarded in results for pod in matched
+        }
+        unmatched = [item for item in items if item["metadata"]["name"] not in matched_names]
+        return sorted(unmatched, key=lambda pod: pod["metadata"]["creationTimestamp"])
+
+    @staticmethod
+    def _pods_json_payload(results: list, unmatched: list | None) -> list:
+        """Build the `kube list pods --json` payload for each alias.
+
+        When `unmatched` is not `None` (`--all`), a final
+        `{"alias": None, "pods": [...]}` entry is always appended.
+        """
+        payload = [
+            {"alias": alias, "pods": [pod["metadata"]["name"] for pod in matched]}
+            for alias, matched, _discarded in results
+        ]
+        if unmatched is not None:
+            payload.append(
+                {"alias": None, "pods": [pod["metadata"]["name"] for pod in unmatched]}
+            )
+        return payload
+
+    @staticmethod
+    def _print_pods_text(results: list, unmatched: list | None) -> None:
+        """Print the `kube list pods` text output for each alias.
+
+        When `unmatched` is not `None` (`--all`), the id_pattern discarded
+        hint is skipped and a final `(unmatched):` block is always printed.
+        """
+        for alias, matched, discarded in results:
             print(f"{alias}:")
             for pod in matched:
                 print(f"  - {pod['metadata']['name']}")
 
-            if not matched and discarded:
+            if unmatched is None and not matched and discarded:
                 print(f"  kube list: candidates discarded by id_pattern for '{alias}':")
                 for name in discarded:
                     print(f"    - {name}")
+
+        if unmatched is not None:
+            print("(unmatched):")
+            for pod in unmatched:
+                print(f"  - {pod['metadata']['name']}")
 
     @staticmethod
     def _resolve_real_pod(

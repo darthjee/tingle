@@ -47,11 +47,11 @@ def test_list_returns_targets_and_json_flag(mock_config_cls, mock_detect):
 
 @patch("kube.completion.scope.detect_active_scope")
 @patch("kube.completion.KubeConfig")
-def test_list_pods_returns_namespace_flag(mock_config_cls, mock_detect):
+def test_list_pods_returns_namespace_and_all_flags(mock_config_cls, mock_detect):
     mock_config_cls.return_value = _config()
     mock_detect.return_value = None
 
-    assert complete(["list", "pods", ""]) == ["--namespace"]
+    assert complete(["list", "pods", ""]) == ["--namespace", "--all"]
 
 
 @patch("kube.completion.scope.detect_active_scope")
@@ -60,7 +60,7 @@ def test_list_json_before_pods_resolves_to_same_position(mock_config_cls, mock_d
     mock_config_cls.return_value = _config()
     mock_detect.return_value = None
 
-    assert complete(["list", "--json", "pods", ""]) == ["--namespace"]
+    assert complete(["list", "--json", "pods", ""]) == ["--namespace", "--all"]
 
 
 @patch("kube.completion.scope.detect_active_scope")
@@ -69,7 +69,7 @@ def test_list_pods_json_after_resolves_to_same_position(mock_config_cls, mock_de
     mock_config_cls.return_value = _config()
     mock_detect.return_value = None
 
-    assert complete(["list", "pods", "--json", ""]) == ["--namespace"]
+    assert complete(["list", "pods", "--json", ""]) == ["--namespace", "--all"]
 
 
 @patch("kube.completion.scope.detect_active_scope")
@@ -94,6 +94,39 @@ def test_list_pods_namespace_flag_returns_scoped_namespace_aliases(
     result = complete(["list", "pods", "--namespace", ""])
 
     assert sorted(result) == ["app", "default"]
+
+
+@patch("kube.completion.scope.detect_active_scope")
+@patch("kube.completion.KubeConfig")
+def test_list_pods_all_typed_offers_only_namespace_flag(mock_config_cls, mock_detect):
+    mock_config_cls.return_value = _config()
+    mock_detect.return_value = None
+
+    assert complete(["list", "pods", "--all", ""]) == ["--namespace"]
+
+
+@patch("kube.completion.scope.detect_active_scope")
+@patch("kube.completion.KubeConfig")
+def test_list_pods_all_before_namespace_flag_returns_scoped_namespace_aliases(
+    mock_config_cls, mock_detect
+):
+    mock_config_cls.return_value = _config(
+        namespaces={"prod": {"default": "prod-default-ns", "app": "prod-app-ns"}}
+    )
+    mock_detect.return_value = "prod"
+
+    result = complete(["list", "pods", "--all", "--namespace", ""])
+
+    assert sorted(result) == ["app", "default"]
+
+
+@patch("kube.completion.scope.detect_active_scope")
+@patch("kube.completion.KubeConfig")
+def test_list_pods_after_namespace_value_still_offers_all_flag(mock_config_cls, mock_detect):
+    mock_config_cls.return_value = _config()
+    mock_detect.return_value = None
+
+    assert complete(["list", "pods", "--namespace", "web", ""]) == ["--namespace", "--all"]
 
 
 @patch("kube.completion.scope.detect_active_scope")

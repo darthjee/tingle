@@ -59,7 +59,7 @@ contexts; it only switches between them.
 ```
 tingle kube switch <context_alias>
 tingle kube list [--json] namespace
-tingle kube list [--json] pods --namespace <namespace_alias>
+tingle kube list [--json] pods --namespace <namespace_alias> [--all]
 tingle kube shell <namespace_alias> <pod_alias>
 tingle kube configure context
 tingle kube configure namespace
@@ -78,6 +78,7 @@ tingle kube list namespace
 tingle kube list --json namespace
 tingle kube list pods --namespace web
 tingle kube list --json pods --namespace web
+tingle kube list pods --namespace web --all
 tingle kube shell web api
 tingle kube configure context
 tingle kube example
@@ -166,6 +167,13 @@ and looking for the context alias whose real name matches it. If no context
 alias matches (for example, you switched with plain `kubectx` to a context
 you never aliased), there is no active scope and namespace and pod aliases
 are not resolved.
+
+Without an active scope (or when the active scope has no pod aliases),
+`tingle kube list pods` prints nothing. Add `--all` to still see every pod
+in the namespace, all listed under `(unmatched)`; with `--json` you get a
+single `"alias": null` entry. A namespace that is not a configured alias is
+used as the real namespace name, so `tingle kube list pods --namespace
+<real-name> --all` works without any config.
 
 ### How pod aliases match pods
 
@@ -320,7 +328,7 @@ without an alias:
 ### Listing pods
 
 ```
-tingle kube list [--json] pods --namespace <namespace_alias>
+tingle kube list [--json] pods --namespace <namespace_alias> [--all]
 ```
 
 Resolves `<namespace_alias>` in the active scope (if it is not configured,
@@ -330,8 +338,8 @@ groups them under your pod aliases.
 
 Only the pod aliases of the active scope are shown, and only those whose
 `namespace` is either unset or equal to the `<namespace_alias>` you passed.
-Pods that match no alias are not listed. If the active scope has no pod
-aliases, nothing is printed.
+Pods that match no alias are not listed (use [`--all`](#listing-every-pod-with---all)
+to see them too). If the active scope has no pod aliases, nothing is printed.
 
 ```
 api:
@@ -361,6 +369,63 @@ discarded candidates are not included):
   {
     "alias": "worker",
     "pods": []
+  }
+]
+```
+
+#### Listing every pod with `--all`
+
+```
+tingle kube list pods --namespace web --all
+tingle kube list --json pods --namespace web --all
+```
+
+`--all` also lists the pods that match no alias. The alias blocks are
+printed as usual, followed by a final `(unmatched):` block with every pod
+in the namespace that none of the displayed aliases matched, oldest first:
+
+```
+api:
+  - api-server-7d9f8c6b5d-x2k4q
+  - api-server-7d9f8c6b5d-p9m3z
+worker:
+(unmatched):
+  - redis-0
+  - worker-debug
+```
+
+- The `(unmatched):` block is always printed, even when it is empty, so
+  scripts can rely on it.
+- The "candidates discarded by id_pattern" hint is not printed with `--all`:
+  those pods already appear under `(unmatched)`.
+- A pod matched by several aliases is still listed under each of them.
+- Pods matched only by aliases tied to another namespace (which are not
+  displayed) land in `(unmatched)`.
+- `--all` only widens the listing **within the given namespace**. It is not
+  the same as kubectl's `--all-namespaces` / `-A`.
+
+With `--json`, the array gets one final entry with `"alias": null` holding
+the unmatched pods. It is always present (`"pods": []` when empty):
+
+```
+[
+  {
+    "alias": "api",
+    "pods": [
+      "api-server-7d9f8c6b5d-x2k4q",
+      "api-server-7d9f8c6b5d-p9m3z"
+    ]
+  },
+  {
+    "alias": "worker",
+    "pods": []
+  },
+  {
+    "alias": null,
+    "pods": [
+      "redis-0",
+      "worker-debug"
+    ]
   }
 ]
 ```
@@ -541,6 +606,14 @@ for your contexts, namespaces and pods.
    ```
 
    The pod alias's prefix and ID pattern do the filtering that `grep` did.
+   For a plain `kubectl get pods -n $NAMESPACE` (every pod, no filtering),
+   add `--all`:
+
+   ```
+   tingle kube list pods --namespace web --all
+   ```
+
+   Pods that match no alias are listed under `(unmatched)`.
 
 6. **`kubectl exec -n $NAMESPACE -it $POD -- bash`:**
 
@@ -557,7 +630,7 @@ for your contexts, namespaces and pods.
   prints a usage line and an error to standard error, for example:
 
   ```
-  usage: kube list pods [-h] --namespace NAMESPACE
+  usage: kube list pods [-h] --namespace NAMESPACE [--all]
   kube list pods: error: the following arguments are required: --namespace
   ```
 
