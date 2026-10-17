@@ -7,6 +7,17 @@ classified by thresholds on the file's total cyclomatic complexity (CCN, the
 sum over its functions and methods). `Max`, `NPath`, `MI` and `Lines` are
 information only. The host needs Docker, not PHP.
 
+`--details [N]` lists, under each shown file row, its N most complex
+functions and methods (from the same PDepend run), sorted by CCN (highest
+first, ties by line then name), with their NPath and `path:line`.
+`--details` alone means 5 and `--details 0` lists every unit. Methods are
+named `<Class>::<method>`; closures, arrow functions, enum and
+anonymous-class methods are not listed. Nothing is listed under PARSE rows.
+A row without per-function data (a refused line, or an image older than
+#351 given through `--image`) shows `(per-function data unavailable)`
+instead. Per-function data is information only: it never sets a level and
+never changes the exit code.
+
 File selection follows `js_complexity`, applied in this order: default and
 `--exclude` directory names (`--no-default-excludes` drops the defaults),
 `.gitignore` (unless `--no-gitignore`), `--ignore` globs, then `--include`
@@ -20,8 +31,8 @@ file name.
 
 Personal defaults are read from the `php_complexity` section of
 `~/.tingle/code_check/config.json` (keys: warn, error, critical, top, exclude,
-ignore, include, no_default_excludes, gitignore, fail_on, min_level, image;
-there is no `ext`, and `details` is unknown until #351). Single values given
+ignore, include, no_default_excludes, gitignore, fail_on, min_level, image,
+details; there is no `ext`). Single values given
 on the CLI win over the config, which wins over the built-in defaults; list
 values (exclude, ignore, include) are concatenated, config first, and
 deduplicated. `--no-default-excludes` and `--no-gitignore` win over the
@@ -49,6 +60,8 @@ Examples
     tingle code_check php_complexity ./src --warn 15 --error 30 --critical 50
     tingle code_check php_complexity ./src --top 10 --min-level warn
     tingle code_check php_complexity ./src --fail-on error
+    tingle code_check php_complexity ./src --details
+    tingle code_check php_complexity ./src --details 0
     tingle code_check php_complexity ./src --image tingle_php_complexity:dev
     tingle code_check php_complexity ./src --exclude tests,fixtures
     tingle code_check php_complexity ./src --no-default-excludes --exclude vendor
@@ -100,6 +113,7 @@ SINGLE_DEFAULTS: dict = {
     "fail_on": None,
     "min_level": "ok",
     "image": None,
+    "details": None,
 }
 
 # Threshold options validated as numbers >= 0.
@@ -189,7 +203,7 @@ class CheckPhpComplexity(DockerCheck):
         analyzer = FileAnalyzer(options["warn"], options["error"], options["critical"])
         reporter = Reporter(analyzer, target, root, out)
         self._print_warnings(parsed, reporter)
-        reporter.report(parsed, options["min_level"], options["top"])
+        reporter.report(parsed, options["min_level"], options["top"], options["details"])
         # The gate uses every level row (never PARSE files), not only the displayed ones.
         failed = self._gate_failed(analyzer, parsed.results.values(), options["fail_on"])
         return 2 if failed else 0

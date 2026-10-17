@@ -374,3 +374,8 @@ def test_php_complexity_store_true_flags_take_no_value(flag):
 
 def test_php_complexity_value_flag_before_path_does_not_count_as_path():
     assert complete(["php_complexity", "--image", "img:dev", ""]) == [FILES_SENTINEL]
+
+
+def test_php_complexity_details_is_a_free_value_flag():
+    assert complete(["php_complexity", "src", "--details", ""]) == []
+    assert complete(["php_complexity", "--details", "3", ""]) == [FILES_SENTINEL]
