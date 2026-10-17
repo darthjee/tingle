@@ -7,4 +7,6 @@ importing any subcommand implementation. `CodeCheck.SUBCOMMANDS` in
 
 from __future__ import annotations
 
-SUBCOMMAND_NAMES: tuple[str, ...] = ("file_size", "rubycritic", "js_complexity")
+SUBCOMMAND_NAMES: tuple[str, ...] = (
+    "file_size", "rubycritic", "js_complexity", "php_complexity",
+)

@@ -24,9 +24,11 @@ The subcommand comes first; its options follow it.
 | [`file_size`](code_check/file_size.md) | Token efficiency triage: file size analysis. |
 | [`rubycritic`](code_check/rubycritic.md) | Ruby code complexity via RubyCritic (Docker). |
 | [`js_complexity`](code_check/js_complexity.md) | JavaScript/TypeScript code complexity via FTA (Docker). |
+| [`php_complexity`](code_check/php_complexity.md) | PHP code complexity via PDepend (Docker). |
 
-Subcommand names are exact: `file_size`, `rubycritic` and `js_complexity`
-work, `file-size`, `FILE_SIZE`, `RubyCritic` and `js-complexity` do not.
+Subcommand names are exact: `file_size`, `rubycritic`, `js_complexity` and
+`php_complexity` work, `file-size`, `FILE_SIZE`, `RubyCritic`,
+`js-complexity` and `php-complexity` do not.
 
 ## Help
 
@@ -92,6 +94,9 @@ For example:
 
 Options given on the command line win over the config file. Each
 subcommand also accepts `--no-config` to ignore the file for one run.
+
+`php_complexity` does not read this file yet: pass its options on the
+command line.
 
 ## Exit status
 

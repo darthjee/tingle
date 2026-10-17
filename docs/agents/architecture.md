@@ -66,7 +66,7 @@ dispatches to.
   being typed starts with `-`, and `__tingle_files__` for the path position.
   Each subcommand's completion is driven by its own `flags.FLAGS`
   (`code_check.file_size.flags`, `code_check.rubycritic.flags`,
-  `code_check.js_complexity.flags`):
+  `code_check.js_complexity.flags`, `code_check.php_complexity.flags`):
   `flag_tables(flags)` in `python/code_check/completion.py` turns a `FLAGS`
   list into its flag names and value-taking flags (with their `choices`), and
   `SUBCOMMAND_FLAGS` maps each subcommand name to those tables. Adding a
@@ -137,14 +137,14 @@ image repository and an error subclass:
   `build_selection` and `select_files(target, root, *, extensions, excludes,
   ignore=None, include=None, gitignore=True, skip=None)`.
 - `executor.py` — `DockerCheck`, the base class for each check's executor
-  (`CheckRubycritic`, `CheckJsComplexity`).
+  (`CheckRubycritic`, `CheckJsComplexity`, `CheckPhpComplexity`).
 
 How the check-specific parts are passed in:
 
 - `error_class` — every shared function or class that raises takes the
   check's `DockerCheckError` subclass, so each check keeps its own error
   type (`RubycriticError` for `rubycritic`, `JsComplexityError` for
-  `js_complexity`).
+  `js_complexity`, `PhpComplexityError` for `php_complexity`).
 - `command` and `tool` — used only in the two tool-specific runner
   messages: `docker not found on PATH; {command} needs Docker to run {tool}`
   and `{tool} failed in {image} (exit {status})`. Every other message is
@@ -290,6 +290,76 @@ reference for the full rules):
   note), the summary and the `FTA score:` line, plus its display filtering.
   The header comes from `DockerCheck`.
 
+`python/code_check/php_complexity/` follows the `js_complexity` layout,
+built on `docker_check` (unchanged). The normative contract is
+[`specs/code_check/php_complexity/cli.md`](specs/code_check/php_complexity/cli.md);
+the image it runs is described in
+[tingle-php-complexity-image.md](tingle-php-complexity-image.md):
+
+- `executor.py` — `CheckPhpComplexity(DockerCheck)`
+  (`PROG = "tingle code_check php_complexity"`, `CONFIG_SECTION =
+  "php_complexity"`, `NO_FILES_MESSAGE = "No PHP files found for
+  analysis."`), with `_load_section` and `_select_files` (reached through
+  this module so tests can patch them), `_selection_options` (a fixed
+  selection until the selection flags land in #349: the default excludes,
+  no globs, no `.gitignore` filtering and `skip_bootstrap_cache` on),
+  `_gate_value` (the file's total CCN), `_parse_output` (and its
+  `could not parse the output of <image>: <reason>` message), the
+  `Warning: cannot parse <file>: <message>` warnings for `PARSE` files, and
+  `_execute`. `run` comes from `DockerCheck`, which catches
+  `PhpComplexityError` in one place, printing it and exiting 1.
+- `constants.py` — thresholds (`20`/`40`/`60`, applied to the file's total
+  CCN), `DEFAULT_DETAILS` (`5`, used from #351), the default excludes
+  (`file_size`'s list plus `var`, `storage` and `.phpunit.cache`),
+  `EXTENSIONS` (`.php`, matched case-insensitively), `BLADE_SUFFIX`
+  (`.blade.php`), `BOOTSTRAP_CACHE` (`("bootstrap", "cache")`), the image
+  repository (`darthjee/tingle_php_complexity`) and `VERSION_FILE`,
+  assigned from `docker_check`.
+- `errors.py` — `PhpComplexityError(DockerCheckError)`, the user-facing
+  error.
+- `config.py` — the `php_complexity` config section schema and `validate`;
+  a stub that accepts nothing until #350.
+- `flags.py` — the import-light `FLAGS` list (shared by the parser and
+  completion): `path`, `--warn`, `--error`, `--critical`, `--top`,
+  `--min-level`, `--fail-on` and `--image`. #349 to #351 add the selection
+  flags and `--details`.
+- `image.py` — thin wrapper: `resolve_image(cli_image, version_file=None)`
+  binds the php_complexity repository, `Constants.VERSION_FILE` and
+  `PhpComplexityError`. The default image is
+  `darthjee/tingle_php_complexity:<version>`.
+- `docker_runner.py` — thin wrapper: a `DockerRunner(image)` subclass that
+  binds `PhpComplexityError`, `"tingle code_check php_complexity"` and
+  `"PDepend"`; it re-exports `DOCKER`, `decode` and `write_stderr`.
+- `selection.py` — thin wrapper: `select_files(target, root, *,
+  excludes=None, ignore=None, include=None, gitignore=False,
+  skip_bootstrap_cache=True)` (`.gitignore` filtering stays off until the
+  selection flags land in #349) binds the `.php` extension, the default
+  excludes and a `skip` predicate that always drops Blade templates
+  (`*.blade.php`) and, when `skip_bootstrap_cache` is true and the target
+  is a directory, drops files under a `bootstrap/cache` directory pair
+  (lower-cased components, relative to the target). `--include` never
+  brings them back. It re-exports `Selection`, `unsendable_reason` and
+  `build_selection`. See
+  [`specs/code_check/php_complexity/selection.md`](specs/code_check/php_complexity/selection.md).
+- `output_parser.py` — `parse(stdout, sent_lines)` checks the container's
+  merged JSON (`tool_versions`, `files` with `parse_error`, `pdepend`,
+  `functions` and `duplication`, and `warnings`) in full, even the parts
+  #348 does not display, and maps entry `i` to sent line `i`
+  (`OutputFormatError` on a contract break). It returns `ParsedOutput` with
+  one `FileResult` per file. The JSON shape is pinned in
+  [tingle-php-complexity-image.md](tingle-php-complexity-image.md#merged-json).
+- `reporter.py` — the table (`Status CCN Max NPath MI Lines File`, sorted by
+  CCN, highest first, ties by sent line, `⛔ PARSE` rows last), the summary
+  (with `| <k> skipped (parse error)` when there are `PARSE` files) and the
+  `CCN: avg X | max Y` line (`CCN: n/a` when there is no level row), plus
+  its display filtering. The header comes from `DockerCheck`.
+
+The level metric is the file's **total CCN** (`files[].pdepend.ccn`); a file
+with `pdepend: null` and no parse error scores 0. `Max`, `NPath`, `MI` and
+`Lines` are information only. `PARSE` files are counted as skipped, are left
+out of the levels, the average and the maximum, and never trigger
+`--fail-on`.
+
 **`FileCollector` reuse.** `docker_check.selection` imports `FileCollector`
 straight from `code_check.file_size.file_collector` and passes the
 keyword-only `binary_check=False` and `outside_symlinks=False` (the defaults
@@ -315,6 +385,7 @@ subcommand in its own sub-package. `python/code_check/` is the reference:
       "file_size": (CheckFileSize, "Token efficiency triage: file size analysis."),
       "rubycritic": (CheckRubycritic, "Ruby code complexity via RubyCritic (Docker)."),
       "js_complexity": (CheckJsComplexity, "JavaScript/TypeScript code complexity via FTA (Docker)."),
+      "php_complexity": (CheckPhpComplexity, "PHP code complexity via PDepend (Docker)."),
   }
   ```
 

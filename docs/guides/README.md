@@ -16,4 +16,5 @@ For a quick summary of any command, run `tingle --help <command>`.
   - [`file_size`](code_check/file_size.md) — Token efficiency triage: file size analysis.
   - [`rubycritic`](code_check/rubycritic.md) — Ruby code complexity via RubyCritic (Docker).
   - [`js_complexity`](code_check/js_complexity.md) — JavaScript/TypeScript code complexity via FTA (Docker).
+  - [`php_complexity`](code_check/php_complexity.md) — PHP code complexity via PDepend (Docker).
 - [`check_file_size`](check_file_size.md) — Deprecated: use `code_check file_size`.
