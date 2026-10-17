@@ -6,6 +6,11 @@
 
 Single-value flags default to `None`; the built-in defaults are applied by
 the executor after the option merge.
+
+The file-selection flags (`--exclude`, `--no-default-excludes`,
+`--no-gitignore`, `--ignore`, `--include`) mirror `js_complexity`'s; the
+`.php` extension filter is fixed, so there is no `--ext`. Their parsing
+lives in `code_check.excludes` and `docker_check`, never here.
 """
 
 from __future__ import annotations
@@ -72,6 +77,45 @@ FLAGS: list[dict] = [
         "default": None,
         "help": (
             f"Docker image to run (default: {Constants.IMAGE_REPO}:<tingle version>)"
+        ),
+    },
+    {
+        "name": "--exclude",
+        "type": str,
+        "default": None,
+        "help": (
+            "Extra directory names to skip (comma-separated), added to the "
+            f"defaults: {','.join(Constants.DEFAULT_EXCLUDES)}"
+        ),
+    },
+    {
+        "name": "--no-default-excludes",
+        "action": "store_true",
+        "help": (
+            "Do not skip the default directories or bootstrap/cache; "
+            "only --exclude names apply"
+        ),
+    },
+    {
+        "name": "--no-gitignore",
+        "action": "store_true",
+        "help": "Do not skip files ignored by git (.gitignore, .git/info/exclude, global excludes)",
+    },
+    {
+        "name": "--ignore",
+        "type": str,
+        "action": "append",
+        "default": None,
+        "help": "Skip files whose path relative to <path> matches this glob (can be repeated)",
+    },
+    {
+        "name": "--include",
+        "type": str,
+        "action": "append",
+        "default": None,
+        "help": (
+            "Only analyse PHP files whose path relative to <path> "
+            "matches this glob (can be repeated)"
         ),
     },
 ]
