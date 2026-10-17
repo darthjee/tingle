@@ -10,6 +10,7 @@ Setup used in this example:
   namespace shop -> shop-backend        (belongs to context demo)
   pod       api  -> prefix "shop-api-"  (lives in namespace shop)
   pods      shop-api-5f7c9d8b6a-k3m8p, shop-api-5f7c9d8b6a-q7n2w
+            shop-redis-0, shop-migrate-28391740-x8k2l   (no pod alias)
 
 Lines starting with "$" are commands you type. In the configure steps, the
 text after each prompt is the answer you type.
@@ -146,7 +147,23 @@ text after each prompt is the answer you type.
     - shop-api-5f7c9d8b6a-q7n2w
 
 
-7. Open a shell
+7. List all pods
+----------------
+  Purpose: also list the pods in namespace shop that no pod alias matches.
+
+  $ tingle kube list pods --namespace shop --all
+  api:
+    - shop-api-5f7c9d8b6a-k3m8p
+    - shop-api-5f7c9d8b6a-q7n2w
+  (unmatched):
+    - shop-redis-0
+    - shop-migrate-28391740-x8k2l
+
+  --all only covers the given namespace (unlike kubectl's -A); the
+  (unmatched) group is always printed, even when empty.
+
+
+8. Open a shell
 ---------------
   Purpose: open an interactive shell in an "api" pod in namespace shop.
 
