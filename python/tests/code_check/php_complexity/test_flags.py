@@ -108,14 +108,15 @@ def test_choices():
         ),
         (
             "--exclude",
-            "Extra directory names to skip (comma-separated), added to the defaults: "
-            "node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,"
-            ".cache,coverage,.nuxt,out,target,var,storage,.phpunit.cache",
+            (
+                "Extra directory names to skip (comma-separated), added to the defaults: "
+                "node_modules,dist,build,.git,vendor,third_party,.next,__pycache__,"
+                ".cache,coverage,.nuxt,out,target,var,storage,.phpunit.cache"
+            ),
         ),
         (
             "--no-default-excludes",
-            "Do not skip the default directories or bootstrap/cache; "
-            "only --exclude names apply",
+            "Do not skip the default directories or bootstrap/cache; only --exclude names apply",
         ),
         (
             "--no-gitignore",
@@ -127,8 +128,10 @@ def test_choices():
         ),
         (
             "--include",
-            "Only analyse PHP files whose path relative to <path> matches this glob "
-            "(can be repeated)",
+            (
+                "Only analyse PHP files whose path relative to <path> matches this glob "
+                "(can be repeated)"
+            ),
         ),
     ],
 )
