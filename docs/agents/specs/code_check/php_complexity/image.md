@@ -584,7 +584,7 @@ notes.txt
 | 20–25 | the hostile lines | Refused. | `false` | `null` | `entrypoint`: `empty line`, `absolute path`, `path has a '..' segment`, `duplicate line`, `not a regular file under /src`, `unsupported extension` | `null` | `null` |
 
 The `min_mi` values are PDepend's unrounded floats; the smoke test compares
-them to one decimal (`round(min_mi, 1)`: 66.3, 79.5, 53.9, 79.3, 77.6, 77.8,
+them to one decimal (`round(min_mi, 1)`: 66.3, 79.5, 53.9, 79.3, 77.6, 77.7,
 79.5, 79.5, 58.1, 58.1, 66.5, 83.1, 89.7).
 
 The smoke test runs the canonical run line with `-v <fixture>:/src:ro` and
