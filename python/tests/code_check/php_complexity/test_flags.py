@@ -17,7 +17,7 @@ def test_flag_names_in_order():
     assert [f["name"] for f in FLAGS] == [
         "path", "--warn", "--error", "--critical", "--top",
         "--min-level", "--fail-on", "--image", "--exclude", "--no-default-excludes",
-        "--no-gitignore", "--ignore", "--include",
+        "--no-gitignore", "--ignore", "--include", "--no-config",
     ]
 
 
@@ -38,6 +38,7 @@ def test_single_value_flags_default_to_none():
         "no_gitignore": False,
         "ignore": None,
         "include": None,
+        "no_config": False,
     }
 
 
@@ -71,6 +72,7 @@ def test_actions():
     assert _flag("--no-gitignore")["action"] == "store_true"
     assert _flag("--ignore")["action"] == "append"
     assert _flag("--include")["action"] == "append"
+    assert _flag("--no-config")["action"] == "store_true"
 
 
 def test_selection_flags_parse():
@@ -133,13 +135,18 @@ def test_choices():
                 "(can be repeated)"
             ),
         ),
+        ("--no-config", "Do not read ~/.tingle/code_check/config.json"),
     ],
 )
 def test_help_texts_match_spec(name, text):
     assert _flag(name)["help"] == text
 
 
-@pytest.mark.parametrize("name", ["--no-config", "--details", "--ext"])
+def test_no_config_parses_to_true():
+    assert ArgParser(FLAGS).parse(["src", "--no-config"])["no_config"] is True
+
+
+@pytest.mark.parametrize("name", ["--details", "--ext"])
 def test_later_flags_are_absent(name):
     assert all(f["name"] != name for f in FLAGS)
 
