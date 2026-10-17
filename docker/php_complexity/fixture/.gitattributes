@@ -1,0 +1,3 @@
+# Keep the fixture bytes as written: crlf.php has CRLF endings, bom.php a
+# UTF-8 BOM and latin1.php ISO-8859-1 bytes.
+* -text
