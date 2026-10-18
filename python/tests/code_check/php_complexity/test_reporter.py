@@ -20,7 +20,8 @@ SEPARATOR = (
 )
 RULE = "─" * 78
 
-# duplication.md §4 full example (cli.md §6 with #352), table and summary.
+# Full report for the smoke-test fixture set (docs/guides/code_check/php_complexity.md,
+# "Examples" and "Duplicated lines"), table and summary.
 FULL_EXAMPLE = """\
 Status             CCN    Max    NPath     MI  Lines    Dup  File
 ──────────────── ─────  ─────  ───────  ─────  ─────  ─────  ──────────────────────────────────────────────────
@@ -48,7 +49,7 @@ Summary: 18 file(s) | 15 OK | 0 WARN | 0 ERROR | 0 CRITICAL | 3 skipped (parse e
 CCN: avg 2.80 | max 11.00
 """
 
-# cli.md §6, the same data with --warn 4 --error 6 --critical 10 --min-level warn.
+# The same data with --warn 4 --error 6 --critical 10 --min-level warn.
 FILTERED_EXAMPLE = """\
 Status             CCN    Max    NPath     MI  Lines    Dup  File
 ──────────────── ─────  ─────  ───────  ─────  ─────  ─────  ──────────────────────────────────────────────────
@@ -65,7 +66,7 @@ CCN: avg 2.80 | max 11.00
 """
 
 
-# details.md §4: the same data with --warn 4 --error 6 --critical 10
+# The same data with --warn 4 --error 6 --critical 10
 # --min-level warn --details 2.
 DETAILS_EXAMPLE = """\
 Status             CCN    Max    NPath     MI  Lines    Dup  File
