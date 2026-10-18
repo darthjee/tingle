@@ -1,0 +1,11 @@
+{
+  "name": "tingle_php_complexity",
+  "private": true,
+  "description": "Pinned npm tools for the tingle_php_complexity image (tingle code_check php_complexity).",
+  "engines": {
+    "node": "24.21.0"
+  },
+  "dependencies": {
+    "jscpd": "5.4.1"
+  }
+}

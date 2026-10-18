@@ -879,13 +879,15 @@ PHP_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.php Calculator.php missi
 # (section 9) against a local tingle_php_complexity image, with the canonical
 # run line (--network none, read-only /src, foreign uid 501:20): the fixture
 # list plus the hostile lines on stdin (exit 0, one JSON object checked with
-# python3: tool versions php 8.5.11, pdepend 3.0.0 and jscpd null, one files[]
-# entry per input line in order, the per-file parse_error and pdepend values
-# (min_mi compared with round(..., 1)), the per-file functions (null, [] or
-# the expected (name, line, ccn) list, every line/ccn/npath an int >= 1 and
-# sum(ccn) == pdepend.ccn), duplication null on every row, and exactly the
-# expected warnings, in order), no git in the image, and empty files/warnings
-# on empty stdin.
+# python3: tool versions php 8.5.11, pdepend 3.0.0 and jscpd 5.4.1, one
+# files[] entry per input line in order, the per-file parse_error and pdepend
+# values (min_mi compared with round(..., 1)), the per-file functions (null,
+# [] or the expected (name, line, ccn) list, every line/ccn/npath an int >= 1
+# and sum(ccn) == pdepend.ccn), duplication {"lines": 13} for dup_a.php and
+# dup_b.php, {"lines": 0} for every other analysed row and null for the parse
+# errors and refused lines (see duplication.md section 6), no jscpd warning
+# and exactly the expected warnings, in order), no git and no node in the
+# image, and empty files/warnings on empty stdin.
 # Any failure prints "<reason> on <platform>" on stderr and exits 1.
 smoke_test_php_complexity() {
   local image="$1"
@@ -921,14 +923,9 @@ if not isinstance(report, dict):
 versions = report.get("tool_versions")
 if not isinstance(versions, dict):
     fail(f"tool_versions is {versions!r}, not an object")
-for tool, expected_version in (("php", "8.5.11"), ("pdepend", "3.0.0")):
+for tool, expected_version in (("php", "8.5.11"), ("pdepend", "3.0.0"), ("jscpd", "5.4.1")):
     if versions.get(tool) != expected_version:
         fail(f"tool_versions.{tool} is {versions.get(tool)!r}, not \"{expected_version}\"")
-if "jscpd" not in versions:
-    fail("tool_versions has no jscpd key")
-jscpd_version = versions["jscpd"]
-if jscpd_version is not None:
-    fail(f"tool_versions.jscpd is {jscpd_version!r}, not null")
 
 files = report.get("files")
 if not isinstance(files, list) or not all(isinstance(f, dict) for f in files):
@@ -1050,8 +1047,21 @@ for index, (entry, (path, parse_error, expected)) in enumerate(zip(files, expect
     if "duplication" not in entry:
         fail(f"{label} has no duplication key")
     duplication = entry["duplication"]
-    if duplication is not None:
-        fail(f"{label} duplication is {duplication!r}, not null")
+    # duplication.md section 6: null for parse errors and refused lines
+    # (functions null), 13 for the clone pair, 0 for every other analysed
+    # file (bootstrap.php and empty.php included).
+    if expected_functions is None:
+        expected_duplication = None
+    elif path in ("dup_a.php", "dup_b.php"):
+        expected_duplication = {"lines": 13}
+    else:
+        expected_duplication = {"lines": 0}
+    if expected_duplication is None:
+        if duplication is not None:
+            fail(f"{label} duplication is {duplication!r}, not null")
+    elif not isinstance(duplication, dict) or set(duplication) != {"lines"} \
+            or not is_int(duplication["lines"]) or duplication != expected_duplication:
+        fail(f"{label} duplication is {duplication!r}, not {expected_duplication!r}")
 
 expected_warnings = [
     {"tool": "php", "path": "broken.php", "message": "syntax error, unexpected token \":\", expecting variable on line 10"},
@@ -1066,6 +1076,10 @@ expected_warnings = [
     {"tool": "pdepend", "path": "attr_anon.php", "message": "Unexpected token: #[, line: 14, col: 20"},
 ]
 warnings = report.get("warnings")
+if isinstance(warnings, list):
+    jscpd_warnings = [w for w in warnings if isinstance(w, dict) and w.get("tool") == "jscpd"]
+    if jscpd_warnings:
+        fail(f"unexpected jscpd warnings {jscpd_warnings!r}")
 if warnings != expected_warnings:
     fail(f"warnings are {warnings!r}, expected {expected_warnings!r}")
 ' "$platform" "${lines[@]}" <<< "$output"
@@ -1075,6 +1089,14 @@ if warnings != expected_warnings:
     -c 'if command -v git >/dev/null 2>&1; then echo present; else echo absent; fi')
   if [ "$git_check" != "absent" ]; then
     smoke_fail "git is present in the image on $platform"
+  fi
+
+  # Node is build-only: the final stage only gets jscpd's native binary.
+  local node_check
+  node_check=$(docker run --rm --network none --platform "$platform" --entrypoint sh "$image" \
+    -c 'if command -v node >/dev/null 2>&1; then echo present; else echo absent; fi')
+  if [ "$node_check" != "absent" ]; then
+    smoke_fail "node is present in the image on $platform"
   fi
 
   status=0

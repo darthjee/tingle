@@ -16,14 +16,17 @@ image checks each file with PHP's own parser, so files with a syntax error
 are reported as such instead of getting a misleading score. The same
 PDepend run also measures each method and function, so you can drill down
 from a file to the methods that make it complex (see
-[`--details`](#--details)).
+[`--details`](#--details)). The same image also runs
+[jscpd](https://github.com/kucherenko/jscpd) to count the lines of each file
+that are copy-pasted from another selected file (see
+[Duplicated lines](#duplicated-lines)).
 
 Each file gets one row in a report, labelled OK, WARN, ERROR or CRITICAL.
 The label comes from the file's **total CCN** (see
 [The metric: total CCN](#the-metric-total-ccn)) compared with thresholds you
 can choose. The other columns (the highest method CCN, NPath, the
-maintainability index and the line count) and the per-method lines are
-shown for information only: they never change the label or the exit status.
+maintainability index, the line count and the duplicated lines) and the
+per-method lines are shown for information only: they never change the label or the exit status.
 
 ## Requirements
 
@@ -155,20 +158,20 @@ declared:
 ```
 $ tingle code_check php_complexity fixture --warn 4 --error 6 --critical 10 --min-level warn --details 2
 ...
-Status             CCN    Max    NPath     MI  Lines  File
-──────────────── ─────  ─────  ───────  ─────  ─────  ──────────────────────────────────────────────────
-🟣 CRITICAL          11      7       36     54     22  fixture/Calculator.php
+Status             CCN    Max    NPath     MI  Lines    Dup  File
+──────────────── ─────  ─────  ───────  ─────  ─────  ─────  ──────────────────────────────────────────────────
+🟣 CRITICAL          11      7       36     54     22      0  fixture/Calculator.php
                  ccn   7  npath      36  Calculator::grade  (fixture/Calculator.php:22)
                  ccn   3  npath       3  Calculator::sign  (fixture/Calculator.php:12)
-🔴 ERROR              6      2        2     78     11  fixture/Shapes.php
+🔴 ERROR              6      2        2     78     11      0  fixture/Shapes.php
                  ccn   2  npath       2  Circle::area  (fixture/Shapes.php:28)
                  ccn   1  npath       1  Square::__construct  (fixture/Shapes.php:12)
-⚠️  WARN             4      3        4     66     12  fixture/helpers.php
+⚠️  WARN             4      3        4     66     12      0  fixture/helpers.php
                  ccn   3  npath       4  clamp  (fixture/helpers.php:3)
                  ccn   1  npath       1  greet  (fixture/helpers.php:14)
-⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php
-⛔ PARSE              -      -        -      -      -  fixture/broken.php
-⛔ PARSE              -      -        -      -      -  fixture/lenient.php
+⛔ PARSE              -      -        -      -      -      -  fixture/attr_anon.php
+⛔ PARSE              -      -        -      -      -      -  fixture/broken.php
+⛔ PARSE              -      -        -      -      -      -  fixture/lenient.php
 ...
 ```
 
@@ -809,26 +812,26 @@ Analyzing: /home/me/fixture
 Thresholds: warn=20 | error=40 | critical=60
 Image: darthjee/tingle_php_complexity:0.9.0
 
-Status             CCN    Max    NPath     MI  Lines  File
-──────────────── ─────  ─────  ───────  ─────  ─────  ──────────────────────────────────────────────────
-✅ OK                11      7       36     54     22  fixture/Calculator.php
-✅ OK                 6      2        2     78     11  fixture/Shapes.php
-✅ OK                 4      3        4     66     12  fixture/helpers.php
-✅ OK                 3      3        4     58      9  fixture/dup_a.php
-✅ OK                 3      3        4     58      9  fixture/dup_b.php
-✅ OK                 2      2        4     66      6  fixture/Anon.php
-✅ OK                 2      2        2     80      2  fixture/CVS/legacy.php
-✅ OK                 2      1        1     79     11  fixture/Modern.php
-✅ OK                 2      2        2     78      2  fixture/UPPER.PHP
-✅ OK                 2      2        2     80      2  fixture/bom.php
-✅ OK                 2      2        2     80      2  fixture/crlf.php
-✅ OK                 2      2        2     90      4  fixture/page.php
-✅ OK                 1      1        1     83      2  fixture/latin1.php
-✅ OK                 0      -        -      -      -  fixture/bootstrap.php
-✅ OK                 0      -        -      -      -  fixture/empty.php
-⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php
-⛔ PARSE              -      -        -      -      -  fixture/broken.php
-⛔ PARSE              -      -        -      -      -  fixture/lenient.php
+Status             CCN    Max    NPath     MI  Lines    Dup  File
+──────────────── ─────  ─────  ───────  ─────  ─────  ─────  ──────────────────────────────────────────────────
+✅ OK                11      7       36     54     22      0  fixture/Calculator.php
+✅ OK                 6      2        2     78     11      0  fixture/Shapes.php
+✅ OK                 4      3        4     66     12      0  fixture/helpers.php
+✅ OK                 3      3        4     58      9     13  fixture/dup_a.php
+✅ OK                 3      3        4     58      9     13  fixture/dup_b.php
+✅ OK                 2      2        4     66      6      0  fixture/Anon.php
+✅ OK                 2      2        2     80      2      0  fixture/CVS/legacy.php
+✅ OK                 2      1        1     79     11      0  fixture/Modern.php
+✅ OK                 2      2        2     78      2      0  fixture/UPPER.PHP
+✅ OK                 2      2        2     80      2      0  fixture/bom.php
+✅ OK                 2      2        2     80      2      0  fixture/crlf.php
+✅ OK                 2      2        2     90      4      0  fixture/page.php
+✅ OK                 1      1        1     83      2      0  fixture/latin1.php
+✅ OK                 0      -        -      -      -      0  fixture/bootstrap.php
+✅ OK                 0      -        -      -      -      0  fixture/empty.php
+⛔ PARSE              -      -        -      -      -      -  fixture/attr_anon.php
+⛔ PARSE              -      -        -      -      -      -  fixture/broken.php
+⛔ PARSE              -      -        -      -      -      -  fixture/lenient.php
 
 ──────────────────────────────────────────────────────────────────────────────
 Summary: 18 file(s) | 15 OK | 0 WARN | 0 ERROR | 0 CRITICAL | 3 skipped (parse error)
@@ -851,14 +854,14 @@ project gives:
 ```
 $ tingle code_check php_complexity fixture --warn 4 --error 6 --critical 10 --min-level warn
 ...
-Status             CCN    Max    NPath     MI  Lines  File
-──────────────── ─────  ─────  ───────  ─────  ─────  ──────────────────────────────────────────────────
-🟣 CRITICAL          11      7       36     54     22  fixture/Calculator.php
-🔴 ERROR              6      2        2     78     11  fixture/Shapes.php
-⚠️  WARN             4      3        4     66     12  fixture/helpers.php
-⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php
-⛔ PARSE              -      -        -      -      -  fixture/broken.php
-⛔ PARSE              -      -        -      -      -  fixture/lenient.php
+Status             CCN    Max    NPath     MI  Lines    Dup  File
+──────────────── ─────  ─────  ───────  ─────  ─────  ─────  ──────────────────────────────────────────────────
+🟣 CRITICAL          11      7       36     54     22      0  fixture/Calculator.php
+🔴 ERROR              6      2        2     78     11      0  fixture/Shapes.php
+⚠️  WARN             4      3        4     66     12      0  fixture/helpers.php
+⛔ PARSE              -      -        -      -      -      -  fixture/attr_anon.php
+⛔ PARSE              -      -        -      -      -      -  fixture/broken.php
+⛔ PARSE              -      -        -      -      -      -  fixture/lenient.php
 
 ──────────────────────────────────────────────────────────────────────────────
 Summary: 18 file(s) | 12 OK | 1 WARN | 1 ERROR | 1 CRITICAL | 3 skipped (parse error)
@@ -869,7 +872,7 @@ CCN: avg 2.80 | max 11.00
 
 - `Analyzing:` shows the target as an absolute path.
 - `Thresholds:` shows the `warn`, `error` and `critical` values in use.
-- `Image:` shows the Docker image that runs PHP and PDepend.
+- `Image:` shows the Docker image that runs PHP, PDepend and jscpd.
 - `Config:` (dimmed) shows the path of the configuration file, when a
   `php_complexity` section was loaded from it, even an empty one. It is not
   printed when the file or the section does not exist, or with
@@ -885,6 +888,7 @@ CCN: avg 2.80 | max 11.00
 | `NPath` | The highest NPath of a single function or method: the number of distinct paths through it. It grows very fast and can be a very large number, which is printed in full. Information only. |
 | `MI` | The lowest maintainability index of a function or method in the file, rounded to a whole number. Higher is better. Information only. |
 | `Lines` | The file's logical lines of code, as counted by PDepend (statements, not physical lines; top-level statements included). Information only. |
+| `Dup` | The number of the file's lines that are inside an exact copy-pasted block (a clone) found by jscpd among the selected files, each line counted once (see [Duplicated lines](#duplicated-lines)). Information only. `0` means the file was checked and has no duplicated line; `-` means the value is not available. |
 | `File` | For a directory target, the path relative to the target's parent directory, so it starts with the directory's name (`fixture/...` above). For a single-file target, only the file name. |
 
 A `-` means the value is not available (see
@@ -901,14 +905,16 @@ PDepend reports nothing for a file that has no class, trait or function:
 empty files, files with only top-level code (`bootstrap.php` above), and
 files holding only enums or interfaces. Such a file is still listed, as
 `✅ OK` with a CCN of `0` and `-` in the `Max`, `NPath`, `MI` and `Lines`
-columns, so the file count matches the selection.
+columns, so the file count matches the selection. jscpd still reads such a
+file, so its `Dup` column shows `0` (or the number of its duplicated lines).
 
 A file with classes but no method shows `0` too, with `-` in `Max`, `NPath`
 and `MI`, and its line count in `Lines`.
 
 In rare cases the image also refuses a file it was given, for example one
 deleted between the selection and the run. It prints a warning on standard
-error, and the file is listed the same way, as `✅ OK` with `0`:
+error, and the file is listed the same way, as `✅ OK` with `0` (and `-` in
+`Dup`):
 
 ```
 Warning: the image skipped src/gone.php: not a regular file under /src
@@ -933,7 +939,8 @@ Each such file prints a warning on standard error, before the report:
 Warning: cannot parse <file>: <message>
 ```
 
-It appears as a `⛔ PARSE` row, with `-` in every value column, and in the
+It appears as a `⛔ PARSE` row, with `-` in every value column (`Dup`
+included), and in the
 `skipped (parse error)` count. It is never in the level counts or the `CCN:`
 line, and it never changes the exit status.
 
@@ -947,6 +954,42 @@ UTF-8 BOM do not change the results.
 
 PDepend may also print a message that names no file; it is shown as
 `Warning: PDepend reported: <message>` and the analysis goes on.
+
+### Duplicated lines
+
+The `Dup` column counts the file's lines that are part of an exact clone: a
+block of at least 50 tokens and 5 lines that appears more than once, either
+in another selected file or elsewhere in the same file. jscpd finds the
+clones; only exact copies count, so a copy with renamed variables is not a
+match.
+
+- Each line counts **once**, however many clones cover it. In the sample
+  above, `dup_a.php` and `dup_b.php` share one 13-line block, so both show
+  `13`; every other analysed file shows `0`.
+- Only the **selected files** are compared with each other. A copy in a
+  file outside the selection (for example under `vendor/`, or a file left
+  out by `--exclude`, `--ignore` or `.gitignore`) is never counted.
+- A file PDepend rejected (a `⛔ PARSE` row for valid PHP) is still read by
+  jscpd, so its copies count for the other file of the clone, even though
+  its own `Dup` is `-`.
+- `0` means the file was checked and has no duplicated line.
+- `-` means the value is not available: the file could not be parsed
+  (`⛔ PARSE` rows), the image refused it, it is larger than 1 MiB
+  (1,048,576 bytes), or jscpd failed (see below).
+
+The column is for information only: it never changes the file's level, the
+`--fail-on` gate, the exit status or the summary (there is no duplication
+total).
+
+If jscpd fails inside the image, the analysis still completes. Tingle prints
+one warning on standard error, before the report:
+
+```
+Warning: jscpd failed in <image>; duplication data is not available: <message>
+```
+
+The `Dup` column then shows `-` on every row. The exit status is not
+changed.
 
 ### Summary
 
@@ -1089,6 +1132,7 @@ Errors are printed on **standard error** as `Error: <message>`.
 | Folder not shared with Docker Desktop | Docker's error, then `Error: Docker could not mount <folder>; on Docker Desktop, share it (or a parent folder) under Settings > Resources > File sharing, then retry` | `1` |
 | PDepend or the container failed (including running out of memory) | The container's error output, then `Error: PDepend failed in <image> (exit <status>)` | `1` |
 | Unexpected output from the container | The container's error output, then `Error: could not parse the output of <image>: <reason>` | `1` |
+| jscpd failed inside the image | `Warning: jscpd failed in <image>; duplication data is not available: <message>`, then the report with `-` in every `Dup` cell | Unchanged |
 | Analysis completed, no `--fail-on` | The report | `0` |
 | Analysis completed, `--fail-on` gate passed | The report | `0` |
 | Analysis completed, `--fail-on` gate failed | The report | `2` |
@@ -1102,9 +1146,9 @@ In short:
 | `2` | The complexity gate failed (`--fail-on`) |
 
 Unparsable files (`⛔ PARSE` rows), files shown as `OK 0`, refused-file
-warnings and the `--details` unit lines (including the
-`(per-function data unavailable)` note) never change the exit status on
-their own. The report always goes to standard output and error messages to
+warnings, the `Dup` column, a jscpd failure warning and the `--details`
+unit lines (including the `(per-function data unavailable)` note) never
+change the exit status on their own. The report always goes to standard output and error messages to
 standard error.
 
 ## Limitations

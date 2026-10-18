@@ -3,7 +3,7 @@
 The container prints one JSON object with `tool_versions`, one `files` entry
 per line tingle sent on stdin (in the same order, `path` equal to the line)
 and `warnings`. `parse` checks the whole shape (including the `functions`
-and `duplication` parts that later sub-issues display), maps entry `i` to
+and `duplication` parts), maps entry `i` to
 sent line `i` and returns:
 
 - one `FileResult` per file PDepend analysed, listed without data or the

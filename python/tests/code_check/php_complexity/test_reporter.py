@@ -12,32 +12,36 @@ from code_check.php_complexity.output_parser import FileResult, ParsedOutput, pa
 from code_check.php_complexity.reporter import Reporter
 from tests.code_check.php_complexity.sample_output import DETAILED, LINES, dumps
 
-HEADER = f"{'Status':<16} {'CCN':>5}  {'Max':>5}  {'NPath':>7}  {'MI':>5}  {'Lines':>5}  File"
-SEPARATOR = f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 7}  {'─' * 5}  {'─' * 5}  {'─' * 50}"
+HEADER = (
+    f"{'Status':<16} {'CCN':>5}  {'Max':>5}  {'NPath':>7}  {'MI':>5}  {'Lines':>5}  {'Dup':>5}  File"
+)
+SEPARATOR = (
+    f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 7}  {'─' * 5}  {'─' * 5}  {'─' * 5}  {'─' * 50}"
+)
 RULE = "─" * 78
 
-# cli.md §6 full example (#348 only), table and summary.
+# duplication.md §4 full example (cli.md §6 with #352), table and summary.
 FULL_EXAMPLE = """\
-Status             CCN    Max    NPath     MI  Lines  File
-──────────────── ─────  ─────  ───────  ─────  ─────  ──────────────────────────────────────────────────
-✅ OK                11      7       36     54     22  fixture/Calculator.php
-✅ OK                 6      2        2     78     11  fixture/Shapes.php
-✅ OK                 4      3        4     66     12  fixture/helpers.php
-✅ OK                 3      3        4     58      9  fixture/dup_a.php
-✅ OK                 3      3        4     58      9  fixture/dup_b.php
-✅ OK                 2      2        4     66      6  fixture/Anon.php
-✅ OK                 2      2        2     80      2  fixture/CVS/legacy.php
-✅ OK                 2      1        1     79     11  fixture/Modern.php
-✅ OK                 2      2        2     78      2  fixture/UPPER.PHP
-✅ OK                 2      2        2     80      2  fixture/bom.php
-✅ OK                 2      2        2     80      2  fixture/crlf.php
-✅ OK                 2      2        2     90      4  fixture/page.php
-✅ OK                 1      1        1     83      2  fixture/latin1.php
-✅ OK                 0      -        -      -      -  fixture/bootstrap.php
-✅ OK                 0      -        -      -      -  fixture/empty.php
-⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php
-⛔ PARSE              -      -        -      -      -  fixture/broken.php
-⛔ PARSE              -      -        -      -      -  fixture/lenient.php
+Status             CCN    Max    NPath     MI  Lines    Dup  File
+──────────────── ─────  ─────  ───────  ─────  ─────  ─────  ──────────────────────────────────────────────────
+✅ OK                11      7       36     54     22      0  fixture/Calculator.php
+✅ OK                 6      2        2     78     11      0  fixture/Shapes.php
+✅ OK                 4      3        4     66     12      0  fixture/helpers.php
+✅ OK                 3      3        4     58      9     13  fixture/dup_a.php
+✅ OK                 3      3        4     58      9     13  fixture/dup_b.php
+✅ OK                 2      2        4     66      6      0  fixture/Anon.php
+✅ OK                 2      2        2     80      2      0  fixture/CVS/legacy.php
+✅ OK                 2      1        1     79     11      0  fixture/Modern.php
+✅ OK                 2      2        2     78      2      0  fixture/UPPER.PHP
+✅ OK                 2      2        2     80      2      0  fixture/bom.php
+✅ OK                 2      2        2     80      2      0  fixture/crlf.php
+✅ OK                 2      2        2     90      4      0  fixture/page.php
+✅ OK                 1      1        1     83      2      0  fixture/latin1.php
+✅ OK                 0      -        -      -      -      0  fixture/bootstrap.php
+✅ OK                 0      -        -      -      -      0  fixture/empty.php
+⛔ PARSE              -      -        -      -      -      -  fixture/attr_anon.php
+⛔ PARSE              -      -        -      -      -      -  fixture/broken.php
+⛔ PARSE              -      -        -      -      -      -  fixture/lenient.php
 
 ──────────────────────────────────────────────────────────────────────────────
 Summary: 18 file(s) | 15 OK | 0 WARN | 0 ERROR | 0 CRITICAL | 3 skipped (parse error)
@@ -46,14 +50,14 @@ CCN: avg 2.80 | max 11.00
 
 # cli.md §6, the same data with --warn 4 --error 6 --critical 10 --min-level warn.
 FILTERED_EXAMPLE = """\
-Status             CCN    Max    NPath     MI  Lines  File
-──────────────── ─────  ─────  ───────  ─────  ─────  ──────────────────────────────────────────────────
-🟣 CRITICAL          11      7       36     54     22  fixture/Calculator.php
-🔴 ERROR              6      2        2     78     11  fixture/Shapes.php
-⚠️  WARN             4      3        4     66     12  fixture/helpers.php
-⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php
-⛔ PARSE              -      -        -      -      -  fixture/broken.php
-⛔ PARSE              -      -        -      -      -  fixture/lenient.php
+Status             CCN    Max    NPath     MI  Lines    Dup  File
+──────────────── ─────  ─────  ───────  ─────  ─────  ─────  ──────────────────────────────────────────────────
+🟣 CRITICAL          11      7       36     54     22      0  fixture/Calculator.php
+🔴 ERROR              6      2        2     78     11      0  fixture/Shapes.php
+⚠️  WARN             4      3        4     66     12      0  fixture/helpers.php
+⛔ PARSE              -      -        -      -      -      -  fixture/attr_anon.php
+⛔ PARSE              -      -        -      -      -      -  fixture/broken.php
+⛔ PARSE              -      -        -      -      -      -  fixture/lenient.php
 
 ──────────────────────────────────────────────────────────────────────────────
 Summary: 18 file(s) | 12 OK | 1 WARN | 1 ERROR | 1 CRITICAL | 3 skipped (parse error)
@@ -64,20 +68,20 @@ CCN: avg 2.80 | max 11.00
 # details.md §4: the same data with --warn 4 --error 6 --critical 10
 # --min-level warn --details 2.
 DETAILS_EXAMPLE = """\
-Status             CCN    Max    NPath     MI  Lines  File
-──────────────── ─────  ─────  ───────  ─────  ─────  ──────────────────────────────────────────────────
-🟣 CRITICAL          11      7       36     54     22  fixture/Calculator.php
+Status             CCN    Max    NPath     MI  Lines    Dup  File
+──────────────── ─────  ─────  ───────  ─────  ─────  ─────  ──────────────────────────────────────────────────
+🟣 CRITICAL          11      7       36     54     22      0  fixture/Calculator.php
                  ccn   7  npath      36  Calculator::grade  (fixture/Calculator.php:22)
                  ccn   3  npath       3  Calculator::sign  (fixture/Calculator.php:12)
-🔴 ERROR              6      2        2     78     11  fixture/Shapes.php
+🔴 ERROR              6      2        2     78     11      0  fixture/Shapes.php
                  ccn   2  npath       2  Circle::area  (fixture/Shapes.php:28)
                  ccn   1  npath       1  Square::__construct  (fixture/Shapes.php:12)
-⚠️  WARN             4      3        4     66     12  fixture/helpers.php
+⚠️  WARN             4      3        4     66     12      0  fixture/helpers.php
                  ccn   3  npath       4  clamp  (fixture/helpers.php:3)
                  ccn   1  npath       1  greet  (fixture/helpers.php:14)
-⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php
-⛔ PARSE              -      -        -      -      -  fixture/broken.php
-⛔ PARSE              -      -        -      -      -  fixture/lenient.php
+⛔ PARSE              -      -        -      -      -      -  fixture/attr_anon.php
+⛔ PARSE              -      -        -      -      -      -  fixture/broken.php
+⛔ PARSE              -      -        -      -      -      -  fixture/lenient.php
 
 ──────────────────────────────────────────────────────────────────────────────
 Summary: 18 file(s) | 12 OK | 1 WARN | 1 ERROR | 1 CRITICAL | 3 skipped (parse error)
@@ -99,8 +103,13 @@ def target(tmp_path):
     return path
 
 
-def _r(line, ccn, max_ccn=2, max_npath=4, min_mi=66.0, lloc=6, functions=None):
-    return FileResult(line, ccn, max_ccn, max_npath, min_mi, lloc, True, functions=functions)
+def _r(
+    line, ccn, max_ccn=2, max_npath=4, min_mi=66.0, lloc=6, functions=None, duplication=None
+):
+    return FileResult(
+        line, ccn, max_ccn, max_npath, min_mi, lloc, True,
+        duplication=duplication, functions=functions,
+    )
 
 
 def _fn(name, line, ccn, npath=1):
@@ -183,7 +192,8 @@ def test_row_without_pdepend_data(target, capsys):
     _reporter(target).report(_parsed(FileResult("empty.php", 0)))
 
     assert _out(capsys)[2] == (
-        f"{'✅ OK':<16} {0:>5}  {'-':>5}  {'-':>7}  {'-':>5}  {'-':>5}  fixture/empty.php"
+        f"{'✅ OK':<16} {0:>5}  {'-':>5}  {'-':>7}  {'-':>5}  {'-':>5}  {'-':>5}  "
+        "fixture/empty.php"
     )
 
 
@@ -193,7 +203,8 @@ def test_row_with_null_maxima(target, capsys):
     _reporter(target).report(_parsed(result))
 
     assert _out(capsys)[2] == (
-        f"{'✅ OK':<16} {0:>5}  {'-':>5}  {'-':>7}  {'-':>5}  {7:>5}  fixture/Iface.php"
+        f"{'✅ OK':<16} {0:>5}  {'-':>5}  {'-':>7}  {'-':>5}  {7:>5}  {'-':>5}  "
+        "fixture/Iface.php"
     )
 
 
@@ -222,10 +233,49 @@ def test_parse_rows_are_sorted_below_level_rows(target, capsys):
     out = _out(capsys)
     assert out[2].endswith("fixture/a.php")
     assert out[3] == (
-        f"{'⛔ PARSE':<16} {'-':>5}  {'-':>5}  {'-':>7}  {'-':>5}  {'-':>5}  fixture/b.php"
+        f"{'⛔ PARSE':<16} {'-':>5}  {'-':>5}  {'-':>7}  {'-':>5}  {'-':>5}  {'-':>5}  "
+        "fixture/b.php"
     )
     assert out[4].endswith("fixture/z.php")
 
+
+
+@pytest.mark.parametrize(
+    ("duplication", "shown"), [({"lines": 13}, "13"), ({"lines": 0}, "0"), (None, "-")]
+)
+def test_dup_column(target, capsys, duplication, shown):
+    _reporter(target).report(_parsed(_r("a.php", 1, lloc=7, duplication=duplication)))
+
+    assert _out(capsys)[2] == (
+        f"{'✅ OK':<16} {1:>5}  {2:>5}  {4:>7}  {66:>5}  {7:>5}  {shown:>5}  fixture/a.php"
+    )
+
+
+def test_dup_large_value_is_printed_in_full(target, capsys):
+    _reporter(target).report(_parsed(_r("a.php", 1, duplication={"lines": 1234567})))
+
+    assert "  1234567  fixture/a.php" in _out(capsys)[2]
+
+
+def test_dup_does_not_change_the_level_or_the_summary(target, capsys):
+    _reporter(target).report(_parsed(_r("a.php", 1, duplication={"lines": 10**6})))
+
+    out = _out(capsys)
+    assert out[2].startswith(f"{'✅ OK':<16}")
+    assert out[-2] == "Summary: 1 file(s) | 1 OK | 0 WARN | 0 ERROR | 0 CRITICAL"
+
+
+def test_dup_column_with_details(target, capsys):
+    functions = [_fn("f", 3, 2)]
+
+    _reporter(target).report(
+        _parsed(_r("a.php", 2, functions=functions, duplication={"lines": 5})), details=0
+    )
+
+    out = _out(capsys)
+    assert out[:2] == [HEADER, SEPARATOR]
+    assert out[2].endswith(f"{5:>5}  fixture/a.php")
+    assert out[3] == _unit("f", "fixture/a.php", 3, 2)
 
 # --- filters -----------------------------------------------------------------------
 

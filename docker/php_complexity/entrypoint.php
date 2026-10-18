@@ -16,30 +16,42 @@ declare(strict_types=1);
 //         templates (*.blade.php) are refused (an "entrypoint" warning,
 //         never read).
 // Output: stdout, exactly one JSON object followed by "\n":
-//           {"tool_versions": {"php", "pdepend", "jscpd": null},
+//           {"tool_versions": {"php", "pdepend", "jscpd"},
 //            "files": [one entry per input line, in input order:
 //                      {path, parse_error, pdepend, functions,
-//                       duplication: null}],
+//                       duplication}],
 //            "warnings": [{tool, path?, message}]}
 //         functions is null for a parse error or a refused line, else the
 //         file's counted units [{name, line, ccn, npath}] in source order
 //         ([] when there is none, or PDepend did not list the file).
-//         PDepend's stdout and stderr are passed through to stderr.
+//         duplication is {"lines": n} (n = distinct lines of the file
+//         covered by any jscpd clone, 0 when none) for a staged file that
+//         is not a parse error and has at most 1,048,576 bytes, else null;
+//         null for every file when jscpd failed (one path-less "jscpd"
+//         warning; never fatal).
+//         PDepend's and jscpd's stdout and stderr are passed through to
+//         stderr.
 // Exit:   0 when the JSON was printed; PDepend's status when PDepend exits
 //         non-zero; 1 on any other failure ("tingle_php_complexity: <reason>"
-//         on stderr). Nothing is printed on stdout on failure.
+//         on stderr, e.g. "cannot read the jscpd version"). A jscpd failure
+//         does not change it. Nothing is printed on stdout on failure.
 //
 // Each accepted file is read once and checked with PHP's own parser
 // (token_get_all with TOKEN_PARSE); a file PHP rejects gets parse_error: true
 // and a "php" warning, and is not staged. The others are copied to
 // /tmp/stage/<n>.php (<n> = input line number) and PDepend runs on that tree,
 // never on /src. A file PDepend rejects (its error block on stdout) gets
-// parse_error: true and a "pdepend" warning. Nothing is written outside /tmp.
+// parse_error: true and a "pdepend" warning. jscpd then runs on the same
+// tree (so excluded or ignored files never contribute clones); files PDepend
+// rejected are still read by it, their clones count for the other file.
+// Nothing is written outside /tmp.
 //
 // Dependencies: PHP standard library (dom, mbstring, tokenizer),
-// /opt/tingle_php_complexity/vendor (PDepend 3.0.0, Composer's runtime API).
+// /opt/tingle_php_complexity/vendor (PDepend 3.0.0, Composer's runtime API),
+// /usr/local/bin/jscpd (jscpd 5.4.1 native binary).
 //
-// Contract: docs/agents/specs/code_check/php_complexity/image.md.
+// Contract: docs/agents/specs/code_check/php_complexity/image.md and
+// docs/agents/specs/code_check/php_complexity/duplication.md.
 
 ini_set('display_errors', 'stderr');
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
@@ -51,6 +63,7 @@ require __DIR__ . '/lib/errors.php';
 require __DIR__ . '/lib/input.php';
 require __DIR__ . '/lib/staging.php';
 require __DIR__ . '/lib/pdepend.php';
+require __DIR__ . '/lib/jscpd.php';
 require __DIR__ . '/lib/output.php';
 
 const TPC_SRC = '/src';
@@ -69,7 +82,7 @@ function tpc_new_entry(string $line): array
 
 function tpc_main(): string
 {
-    $versions = ['php' => PHP_VERSION, 'pdepend' => tpc_pdepend_version(), 'jscpd' => null];
+    $versions = ['php' => PHP_VERSION, 'pdepend' => tpc_pdepend_version(), 'jscpd' => tpc_jscpd_version()];
     $lines = tpc_read_input_lines();
 
     $files = [];
@@ -126,6 +139,8 @@ function tpc_main(): string
         foreach ($pathless as $message) {
             $warnings[] = ['tool' => 'pdepend', 'message' => $message];
         }
+
+        tpc_apply_jscpd($files, $staged, $warnings);
     }
 
     return tpc_encode_output([

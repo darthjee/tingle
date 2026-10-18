@@ -1,4 +1,5 @@
 fixture/
 vendor/
+node_modules/
 DOCKERHUB_SHORT_DESCRIPTION.txt
 DOCKERHUB_DESCRIPTION.md
