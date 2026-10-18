@@ -1,4 +1,4 @@
-"""Container output sample (docs/agents/specs/code_check/php_complexity/image.md §7).
+"""Container output sample (docs/agents/tingle-php-complexity-image.md, "Merged JSON").
 
 `SAMPLE` is the real merged JSON of the grounding image on
 `docker/php_complexity/fixture` (cli.md §6 "Full example"), for the 18 lines
