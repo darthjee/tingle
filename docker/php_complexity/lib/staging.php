@@ -2,7 +2,8 @@
 
 declare(strict_types=1);
 
-// Parse check and staged tree (image.md section 5).
+// Parse check and staged tree (docs/agents/tingle-php-complexity-image.md,
+// "Contract").
 
 const TPC_STAGE_DIR = '/tmp/stage';
 

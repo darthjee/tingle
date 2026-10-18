@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// Merged JSON (image.md section 7).
+// Merged JSON (docs/agents/tingle-php-complexity-image.md, "Merged JSON").
 
 /**
  * Encodes the merged JSON document. Every `pdepend.max_npath` and

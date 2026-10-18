@@ -2,7 +2,8 @@
 
 declare(strict_types=1);
 
-// PDepend invocation, error block and summary XML (image.md sections 6 and 7).
+// PDepend invocation, error block and summary XML
+// (docs/agents/tingle-php-complexity-image.md, "Contract" and "Merged JSON").
 
 const TPC_PDEPEND_BIN = '/opt/tingle_php_complexity/vendor/bin/pdepend';
 const TPC_PDEPEND_DIR = '/tmp/pdepend';
@@ -163,8 +164,9 @@ function tpc_staged_number(string $name, array $staged): int
  * with start="0").
  *
  * The same walk collects one `{name, line, ccn, npath}` entry per counted
- * unit (details.md section 3): `<class or trait>::<method>` or `<function>`
- * (short names), sorted by line, then name. Every file PDepend listed gets a
+ * unit (docs/agents/tingle-php-complexity-image.md, "Merged JSON"):
+ * `<class or trait>::<method>` or `<function>` (short names), sorted by
+ * line, then name. Every file PDepend listed gets a
  * list, possibly empty.
  *
  * `max_npath` and each function's `npath` are kept as decimal digit strings

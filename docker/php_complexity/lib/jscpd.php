@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-// jscpd invocation and per-file duplicated lines (duplication.md sections
-// 1 to 3 and 5).
+// jscpd invocation and per-file duplicated lines
+// (docs/agents/tingle-php-complexity-image.md, "Contract").
 //
 // A jscpd failure is never fatal: every file gets `duplication: null` and
 // one path-less {tool: "jscpd", message} warning is added. Only an
