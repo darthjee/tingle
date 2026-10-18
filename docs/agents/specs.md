@@ -41,4 +41,3 @@ folder.
 
 | Topic | Specs | Parent issue | Sub-issues |
 |---|---|---|---|
-| `code_check/php_complexity` | [specs](specs/code_check/php_complexity/README.md) | #344 | #345–#353 |
