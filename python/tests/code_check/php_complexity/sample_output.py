@@ -1,9 +1,10 @@
 """Container output sample (docs/agents/tingle-php-complexity-image.md, "Merged JSON").
 
 `SAMPLE` is the real merged JSON of the grounding image on
-`docker/php_complexity/fixture` (cli.md §6 "Full example"), for the 18 lines
-tingle selects there (`welcome.blade.php` and `notes.txt` are not sent),
-with the jscpd duplication values of duplication.md §4 (#352).
+`docker/php_complexity/fixture` (docs/guides/code_check/php_complexity.md, "Examples"),
+for the 18 lines tingle selects there (`welcome.blade.php` and `notes.txt` are
+not sent), with the jscpd duplication values described in the image doc's
+"Merged JSON" section cited above.
 """
 
 from __future__ import annotations
