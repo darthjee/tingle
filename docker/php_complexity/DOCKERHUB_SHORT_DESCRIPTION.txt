@@ -1,1 +1,1 @@
-PDepend complexity metrics as JSON for tingle code_check php_complexity.
+PDepend complexity and jscpd duplication as JSON for tingle code_check php_complexity.

@@ -2,9 +2,10 @@
 
 The PHP complexity image behind the `tingle code_check php_complexity`
 command of [tingle](https://github.com/darthjee/tingle). It runs
-[PDepend](https://pdepend.org/) on a list of PHP files and prints the
-results as one JSON object, so tingle can check code complexity without a
-local PHP or Composer setup.
+PHP's own parser, [PDepend](https://pdepend.org/) and
+[jscpd](https://github.com/kucherenko/jscpd) on a list of PHP files and
+prints the results as one JSON object, so tingle can check code complexity
+and duplication without a local PHP, Composer or Node setup.
 
 Supported platforms: `linux/amd64`, `linux/arm64`.
 
@@ -14,10 +15,11 @@ Supported platforms: `linux/amd64`, `linux/arm64`.
 |-----------|---------|
 | PHP | `8.5.11` (`php:8.5.11-cli-trixie`, pinned by digest) |
 | PDepend | `3.0.0` (Composer, pinned by `composer.lock`) |
+| jscpd | `5.4.1` (native binary, pinned by `package-lock.json`) |
 
-Composer is only used in a build stage: the image has no Composer and no git.
-It runs as uid 1000 by default; tingle
-always overrides the user.
+Composer and Node are only used in build stages: the image has no Composer,
+no Node, no `node_modules` and no git. It runs as uid 1000 by default;
+tingle always overrides the user.
 
 ## Contract
 
@@ -39,18 +41,22 @@ always overrides the user.
   and functions as `{"name", "line", "ccn", "npath"}` entries in source
   order (`Class::method` or `function`, short names), the same units that
   add up to `pdepend.ccn`; it is `[]` for a file with none and `null` for
-  a parse error or refused line. `duplication` and `tool_versions.jscpd`
-  are reserved and always `null` in this version.
+  a parse error or refused line. `duplication` is `{"lines": n}`, the
+  number of distinct lines of the file inside exact clones (jscpd) among
+  the sent files (`0` when none), or `null` for a parse error, a refused
+  line or a file over 1 MiB. `tool_versions.jscpd` is `"5.4.1"`.
   `warnings` lists `{"tool", "path", "message"}` entries for refused lines
-  (`entrypoint`) and parse errors (`php` or `pdepend`). With empty stdin it
+  (`entrypoint`) and parse errors (`php` or `pdepend`). If jscpd fails,
+  every `duplication` is `null` and one `{"tool": "jscpd", "message"}`
+  warning (no `path`) is added; the run does not fail. With empty stdin it
   prints empty `files` and `warnings`.
-- **stderr:** PDepend's own output and any error message.
-- **exit status:** `0` when the JSON was printed (even with parse errors or
-  refused lines), non-zero otherwise.
+- **stderr:** PDepend's and jscpd's own output and any error message.
+- **exit status:** `0` when the JSON was printed (even with parse errors,
+  refused lines or a jscpd failure), non-zero otherwise.
 
 The image works under any `--user <uid>:<gid>`, with no network and a
 read-only `/src`. It only writes under `/tmp`: accepted files are copied to
-a staging tree and PDepend runs there, never on `/src`.
+a staging tree and PDepend and jscpd run there, never on `/src`.
 
 ## Usage
 
