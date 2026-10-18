@@ -56,13 +56,16 @@ def test_sample_is_parsed():
     }
     assert parsed.refused == []
     assert parsed.pdepend_messages == []
-    assert parsed.tool_versions == {"php": "8.5.11", "pdepend": "3.0.0", "jscpd": None}
+    assert parsed.tool_versions == {"php": "8.5.11", "pdepend": "3.0.0", "jscpd": "5.4.1"}
     assert parsed.warnings == SAMPLE["warnings"]
     assert len(parsed.results) == 15
     assert parsed.results["Calculator.php"] == FileResult(
-        "Calculator.php", 11, 7, 36, 53.875623305512, 22, True
+        "Calculator.php", 11, 7, 36, 53.875623305512, 22, True, duplication={"lines": 0}
     )
-    assert parsed.results["bootstrap.php"] == FileResult("bootstrap.php", 0)
+    assert parsed.results["dup_a.php"].duplication == {"lines": 13}
+    assert parsed.results["bootstrap.php"] == FileResult(
+        "bootstrap.php", 0, duplication={"lines": 0}
+    )
 
 
 def test_results_keep_sent_line_order():

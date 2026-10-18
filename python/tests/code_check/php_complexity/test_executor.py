@@ -389,26 +389,29 @@ def test_end_to_end_full_example(fixture_dir, capsys, docker, monkeypatch):
         "Thresholds: warn=20 | error=40 | critical=60",
         "Image: darthjee/tingle_php_complexity:0.9.0",
         "",
-        "Status             CCN    Max    NPath     MI  Lines  File",
-        f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 7}  {'─' * 5}  {'─' * 5}  {'─' * 50}",
-        "✅ OK                11      7       36     54     22  fixture/Calculator.php",
-        "✅ OK                 6      2        2     78     11  fixture/Shapes.php",
-        "✅ OK                 4      3        4     66     12  fixture/helpers.php",
-        "✅ OK                 3      3        4     58      9  fixture/dup_a.php",
-        "✅ OK                 3      3        4     58      9  fixture/dup_b.php",
-        "✅ OK                 2      2        4     66      6  fixture/Anon.php",
-        "✅ OK                 2      2        2     80      2  fixture/CVS/legacy.php",
-        "✅ OK                 2      1        1     79     11  fixture/Modern.php",
-        "✅ OK                 2      2        2     78      2  fixture/UPPER.PHP",
-        "✅ OK                 2      2        2     80      2  fixture/bom.php",
-        "✅ OK                 2      2        2     80      2  fixture/crlf.php",
-        "✅ OK                 2      2        2     90      4  fixture/page.php",
-        "✅ OK                 1      1        1     83      2  fixture/latin1.php",
-        "✅ OK                 0      -        -      -      -  fixture/bootstrap.php",
-        "✅ OK                 0      -        -      -      -  fixture/empty.php",
-        "⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php",
-        "⛔ PARSE              -      -        -      -      -  fixture/broken.php",
-        "⛔ PARSE              -      -        -      -      -  fixture/lenient.php",
+        "Status             CCN    Max    NPath     MI  Lines    Dup  File",
+        (
+            f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 7}  {'─' * 5}  "
+            f"{'─' * 5}  {'─' * 5}  {'─' * 50}"
+        ),
+        "✅ OK                11      7       36     54     22      0  fixture/Calculator.php",
+        "✅ OK                 6      2        2     78     11      0  fixture/Shapes.php",
+        "✅ OK                 4      3        4     66     12      0  fixture/helpers.php",
+        "✅ OK                 3      3        4     58      9     13  fixture/dup_a.php",
+        "✅ OK                 3      3        4     58      9     13  fixture/dup_b.php",
+        "✅ OK                 2      2        4     66      6      0  fixture/Anon.php",
+        "✅ OK                 2      2        2     80      2      0  fixture/CVS/legacy.php",
+        "✅ OK                 2      1        1     79     11      0  fixture/Modern.php",
+        "✅ OK                 2      2        2     78      2      0  fixture/UPPER.PHP",
+        "✅ OK                 2      2        2     80      2      0  fixture/bom.php",
+        "✅ OK                 2      2        2     80      2      0  fixture/crlf.php",
+        "✅ OK                 2      2        2     90      4      0  fixture/page.php",
+        "✅ OK                 1      1        1     83      2      0  fixture/latin1.php",
+        "✅ OK                 0      -        -      -      -      0  fixture/bootstrap.php",
+        "✅ OK                 0      -        -      -      -      0  fixture/empty.php",
+        "⛔ PARSE              -      -        -      -      -      -  fixture/attr_anon.php",
+        "⛔ PARSE              -      -        -      -      -      -  fixture/broken.php",
+        "⛔ PARSE              -      -        -      -      -      -  fixture/lenient.php",
         "",
         "─" * 78,
         "Summary: 18 file(s) | 15 OK | 0 WARN | 0 ERROR | 0 CRITICAL | 3 skipped (parse error)",
@@ -481,9 +484,9 @@ def test_end_to_end_low_thresholds_and_min_level(fixture_dir, capsys, docker):
     assert status == 0
     out = capsys.readouterr().out.splitlines()
     assert out[6:9] == [
-        "🟣 CRITICAL          11      7       36     54     22  fixture/Calculator.php",
-        "🔴 ERROR              6      2        2     78     11  fixture/Shapes.php",
-        "⚠️  WARN             4      3        4     66     12  fixture/helpers.php",
+        "🟣 CRITICAL          11      7       36     54     22      0  fixture/Calculator.php",
+        "🔴 ERROR              6      2        2     78     11      0  fixture/Shapes.php",
+        "⚠️  WARN             4      3        4     66     12      0  fixture/helpers.php",
     ]
     assert out[-2] == (
         "Summary: 18 file(s) | 12 OK | 1 WARN | 1 ERROR | 1 CRITICAL | 3 skipped (parse error)"
@@ -503,18 +506,18 @@ def test_end_to_end_details_under_shown_rows(fixture_dir, capsys, docker):
     out = capsys.readouterr().out.splitlines()
     pad = " " * 16
     assert out[6:18] == [
-        "🟣 CRITICAL          11      7       36     54     22  fixture/Calculator.php",
+        "🟣 CRITICAL          11      7       36     54     22      0  fixture/Calculator.php",
         f"{pad} ccn   7  npath      36  Calculator::grade  (fixture/Calculator.php:22)",
         f"{pad} ccn   3  npath       3  Calculator::sign  (fixture/Calculator.php:12)",
-        "🔴 ERROR              6      2        2     78     11  fixture/Shapes.php",
+        "🔴 ERROR              6      2        2     78     11      0  fixture/Shapes.php",
         f"{pad} ccn   2  npath       2  Circle::area  (fixture/Shapes.php:28)",
         f"{pad} ccn   1  npath       1  Square::__construct  (fixture/Shapes.php:12)",
-        "⚠️  WARN             4      3        4     66     12  fixture/helpers.php",
+        "⚠️  WARN             4      3        4     66     12      0  fixture/helpers.php",
         f"{pad} ccn   3  npath       4  clamp  (fixture/helpers.php:3)",
         f"{pad} ccn   1  npath       1  greet  (fixture/helpers.php:14)",
-        "⛔ PARSE              -      -        -      -      -  fixture/attr_anon.php",
-        "⛔ PARSE              -      -        -      -      -  fixture/broken.php",
-        "⛔ PARSE              -      -        -      -      -  fixture/lenient.php",
+        "⛔ PARSE              -      -        -      -      -      -  fixture/attr_anon.php",
+        "⛔ PARSE              -      -        -      -      -      -  fixture/broken.php",
+        "⛔ PARSE              -      -        -      -      -      -  fixture/lenient.php",
     ]
 
 
@@ -561,7 +564,9 @@ def test_end_to_end_details_with_an_older_image_shows_the_note(fixture_dir, caps
 
     assert status == 0
     out = capsys.readouterr().out.splitlines()
-    assert out[6] == "✅ OK                11      7       36     54     22  fixture/Calculator.php"
+    assert out[6] == (
+        "✅ OK                11      7       36     54     22      0  fixture/Calculator.php"
+    )
     assert out[7] == f"{' ' * 16} (per-function data unavailable)"
     assert out[8].startswith("⛔ PARSE")
 
@@ -601,7 +606,7 @@ def test_warning_order(tmp_path, capsys, docker):
             {"tool": "entrypoint", "path": "b.php", "message": "not a regular file under /src"},
             {"tool": "pdepend", "message": "Something odd"},
             {"tool": "pdepend", "path": "a.php", "message": "Unexpected token"},
-            {"tool": "jscpd", "message": "ignored until #352"},
+            {"tool": "jscpd", "path": "d.php", "message": "per-file, not printed"},
         ],
     )
     docker.configure(stdout=json.dumps(data))
@@ -616,6 +621,52 @@ def test_warning_order(tmp_path, capsys, docker):
         "Warning: PDepend reported: Something odd",
     ]
 
+
+
+def _jscpd_failure(tmp_path, docker, warnings):
+    for name in ("a.php", "b.php"):
+        (tmp_path / name).write_text("<?php\n")
+    data = output(
+        [
+            entry("a.php", 30, duplication=None),
+            entry("b.php", 1, duplication=None),
+        ],
+        warnings,
+    )
+    docker.configure(stdout=json.dumps(data))
+
+
+def test_jscpd_failure_prints_a_warning(tmp_path, capsys, docker):
+    _jscpd_failure(tmp_path, docker, [
+        {"tool": "pdepend", "message": "Something odd"},
+        {"tool": "jscpd", "message": "jscpd exited with status 2"},
+    ])
+
+    assert _run([str(tmp_path), "--image", "img:dev"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.err.splitlines() == [
+        "Warning: PDepend reported: Something odd",
+        (
+            "Warning: jscpd failed in img:dev; duplication data is not available: "
+            "jscpd exited with status 2"
+        ),
+    ]
+    folder = tmp_path.name
+    assert f"     30      2        4     66      6      -  {folder}/a.php" in captured.out
+
+
+def test_jscpd_failure_keeps_the_gate_exit_code(tmp_path, capsys, docker):
+    _jscpd_failure(tmp_path, docker, [{"tool": "jscpd", "message": "jscpd killed by SIGKILL"}])
+
+    assert _run([str(tmp_path), "--image", "img", "--fail-on", "warn"]) == 2
+    assert "Warning: jscpd failed in img; " in capsys.readouterr().err
+
+
+def test_no_jscpd_warning_without_a_jscpd_failure(fixture_dir, capsys, docker):
+    assert _run([str(fixture_dir), "--image", "img"]) == 0
+
+    assert "jscpd" not in capsys.readouterr().err
 
 # --- Docker failures ---------------------------------------------------------------
 

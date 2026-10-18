@@ -6,7 +6,10 @@ by sent line), then the `⛔ PARSE` rows sorted by sent line. `--min-level`
 and `--top` only filter the level rows; the summary always counts every
 file. Files without PDepend data (no class, trait or function, or a line the
 image refused) show CCN `0` and `-` for the rest. `Max`, `NPath`, `MI` and
-`Lines` are information only.
+`Lines` are information only. `Dup` (lines of the file in exact clones found
+by jscpd among the selected files; `0`: checked, no clone) is information
+only too: `-` when there is no duplication data and on `PARSE` rows; it never
+changes the level, the summary or the gate.
 With `details` set, each shown level row is followed by dim lines for its
 most complex functions and methods (from the same PDepend run), sorted by
 CCN (highest first, ties by line then name); never under PARSE rows. A row
@@ -118,6 +121,11 @@ class Reporter:
         """Return the lowest maintainability index rounded to an integer, `-` when absent."""
         return "-" if value is None else format(value, ".0f")
 
+    @staticmethod
+    def _dup(result: FileResult) -> str:
+        """Return the duplicated line count as text, `-` when jscpd has no data."""
+        return "-" if result.duplication is None else str(result.duplication["lines"])
+
     def _print_table(
         self,
         rows: list[tuple[str, FileResult]],
@@ -127,9 +135,13 @@ class Reporter:
         """Print the header, the level rows (with their function lines) and the PARSE rows."""
         c = self._palette
         print(
-            f"{'Status':<16} {'CCN':>5}  {'Max':>5}  {'NPath':>7}  {'MI':>5}  {'Lines':>5}  File"
+            f"{'Status':<16} {'CCN':>5}  {'Max':>5}  {'NPath':>7}  {'MI':>5}  "
+            f"{'Lines':>5}  {'Dup':>5}  File"
         )
-        print(f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 7}  {'─' * 5}  {'─' * 5}  {'─' * 50}")
+        print(
+            f"{'─' * 16} {'─' * 5}  {'─' * 5}  {'─' * 7}  {'─' * 5}  "
+            f"{'─' * 5}  {'─' * 5}  {'─' * 50}"
+        )
 
         for line, result in rows:
             label, level = self._analyzer.classify(result.score)
@@ -137,14 +149,16 @@ class Reporter:
                 f"{c.level_color(level)}{label:<16}{c.RESET} "
                 f"{result.score:>5}  {self._value(result.max_ccn):>5}  "
                 f"{self._value(result.max_npath):>7}  {self._mi(result.min_mi):>5}  "
-                f"{self._value(result.lloc):>5}  {self.display_path(line)}"
+                f"{self._value(result.lloc):>5}  {self._dup(result):>5}  "
+                f"{self.display_path(line)}"
             )
             if details is not None:
                 self._print_functions(line, result, details)
         for line in parse_rows:
             print(
                 f"{c.GRAY}{PARSE_LABEL:<16}{c.RESET} "
-                f"{'-':>5}  {'-':>5}  {'-':>7}  {'-':>5}  {'-':>5}  {self.display_path(line)}"
+                f"{'-':>5}  {'-':>5}  {'-':>7}  {'-':>5}  {'-':>5}  {'-':>5}  "
+                f"{self.display_path(line)}"
             )
 
     def _print_summary(self, rows: list[tuple[str, FileResult]], skipped: int) -> None:

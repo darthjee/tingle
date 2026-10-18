@@ -5,7 +5,11 @@ Selects the PHP files under `<path>` on the host, runs PDepend inside the
 `darthjee/tingle_php_complexity` Docker image and reports one row per file,
 classified by thresholds on the file's total cyclomatic complexity (CCN, the
 sum over its functions and methods). `Max`, `NPath`, `MI` and `Lines` are
-information only. The host needs Docker, not PHP.
+information only. `Dup` is the number of lines of the file in exact clones
+that jscpd found among the selected files (`0`: checked, no clone; `-`: no
+data, for example a parse error or a jscpd failure). It never sets a level
+and never changes the exit code. When jscpd fails, a warning is printed and
+the run goes on. The host needs Docker, not PHP.
 
 `--details [N]` lists, under each shown file row, its N most complex
 functions and methods (from the same PDepend run), sorted by CCN (highest
@@ -173,14 +177,23 @@ class CheckPhpComplexity(DockerCheck):
             ) from exc
 
     @classmethod
-    def _print_warnings(cls, parsed: ParsedOutput, reporter: Reporter) -> None:
-        """Warn about the refused lines, the unparsable files, then PDepend's path-less notes."""
+    def _print_warnings(cls, parsed: ParsedOutput, reporter: Reporter, image: str) -> None:
+        """Warn about the refused lines, the unparsable files, PDepend's notes, then jscpd.
+
+        A path-less `jscpd` warning means jscpd failed: no duplication data.
+        """
         for line, message in parsed.refused:
             cls._warn(f"the image skipped {line}: {message}")
         for line, message in sorted(parsed.parse_errors.items()):
             cls._warn(f"cannot parse {reporter.display_path(line)}: {message}")
         for message in parsed.pdepend_messages:
             cls._warn(f"PDepend reported: {message}")
+        for warning in parsed.warnings:
+            if warning["tool"] == "jscpd" and "path" not in warning:
+                cls._warn(
+                    f"jscpd failed in {image}; duplication data is not available: "
+                    f"{warning['message']}"
+                )
 
     def _execute(self, options: dict, config_file: Path | None = None) -> int:
         """Run the whole analysis for validated `options`; return the exit status.
@@ -202,7 +215,7 @@ class CheckPhpComplexity(DockerCheck):
 
         analyzer = FileAnalyzer(options["warn"], options["error"], options["critical"])
         reporter = Reporter(analyzer, target, root, out)
-        self._print_warnings(parsed, reporter)
+        self._print_warnings(parsed, reporter, image)
         reporter.report(parsed, options["min_level"], options["top"], options["details"])
         # The gate uses every level row (never PARSE files), not only the displayed ones.
         failed = self._gate_failed(analyzer, parsed.results.values(), options["fail_on"])

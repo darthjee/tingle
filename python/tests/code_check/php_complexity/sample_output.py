@@ -2,7 +2,8 @@
 
 `SAMPLE` is the real merged JSON of the grounding image on
 `docker/php_complexity/fixture` (cli.md §6 "Full example"), for the 18 lines
-tingle selects there (`welcome.blade.php` and `notes.txt` are not sent).
+tingle selects there (`welcome.blade.php` and `notes.txt` are not sent),
+with the jscpd duplication values of duplication.md §4 (#352).
 """
 
 from __future__ import annotations
@@ -61,6 +62,11 @@ def _pdepend(ccn, max_ccn, max_npath, min_mi, lloc) -> dict:
     }
 
 
+# jscpd duplicated lines of the grounding image (duplication.md §4); every
+# other analysed file has `{"lines": 0}`.
+_DUPLICATION: dict[str, int] = {"dup_a.php": 13, "dup_b.php": 13}
+
+
 def _fixture_entry(path: str) -> dict:
     if path in PARSE_ERRORS:
         return {"path": path, "parse_error": True, "pdepend": None, "functions": None,
@@ -71,12 +77,12 @@ def _fixture_entry(path: str) -> dict:
         "parse_error": False,
         "pdepend": None if figures is None else _pdepend(*figures),
         "functions": None,
-        "duplication": None,
+        "duplication": {"lines": _DUPLICATION.get(path, 0)},
     }
 
 
 SAMPLE: dict = {
-    "tool_versions": {"php": "8.5.11", "pdepend": "3.0.0", "jscpd": None},
+    "tool_versions": {"php": "8.5.11", "pdepend": "3.0.0", "jscpd": "5.4.1"},
     "files": [_fixture_entry(line) for line in LINES],
     "warnings": [
         {
@@ -89,20 +95,18 @@ SAMPLE: dict = {
     ],
 }
 
-# The same output with the functions (#351) and jscpd (#352) parts filled in.
+# The same output with the functions (#351) part filled in.
 FILLED: dict = copy.deepcopy(SAMPLE)
 FILLED["tool_versions"] = {"php": "8.5.11", "pdepend": "3.0.0", "jscpd": "5.4.1"}
 for _entry in FILLED["files"]:
     if not _entry["parse_error"]:
         _entry["functions"] = []
-        _entry["duplication"] = {"lines": 0}
 FILLED["files"][2]["functions"] = [
     {"name": "Calculator::add", "line": 7, "ccn": 1, "npath": 1},
     {"name": "Calculator::sign", "line": 12, "ccn": 3, "npath": 3},
     {"name": "Calculator::grade", "line": 22, "ccn": 7, "npath": 36},
 ]
 FILLED["files"][11]["functions"] = [{"name": "normalize_a", "line": 3, "ccn": 3, "npath": 4}]
-FILLED["files"][11]["duplication"] = {"lines": 13}
 
 # Per-function data of the grounding image (details.md §3) for the files the
 # spec lists; every other analysed file keeps `functions: null`.
