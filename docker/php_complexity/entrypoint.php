@@ -50,8 +50,8 @@ declare(strict_types=1);
 // /opt/tingle_php_complexity/vendor (PDepend 3.0.0, Composer's runtime API),
 // /usr/local/bin/jscpd (jscpd 5.4.1 native binary).
 //
-// Contract: docs/agents/specs/code_check/php_complexity/image.md and
-// docs/agents/specs/code_check/php_complexity/duplication.md.
+// Contract: docs/agents/tingle-php-complexity-image.md ("Contract" and
+// "Merged JSON").
 
 ini_set('display_errors', 'stderr');
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {

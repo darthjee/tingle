@@ -23,8 +23,8 @@
 #     jscpd-linux-x64-gnu and jscpd-linux-arm64-gnu, and `npm ci` installs
 #     the one matching the build platform. Only that native binary is
 #     copied into the final stage, as /usr/local/bin/jscpd.
-#   See docs/agents/specs/code_check/php_complexity/image.md ("Bumping
-#   versions") for the bump procedure.
+#   See docs/agents/tingle-php-complexity-image.md ("Bumping versions")
+#   for the bump procedure.
 #
 # Build context is this folder, not the repo root:
 #   docker buildx build -t <tag> docker/php_complexity

@@ -291,8 +291,9 @@ reference for the full rules):
   The header comes from `DockerCheck`.
 
 `python/code_check/php_complexity/` follows the `js_complexity` layout,
-built on `docker_check` (unchanged). The normative contract is
-[`specs/code_check/php_complexity/cli.md`](specs/code_check/php_complexity/cli.md);
+built on `docker_check` (unchanged). Its user-visible behaviour is
+documented in the user guide
+[`../guides/code_check/php_complexity.md`](../guides/code_check/php_complexity.md);
 the image it runs is described in
 [tingle-php-complexity-image.md](tingle-php-complexity-image.md):
 
@@ -309,7 +310,7 @@ the image it runs is described in
   `_execute`. `run` comes from `DockerCheck`, which catches
   `PhpComplexityError` in one place, printing it and exiting 1.
 - `constants.py` — thresholds (`20`/`40`/`60`, applied to the file's total
-  CCN), `DEFAULT_DETAILS` (`5`, used from #351), the default excludes
+  CCN), `DEFAULT_DETAILS` (`5`, the `--details` default), the default excludes
   (`file_size`'s list plus `var`, `storage` and `.phpunit.cache`),
   `EXTENSIONS` (`.php`, matched case-insensitively), `BLADE_SUFFIX`
   (`.blade.php`), `BOOTSTRAP_CACHE` (`("bootstrap", "cache")`), the image
@@ -319,16 +320,15 @@ the image it runs is described in
   error.
 - `config.py` — the `php_complexity` config section schema and `validate`
   (keys `warn`, `error`, `critical`, `top`, `exclude`, `ignore`, `include`,
-  `no_default_excludes`, `gitignore`, `fail_on`, `min_level` and `image`:
-  `js_complexity`'s keys minus `details`, which #351 adds; there is no `ext`
-  key, so `ext` and `details` are reported as unknown). `DockerCheck` loads,
-  validates and merges the section; see
-  [`specs/code_check/php_complexity/config.md`](specs/code_check/php_complexity/config.md).
+  `no_default_excludes`, `gitignore`, `fail_on`, `min_level`, `details`
+  and `image`: `js_complexity`'s keys; there is no `ext` key, so `ext` is
+  reported as unknown). `DockerCheck` loads, validates and merges the
+  section.
 - `flags.py` — the import-light `FLAGS` list (shared by the parser and
   completion): `path`, `--warn`, `--error`, `--critical`, `--top`,
   `--min-level`, `--fail-on`, `--image`, the selection flags (`--exclude`,
   `--no-default-excludes`, `--no-gitignore`, `--ignore`, `--include`) and
-  `--no-config`. #351 adds `--details`.
+  `--details` and `--no-config`.
 - `image.py` — thin wrapper: `resolve_image(cli_image, version_file=None)`
   binds the php_complexity repository, `Constants.VERSION_FILE` and
   `PhpComplexityError`. The default image is
@@ -344,24 +344,24 @@ the image it runs is described in
   is a directory, drops files under a `bootstrap/cache` directory pair
   (lower-cased components, relative to the target). `--include` never
   brings them back. It re-exports `Selection`, `unsendable_reason` and
-  `build_selection`. See
-  [`specs/code_check/php_complexity/selection.md`](specs/code_check/php_complexity/selection.md).
+  `build_selection`.
 - `output_parser.py` — `parse(stdout, sent_lines)` checks the container's
   merged JSON (`tool_versions`, `files` with `parse_error`, `pdepend`,
-  `functions` and `duplication`, and `warnings`) in full, even the parts
-  #348 does not display, and maps entry `i` to sent line `i`
+  `functions` and `duplication`, and `warnings`) in full and maps entry `i` to sent line `i`
   (`OutputFormatError` on a contract break). It returns `ParsedOutput` with
   one `FileResult` per file. The JSON shape is pinned in
   [tingle-php-complexity-image.md](tingle-php-complexity-image.md#merged-json).
-- `reporter.py` — the table (`Status CCN Max NPath MI Lines File`, sorted by
-  CCN, highest first, ties by sent line, `⛔ PARSE` rows last), the summary
+- `reporter.py` — the table (`Status CCN Max NPath MI Lines Dup File`,
+  sorted by CCN, highest first, ties by sent line, `⛔ PARSE` rows last), the
+  `--details` function lines (or the `(per-function data unavailable)`
+  note), the summary
   (with `| <k> skipped (parse error)` when there are `PARSE` files) and the
   `CCN: avg X | max Y` line (`CCN: n/a` when there is no level row), plus
   its display filtering. The header comes from `DockerCheck`.
 
 The level metric is the file's **total CCN** (`files[].pdepend.ccn`); a file
-with `pdepend: null` and no parse error scores 0. `Max`, `NPath`, `MI` and
-`Lines` are information only. `PARSE` files are counted as skipped, are left
+with `pdepend: null` and no parse error scores 0. `Max`, `NPath`, `MI`,
+`Lines`, `Dup` and the `--details` lines are information only. `PARSE` files are counted as skipped, are left
 out of the levels, the average and the maximum, and never trigger
 `--fail-on`.
 

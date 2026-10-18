@@ -322,7 +322,7 @@ def test_broken_config_file_is_skipped_with_no_config(tmp_path, capsys, no_docke
 
 # --- end to end (Docker mocked) ----------------------------------------------------
 
-# cli.md §6 full example: the fixture files tingle sends and the image's output.
+# Full smoke-test example: the fixture files tingle sends and the image's output.
 FIXTURE_OUTPUT = SAMPLE
 EXTRA_FIXTURE_FILES = ("welcome.blade.php", "notes.txt")
 

@@ -81,7 +81,9 @@ native binary is in the image, there is no Node at runtime.
     `ARG BASE_IMAGE`
     (`php:8.5.11-cli-trixie@sha256:01a109229f4465bc9ef042d9198f09a4d9da7775a825dbd8572dcdbd8756c4d3`,
     Debian 13 trixie, glibc), which resolves on `linux/amd64` and
-    `linux/arm64`. It is not Alpine.
+    `linux/arm64`. It is not Alpine: the Debian variant is the default
+    `php:8.5-cli` one, and jscpd's native binaries are glibc (`-gnu`)
+    builds.
   - The Composer build image is pinned the same way in `ARG COMPOSER_IMAGE`
     (`composer:2.10.3@sha256:af98f42dfff7c68ba8d53c2164fd9fde1087b7d449514baa38c418b1f6bc4bac`,
     PHP 8.5.11).
@@ -140,8 +142,13 @@ docker run --rm -i --pull never --network none --security-opt no-new-privileges 
   warning `{"tool": "php", "path": <line>, "message": "<message> on line <line>"}`,
   and the file is **not staged**. PDepend 3.0.0 accepts some invalid code
   without any message (`return $x /;`), so this check is what makes such a
-  file a parse error. The parser is the image's PHP 8.5.11. There is no
-  UTF-8 check on the file content: an ISO-8859-1 file is analysed normally.
+  file a parse error. The parser is the image's PHP 8.5.11, so code that
+  is invalid on PHP 8.5 (for example `match` used as a function name) is a
+  parse error even if an older PHP accepted it. There is no UTF-8 check on
+  the file content: an ISO-8859-1 file is analysed normally. PDepend
+  converts names to UTF-8 in its XML, so the merged JSON is always valid
+  UTF-8. CRLF line endings and a UTF-8 BOM do not change any metric or
+  line number.
 - **Staged tree**: the bytes of each accepted, parsable line `<n>` are
   copied (never symlinked) to `/tmp/stage/<n>.php`. PDepend runs on
   `/tmp/stage`, never on `/src`. The opaque names bypass PDepend's own
@@ -164,7 +171,22 @@ docker run --rm -i --pull never --network none --security-opt no-new-privileges 
   `--coderank-mode` is given: staging makes the filters irrelevant. The
   working directory `/tmp` means no file of the analysed tree is read as
   configuration. `XDG_CACHE_HOME` makes PDepend's cache location
-  deterministic under a foreign uid (`HOME` is `/`).
+  deterministic under a foreign uid (`HOME` is `/`). `--quiet` only drops
+  the progress output: errors, stack traces and PHP warnings are still
+  printed, on stdout. `memory_limit` is not set, because PDepend's launcher
+  sets `memory_limit=-1` itself. PDepend's stdout and stderr are captured
+  and written to the entrypoint's stderr (stdout first).
+- **PDepend failure**: these cases are fatal, and nothing is printed on
+  stdout:
+
+  | Case | Exit | Reason on stderr (after `tingle_php_complexity: `) |
+  |------|------|----------------------------------------------------|
+  | PDepend exits non-zero | PDepend's status | `pdepend exited with status <n>` |
+  | PDepend is killed by a signal | `1` | `pdepend killed by signal <n>` |
+  | PDepend exits 0 but `/tmp/pdepend/summary.xml` is missing (PDepend exits 0 when it cannot write it) | `1` | `pdepend wrote no summary XML` |
+  | The report is not well-formed XML, or its root is not `metrics` | `1` | `pdepend summary XML is not well-formed` |
+  | A file `name` in the report is not `/tmp/stage/<n>.php` for a staged `<n>` | `1` | `pdepend reported an unknown path: <name>` |
+  | A counted unit has no `name`, or its `start`, `ccn` or `npath` is not an integer ≥ 1, or a unit is reported for a file without a `metrics/files/file` entry | `1` | `pdepend summary XML has a malformed entry` |
 - **Files PDepend rejects**: PDepend may reject a file PHP accepted. It
   still exits 0 and prints an error block on stdout, starting with
   `The following error occurred:` or `The following errors occurred:` and
@@ -179,9 +201,13 @@ docker run --rm -i --pull never --network none --security-opt no-new-privileges 
 - **Summary XML**: for each staged line that is not a parse error, the
   counted units are every `method` of a `class` or `trait` whose `file` is
   `/tmp/stage/<n>.php` and every `function` with that `file`. Bare `method`
-  elements without a `file` (enum methods, some anonymous-class methods) are
-  never counted. When the file has a `metrics/files/file` entry, `pdepend`
-  is:
+  elements without a `file` (enum methods, some anonymous-class methods),
+  and `class`, `trait` or `function` elements without a `file` child, are
+  never counted. Interfaces are never listed by PDepend. Abstract methods
+  are counted as PDepend reports them (`ccn` 1). `ccn` is the McCabe count;
+  `ccn2` (which also counts `&&`/`||`), `loc`, `eloc`, `ncloc`, the
+  unit-level `lloc` and the Halstead attributes are not used. When the file
+  has a `metrics/files/file` entry, `pdepend` is:
 
   | Key | Value |
   |-----|-------|
@@ -189,7 +215,7 @@ docker run --rm -i --pull never --network none --security-opt no-new-privileges 
   | `max_ccn` | Highest `ccn` of a counted unit; `null` with no unit. |
   | `max_npath` | Highest `npath` of a counted unit; `null` with no unit. Written as a JSON integer of any size (it can exceed 2^53). |
   | `min_mi` | Lowest finite `mi` of a counted unit (unrounded); `null` with no unit or no finite value. |
-  | `lloc` | The file entry's `lloc`. |
+  | `lloc` | The file entry's `lloc`, as reported (tingle never recounts lines). |
 
   Without a file entry (top-level code only, an empty file, only enums or
   interfaces), `pdepend` is `null`.
@@ -397,6 +423,8 @@ Rules:
   (`/tmp/pdepend-cache/`) and jscpd's report (`/tmp/jscpd/`). The image also works with a read-only root file
   system (`--read-only --tmpfs /tmp`). The staged copies need as much space
   in `/tmp` as the selected files.
+- **Memory**: PDepend's memory grows with the selection: about 2 GB peak
+  (and 40 s) for the 3,028 files of `laravel/framework`.
 - **No network**: the canonical line uses `--network none`; the image needs
   no network at runtime. `--security-opt no-new-privileges` is always set.
 - **No git, no Composer, no Node**: the final stage has no git, no Composer,
@@ -485,8 +513,11 @@ one per line, in this order:
 
 followed by the six `PHP_COMPLEXITY_HOSTILE_LINES`: an empty line,
 `/etc/passwd`, `../outside.php`, a second `Calculator.php`, `missing.php`
-(does not exist) and `notes.txt` (a fixture file that is not PHP). The
-output is checked with `python3`. The fixture:
+(does not exist) and `notes.txt` (a fixture file, `Not PHP.\n`). The
+output is checked with `python3`. The file contents live in
+`docker/php_complexity/fixture/` and are the reference: a change to a
+fixture file must update this table and the smoke-test checks in the same
+change. The fixture:
 
 | File | What it proves | `parse_error` | `pdepend` (`ccn`, `max_ccn`, `max_npath`, `round(min_mi, 1)`, `lloc`) | `functions` (name and line) |
 |------|----------------|---------------|------------------------------------------------------------------------|-----------------------------|

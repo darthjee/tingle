@@ -34,8 +34,7 @@ The `tingle_php_complexity` build context is `docker/php_complexity/`. Build
 it locally with `make php-complexity-image`, which produces
 `tingle_php_complexity:dev`. Version bumps (PHP base image, Composer build
 image, PDepend) follow the "Bumping versions" section of
-[`docs/agents/specs/code_check/php_complexity/image.md`](../../docs/agents/specs/code_check/php_complexity/image.md#13-bumping-versions)
-until #347 adds `docs/agents/tingle-php-complexity-image.md`.
+[`docs/agents/tingle-php-complexity-image.md`](../../docs/agents/tingle-php-complexity-image.md#bumping-versions).
 
 Do NOT touch `python/`, `node/`, `bin/`, or `docs/agents/`.
 

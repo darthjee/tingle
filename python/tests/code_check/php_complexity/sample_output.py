@@ -1,9 +1,10 @@
-"""Container output sample (docs/agents/specs/code_check/php_complexity/image.md §7).
+"""Container output sample (docs/agents/tingle-php-complexity-image.md, "Merged JSON").
 
 `SAMPLE` is the real merged JSON of the grounding image on
-`docker/php_complexity/fixture` (cli.md §6 "Full example"), for the 18 lines
-tingle selects there (`welcome.blade.php` and `notes.txt` are not sent),
-with the jscpd duplication values of duplication.md §4 (#352).
+`docker/php_complexity/fixture` (docs/guides/code_check/php_complexity.md, "Examples"),
+for the 18 lines tingle selects there (`welcome.blade.php` and `notes.txt` are
+not sent), with the jscpd duplication values described in the image doc's
+"Merged JSON" section cited above.
 """
 
 from __future__ import annotations
@@ -62,8 +63,8 @@ def _pdepend(ccn, max_ccn, max_npath, min_mi, lloc) -> dict:
     }
 
 
-# jscpd duplicated lines of the grounding image (duplication.md §4); every
-# other analysed file has `{"lines": 0}`.
+# jscpd duplicated lines of the grounding image (docs/guides/code_check/php_complexity.md,
+# "Duplicated lines"); every other analysed file has `{"lines": 0}`.
 _DUPLICATION: dict[str, int] = {"dup_a.php": 13, "dup_b.php": 13}
 
 
@@ -108,8 +109,9 @@ FILLED["files"][2]["functions"] = [
 ]
 FILLED["files"][11]["functions"] = [{"name": "normalize_a", "line": 3, "ccn": 3, "npath": 4}]
 
-# Per-function data of the grounding image (details.md §3) for the files the
-# spec lists; every other analysed file keeps `functions: null`.
+# Per-function data of the grounding image (docs/guides/code_check/php_complexity.md,
+# "--details") for the files with functions; every other analysed file keeps
+# `functions: null`.
 FUNCTIONS: dict[str, list[dict]] = {
     "Anon.php": [{"name": "Factory::make", "line": 9, "ccn": 2, "npath": 4}],
     "Calculator.php": [

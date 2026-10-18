@@ -2,7 +2,8 @@
 
 declare(strict_types=1);
 
-// Reading and refusing input lines (image.md section 4).
+// Reading and refusing input lines
+// (docs/agents/tingle-php-complexity-image.md, "Contract").
 
 /**
  * Reads all of stdin and splits it into input lines: split on "\n", a final

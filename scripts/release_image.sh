@@ -875,8 +875,8 @@ PHP_COMPLEXITY_FIXTURE_FILES=(Anon.php CVS/legacy.php Calculator.php Modern.php 
 # Each must be refused.
 PHP_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.php Calculator.php missing.php notes.txt)
 
-# Runs the fixture checks from docs/agents/specs/code_check/php_complexity/image.md
-# (section 9) against a local tingle_php_complexity image, with the canonical
+# Runs the fixture checks from docs/agents/tingle-php-complexity-image.md
+# ("Smoke test") against a local tingle_php_complexity image, with the canonical
 # run line (--network none, read-only /src, foreign uid 501:20): the fixture
 # list plus the hostile lines on stdin (exit 0, one JSON object checked with
 # python3: tool versions php 8.5.11, pdepend 3.0.0 and jscpd 5.4.1, one
@@ -885,7 +885,7 @@ PHP_COMPLEXITY_HOSTILE_LINES=("" /etc/passwd ../outside.php Calculator.php missi
 # [] or the expected (name, line, ccn) list, every line/ccn/npath an int >= 1
 # and sum(ccn) == pdepend.ccn), duplication {"lines": 13} for dup_a.php and
 # dup_b.php, {"lines": 0} for every other analysed row and null for the parse
-# errors and refused lines (see duplication.md section 6), no jscpd warning
+# errors and refused lines (see "Merged JSON"), no jscpd warning
 # and exactly the expected warnings, in order), no git and no node in the
 # image, and empty files/warnings on empty stdin.
 # Any failure prints "<reason> on <platform>" on stderr and exits 1.
@@ -936,7 +936,7 @@ paths = [f.get("path") for f in files]
 if paths != lines:
     fail(f"files paths are {paths}, expected the input lines {lines}")
 
-# Per-file expectations (image.md section 9): parse_error, then pdepend as
+# Per-file expectations ("Smoke test"): parse_error, then pdepend as
 # (ccn, max_ccn, max_npath, round(min_mi, 1), lloc) or None.
 expected_rows = [
     ("Anon.php", False, (2, 2, 4, 66.3, 6)),
@@ -972,7 +972,7 @@ def is_int(value):
 pdepend_keys = {"ccn", "max_ccn", "max_npath", "min_mi", "lloc"}
 function_keys = {"name", "line", "ccn", "npath"}
 
-# Per-file functions (image.md section 9, details.md section 3), aligned with
+# Per-file functions ("Smoke test", "Merged JSON"), aligned with
 # expected_rows: None for null, else the (name, line, ccn) list in order.
 expected_function_rows = [
     [("Factory::make", 9, 2)],
@@ -1047,7 +1047,7 @@ for index, (entry, (path, parse_error, expected)) in enumerate(zip(files, expect
     if "duplication" not in entry:
         fail(f"{label} has no duplication key")
     duplication = entry["duplication"]
-    # duplication.md section 6: null for parse errors and refused lines
+    # "Merged JSON": null for parse errors and refused lines
     # (functions null), 13 for the clone pair, 0 for every other analysed
     # file (bootstrap.php and empty.php included).
     if expected_functions is None:
